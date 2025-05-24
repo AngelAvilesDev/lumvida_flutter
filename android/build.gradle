@@ -1,0 +1,31 @@
+allprojects {
+    repositories {
+        google()
+        mavenCentral()
+    }
+
+    // Añadir esta configuración para todos los subproyectos/módulos
+    subprojects {
+        afterEvaluate {project ->
+            if (project.hasProperty('android')) {
+                android {
+                    buildFeatures {
+                        buildConfig true
+                    }
+                }
+            }
+        }
+    }
+}
+
+rootProject.buildDir = "../build"
+subprojects {
+    project.buildDir = "${rootProject.buildDir}/${project.name}"
+}
+subprojects {
+    project.evaluationDependsOn(":app")
+}
+
+tasks.register("clean", Delete) {
+    delete rootProject.buildDir
+}

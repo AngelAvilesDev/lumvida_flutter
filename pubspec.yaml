@@ -1,0 +1,55 @@
+name: lumvida_app
+description: Una aplicación para reportar problemas urbanos.
+
+# La versión de tu aplicación
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # Firebase - versiones comprobadas
+  firebase_core: 2.15.1
+  firebase_auth: 4.9.0
+  cloud_firestore: 4.9.1
+
+  # Gestión de estado
+  provider: 6.0.5
+
+  # Autenticación con Google
+  google_sign_in: 6.1.4
+
+  # UI
+  cupertino_icons: ^1.0.5
+  flutter_svg: ^2.0.7
+  cached_network_image: ^3.2.3
+  intl: ^0.18.1
+
+  #mapa
+  permission_handler: ^11.4.0
+  firebase_storage: ^11.2.5
+  uuid: ^4.2.1
+  image_picker: ^1.0.2
+  path_provider: ^2.1.0
+  flutter_osm_plugin: ^1.3.7
+
+  #IA
+  http: ^0.13.5
+  flutter_dotenv: ^5.1.0  # Movido a dependencies
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^2.0.2
+
+#Fondos y images
+flutter:
+  uses-material-design: true
+
+  assets:
+    - assets/images/Fondo blanco.png
+    - assets/images/Logo blanco.png
+    - .env

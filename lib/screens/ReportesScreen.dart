@@ -13,8 +13,13 @@ import 'VerificacionIAReporteScreen.dart';
 
 class ReportesScreen extends StatefulWidget {
   final String categoria;
+  final String? categoriaDetectadaPorIA; // Nueva propiedad para mostrar sugerencia de IA
 
-  const ReportesScreen({Key? key, required this.categoria}) : super(key: key);
+  const ReportesScreen({
+    Key? key,
+    required this.categoria,
+    this.categoriaDetectadaPorIA,
+  }) : super(key: key);
 
   @override
   State<ReportesScreen> createState() => _ReportesScreenState();
@@ -32,10 +37,49 @@ class _ReportesScreenState extends State<ReportesScreen> {
   final List<File> _selectedPhotos = [];
   final ImagePicker _imagePicker = ImagePicker();
 
+  // Variables para manejar sugerencias de IA
+  bool _showAISuggestion = false;
+  String _selectedCategory = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedCategory = widget.categoria;
+
+    // Si hay una categoría detectada por IA diferente, mostrar sugerencia
+    if (widget.categoriaDetectadaPorIA != null &&
+        widget.categoriaDetectadaPorIA != widget.categoria) {
+      _showAISuggestion = true;
+    }
+  }
+
   @override
   void dispose() {
     _commentController.dispose();
     super.dispose();
+  }
+
+  // Función para cambiar la categoría según sugerencia de IA
+  void _acceptAISuggestion() {
+    setState(() {
+      _selectedCategory = widget.categoriaDetectadaPorIA!;
+      _showAISuggestion = false;
+      _selectedOption = null; // Reset la opción seleccionada
+    });
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Categoría cambiada a: $_selectedCategory'),
+        backgroundColor: Colors.green,
+        duration: const Duration(seconds: 2),
+      ),
+    );
+  }
+
+  void _dismissAISuggestion() {
+    setState(() {
+      _showAISuggestion = false;
+    });
   }
 
   // Función para seleccionar fotos
@@ -103,8 +147,19 @@ class _ReportesScreenState extends State<ReportesScreen> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
+              Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Text(
+                  'Seleccionar imagen',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.grey.shade700,
+                  ),
+                ),
+              ),
               ListTile(
-                leading: const Icon(Icons.photo_library),
+                leading: const Icon(Icons.photo_library, color: kPrimaryColor),
                 title: const Text('Seleccionar de galería'),
                 onTap: () {
                   Navigator.pop(context);
@@ -112,13 +167,14 @@ class _ReportesScreenState extends State<ReportesScreen> {
                 },
               ),
               ListTile(
-                leading: const Icon(Icons.camera_alt),
+                leading: const Icon(Icons.camera_alt, color: kPrimaryColor),
                 title: const Text('Tomar foto'),
                 onTap: () {
                   Navigator.pop(context);
                   _takePhoto(index);
                 },
               ),
+              const SizedBox(height: 16),
             ],
           ),
         );
@@ -148,6 +204,12 @@ class _ReportesScreenState extends State<ReportesScreen> {
       return;
     }
 
+    // Validar que hay al menos una imagen para verificación IA
+    if (_selectedPhotos.isEmpty) {
+      _showNoImagesDialog();
+      return;
+    }
+
     // Si no está autenticado, mostrar diálogo
     if (!authViewModel.isAuthenticated) {
       _mostrarDialogoInicioSesionRequerido(context);
@@ -169,13 +231,13 @@ class _ReportesScreenState extends State<ReportesScreen> {
       descripcion = 'Sin descripción';
     }
 
-    // Navegar a la pantalla de verificación con IA
+    // Navegar a la pantalla de verificación con IA usando la categoría seleccionada actual
     if (context.mounted) {
       Navigator.push(
         context,
         MaterialPageRoute(
           builder: (context) => VerificacionIAReporteScreen(
-            categoria: widget.categoria,
+            categoria: _selectedCategory, // Usar la categoría actual (puede haber cambiado por sugerencia IA)
             opcionSeleccionada: _selectedOption!,
             comentario: descripcion,
             ubicacion: _selectedLocation!,
@@ -189,6 +251,28 @@ class _ReportesScreenState extends State<ReportesScreen> {
         ),
       );
     }
+  }
+
+  // Mostrar diálogo cuando no hay imágenes
+  void _showNoImagesDialog() {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Imágenes requeridas', style: TextStyle(color: kPrimaryColor)),
+          content: const Text(
+            'Para verificar tu reporte con IA, necesitas adjuntar al menos una imagen del problema. '
+                'Esto nos ayuda a confirmar que el reporte coincide con la categoría seleccionada.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Entendido', style: TextStyle(color: kPrimaryColor)),
+            ),
+          ],
+        );
+      },
+    );
   }
 
   // Función para enviar el reporte (después de verificación IA)
@@ -206,10 +290,10 @@ class _ReportesScreenState extends State<ReportesScreen> {
     });
 
     try {
-      // Enviar reporte
+      // Enviar reporte usando la categoría final seleccionada
       final reporteId = await _reporteService.crearReporte(
         userId: authViewModel.user?.uid ?? 'anonymous',
-        categoria: widget.categoria,
+        categoria: _selectedCategory, // Usar la categoría actual
         descripcion: descripcion,
         direccion: direccion,
         ubicacion: _selectedLocation!,
@@ -262,11 +346,11 @@ class _ReportesScreenState extends State<ReportesScreen> {
   @override
   Widget build(BuildContext context) {
     final authViewModel = Provider.of<AuthViewModel>(context);
-    final category = ReportCategories.getCategoryByName(widget.categoria);
+    final category = ReportCategories.getCategoryByName(_selectedCategory);
 
     return Scaffold(
       appBar: AppBar(
-        title: Text('Reportar ${category.name}', style: const TextStyle(color: kPrimaryColor)),
+        title: Text('Reportar $_selectedCategory', style: const TextStyle(color: kPrimaryColor)),
         backgroundColor: Colors.transparent,
         elevation: 0,
         iconTheme: const IconThemeData(color: kPrimaryColor),
@@ -281,6 +365,68 @@ class _ReportesScreenState extends State<ReportesScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    // Sugerencia de IA (si aplicable)
+                    if (_showAISuggestion)
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(16),
+                        margin: const EdgeInsets.only(bottom: 20),
+                        decoration: BoxDecoration(
+                          color: Colors.blue.shade50,
+                          border: Border.all(color: Colors.blue.shade300),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Icon(Icons.smart_toy, color: Colors.blue.shade600, size: 20),
+                                const SizedBox(width: 8),
+                                const Text(
+                                  'Sugerencia de IA',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.blue,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              'Basándome en el análisis de tu imagen anterior, parece que el problema es de "${widget.categoriaDetectadaPorIA}" en lugar de "${widget.categoria}". ¿Te gustaría cambiar la categoría?',
+                              style: const TextStyle(fontSize: 14),
+                            ),
+                            const SizedBox(height: 12),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: OutlinedButton(
+                                    onPressed: _dismissAISuggestion,
+                                    style: OutlinedButton.styleFrom(
+                                      foregroundColor: Colors.grey.shade600,
+                                      side: BorderSide(color: Colors.grey.shade400),
+                                    ),
+                                    child: const Text('Mantener categoría'),
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: ElevatedButton(
+                                    onPressed: _acceptAISuggestion,
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: Colors.blue,
+                                      foregroundColor: Colors.white,
+                                    ),
+                                    child: const Text('Cambiar categoría'),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+
                     // Icono del tipo de problema
                     Center(
                       child: Icon(
@@ -294,7 +440,7 @@ class _ReportesScreenState extends State<ReportesScreen> {
 
                     // Título principal
                     Text(
-                      'Reportar ${category.name}',
+                      'Reportar $_selectedCategory',
                       style: kTitleStyle,
                     ),
 
@@ -378,9 +524,9 @@ class _ReportesScreenState extends State<ReportesScreen> {
 
                     const SizedBox(height: 30),
 
-                    // Sección de fotos
+                    // Sección de fotos - MEJORADA
                     const Text(
-                      'ADJUNTA FOTOS (OPCIONAL)',
+                      'ADJUNTA FOTOS (REQUERIDO PARA VERIFICACIÓN)',
                       style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.bold,
@@ -390,11 +536,28 @@ class _ReportesScreenState extends State<ReportesScreen> {
 
                     const SizedBox(height: 10),
 
-                    const Text(
-                      'Las fotos ayudan a verificar y resolver el problema más rápido',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Colors.grey,
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.orange.shade50,
+                        border: Border.all(color: Colors.orange.shade300),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(Icons.info_outline, color: Colors.orange.shade600, size: 20),
+                          const SizedBox(width: 8),
+                          const Expanded(
+                            child: Text(
+                              'Las fotos son necesarias para que la IA verifique que tu reporte coincide con la categoría seleccionada.',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.orange,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
 
@@ -414,12 +577,13 @@ class _ReportesScreenState extends State<ReportesScreen> {
                     const SizedBox(height: 40),
 
                     // Botón de continuar (ahora lleva a verificación IA)
-                    ElevatedButton(
+                    ElevatedButton.icon(
                       onPressed: _isSubmitting
                           ? null
                           : () => _proceedToVerification(context, authViewModel),
                       style: kPrimaryButtonStyle,
-                      child: _isSubmitting
+                      icon: const Icon(Icons.smart_toy),
+                      label: _isSubmitting
                           ? const Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
@@ -435,7 +599,7 @@ class _ReportesScreenState extends State<ReportesScreen> {
                           Text('Procesando...', style: kButtonTextStyle),
                         ],
                       )
-                          : const Text('Continuar', style: kButtonTextStyle),
+                          : const Text('Verificar con IA y continuar', style: kButtonTextStyle),
                     ),
                   ],
                 ),
@@ -556,6 +720,10 @@ class _ReportesScreenState extends State<ReportesScreen> {
             decoration: BoxDecoration(
               color: Colors.grey.shade200,
               borderRadius: BorderRadius.circular(10),
+              border: Border.all(
+                color: hasPhoto ? Colors.green.shade300 : Colors.grey.shade400,
+                width: hasPhoto ? 2 : 1,
+              ),
               image: hasPhoto
                   ? DecorationImage(
                 image: FileImage(_selectedPhotos[index]),
@@ -567,6 +735,23 @@ class _ReportesScreenState extends State<ReportesScreen> {
                 ? Stack(
               alignment: Alignment.topRight,
               children: [
+                // Indicador de éxito
+                Positioned(
+                  top: 5,
+                  left: 5,
+                  child: Container(
+                    padding: const EdgeInsets.all(3),
+                    decoration: BoxDecoration(
+                      color: Colors.green,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Icon(
+                      Icons.check,
+                      color: Colors.white,
+                      size: 12,
+                    ),
+                  ),
+                ),
                 // Botón para eliminar la foto
                 GestureDetector(
                   onTap: () {
@@ -590,10 +775,24 @@ class _ReportesScreenState extends State<ReportesScreen> {
                 ),
               ],
             )
-                : const Icon(
-              Icons.add_a_photo,
-              color: Colors.grey,
-              size: 30,
+                : Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  Icons.add_a_photo,
+                  color: Colors.grey.shade600,
+                  size: 30,
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  index == 0 ? 'REQUERIDO' : 'Opcional',
+                  style: TextStyle(
+                    fontSize: 10,
+                    color: index == 0 ? Colors.red : Colors.grey.shade600,
+                    fontWeight: index == 0 ? FontWeight.bold : FontWeight.normal,
+                  ),
+                ),
+              ],
             ),
           ),
         ),

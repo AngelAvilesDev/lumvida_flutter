@@ -141,6 +141,8 @@ class InicioScreen extends StatelessWidget {
     );
   }
 
+  // Actualización solo del método _buildCategoryButton en InicioScreen.dart
+
   Widget _buildCategoryButton({
     required BuildContext context,
     required IconData icon,
@@ -148,12 +150,18 @@ class InicioScreen extends StatelessWidget {
     required String categoria,
   }) {
     return InkWell(
-      onTap: () => Navigator.push(
+      onTap: () {
+        // Navegar a ReportesScreen sin categoría detectada por IA (navegación normal)
+        Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (_) => ReportesScreen(categoria: categoria),
-          )
-      ),
+            builder: (_) => ReportesScreen(
+              categoria: categoria,
+              categoriaDetectadaPorIA: null, // No hay sugerencia de IA en navegación normal
+            ),
+          ),
+        );
+      },
       child: Container(
         decoration: BoxDecoration(
           color: kPrimaryColor,

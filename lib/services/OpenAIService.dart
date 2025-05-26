@@ -9,7 +9,7 @@ class OpenAIService {
   static String get apiKey => dotenv.env['OPENAI_API_KEY'] ?? '';
   static const String baseUrl = 'https://api.openai.com/v1';
 
-  // Analizar imágenes con Vision de OpenAI (GPT-4 Vision)
+  // Analizar imágenes con Vision de OpenAI (GPT-4 Vision) - Versión mejorada y más estricta
   static Future<Map<String, dynamic>> analyzeImage(
       File imageFile,
       String requestedCategory,
@@ -23,20 +23,40 @@ class OpenAIService {
       // URL para la API de Chat Completions (que soporta GPT-4 Vision)
       final Uri url = Uri.parse('$baseUrl/chat/completions');
 
-      // Construir el mensaje con la imagen
+      // Construir el mensaje con la imagen - PROMPT MEJORADO Y MÁS ESTRICTO
       final Map<String, dynamic> requestBody = {
         "model": "gpt-4o",  // Modelo para análisis de imágenes
         "messages": [
           {
             "role": "system",
-            "content": "Eres un asistente especializado en analizar imágenes para reportes de problemas urbanos. Tu trabajo es determinar si la imagen muestra el problema reportado."
+            "content": """Eres un experto analista de imágenes especializado en problemas urbanos. Tu trabajo es VALIDAR ESTRICTAMENTE si una imagen corresponde EXACTAMENTE a la categoría de problema reportada.
+
+CATEGORÍAS VÁLIDAS Y SUS CARACTERÍSTICAS:
+1. BACHEO: Hoyos en el pavimento, asfalto agrietado, hundimientos en calles, deterioro del pavimento
+2. ALUMBRADO PÚBLICO: Postes de luz, luminarias, cables de alumbrado, lámparas de calle dañadas o apagadas
+3. BASURA ACUMULADA: Desechos en vía pública, basureros desbordados, acumulación de residuos
+4. DRENAJES OBSTRUIDOS: Alcantarillas, tapas de drenaje, agua estancada, sistema de drenaje bloqueado
+
+INSTRUCCIONES CRÍTICAS:
+- Si la imagen NO muestra EXACTAMENTE el tipo de problema reportado, responde que NO COINCIDE
+- Si hay dudas, responde que NO COINCIDE
+- Solo confirma coincidencia si estás 100% seguro
+- Si la imagen no muestra ningún problema urbano válido, indica que no es reportable
+- Sé ESTRICTO en tu análisis"""
           },
           {
             "role": "user",
             "content": [
               {
                 "type": "text",
-                "text": "El usuario está reportando un problema de '$requestedCategory'. $prompt"
+                "text": """El usuario reportó un problema de categoria: "${requestedCategory}".
+                
+Por favor analiza esta imagen y responde:
+1. ¿La imagen muestra EXACTAMENTE un problema de "${requestedCategory}"?
+2. Si NO coincide, ¿qué tipo de problema muestra? (solo elige entre: Bacheo, Alumbrado Público, Basura Acumulada, Drenajes Obstruidos, o "No es un problema urbano válido")
+3. Explica tu decisión de forma clara y específica.
+
+IMPORTANTE: Solo responde SÍ COINCIDE si estás completamente seguro. En caso de duda, responde NO COINCIDE."""
               },
               {
                 "type": "image_url",
@@ -47,7 +67,8 @@ class OpenAIService {
             ]
           }
         ],
-        "max_tokens": 500
+        "max_tokens": 600,
+        "temperature": 0.1  // Baja temperatura para respuestas más consistentes
       };
 
       // Realizar la petición a la API
@@ -66,14 +87,19 @@ class OpenAIService {
         // Extraer la respuesta generada
         final String content = responseData['choices'][0]['message']['content'];
 
-        // Determinar si la imagen coincide con la categoría
-        final bool isMatch = _determineIfMatch(content, requestedCategory);
+        if (kDebugMode) {
+          print('Respuesta de OpenAI: $content');
+        }
+
+        // Determinar si la imagen coincide con la categoría - LÓGICA MEJORADA
+        final bool isMatch = _determineIfMatchStrict(content, requestedCategory);
+        final String detectedCategory = _extractDetectedCategoryStrict(content, requestedCategory);
 
         return {
           'success': true,
           'message': content,
           'isMatch': isMatch,
-          'detectedCategory': _extractDetectedCategory(content, requestedCategory),
+          'detectedCategory': detectedCategory,
         };
       } else {
         if (kDebugMode) {
@@ -99,70 +125,150 @@ class OpenAIService {
     }
   }
 
-  // Extraer la categoría detectada del texto de respuesta
-  static String _extractDetectedCategory(String content, String defaultCategory) {
-    // Categorías posibles (mismo orden que en tu app)
-    final categories = [
-      'bacheo', 'bache', 'pavimento',
-      'alumbrado', 'luminaria', 'luz',
-      'basura', 'desechos', 'residuos',
-      'drenaje', 'alcantarilla', 'agua'
-    ];
-
-    // Verificar coincidencias con categorías conocidas
+  // Método mejorado para extraer la categoría detectada - MÁS PRECISO
+  static String _extractDetectedCategoryStrict(String content, String defaultCategory) {
     final contentLower = content.toLowerCase();
-    for (final keyword in categories) {
-      if (contentLower.contains(keyword)) {
-        if (keyword.contains('bache') || keyword.contains('pavimento')) {
-          return 'Bacheo';
-        } else if (keyword.contains('alumbrado') || keyword.contains('luminaria') || keyword.contains('luz')) {
-          return 'Alumbrado Público';
-        } else if (keyword.contains('basura') || keyword.contains('desecho') || keyword.contains('residuo')) {
-          return 'Basura Acumulada';
-        } else if (keyword.contains('drenaje') || keyword.contains('alcantarilla') || keyword.contains('agua')) {
-          return 'Drenajes Obstruidos';
+
+    // Mapeo más preciso de palabras clave
+    final Map<String, List<String>> categoryKeywords = {
+      'Bacheo': ['bache', 'bacheo', 'pavimento', 'asfalto', 'hundimiento', 'calle dañada', 'hoyo', 'grieta'],
+      'Alumbrado Público': ['alumbrado', 'luminaria', 'poste', 'luz', 'lámpara', 'cable', 'iluminación'],
+      'Basura Acumulada': ['basura', 'desecho', 'residuo', 'basurero', 'desperdicio', 'escombro'],
+      'Drenajes Obstruidos': ['drenaje', 'alcantarilla', 'agua', 'inundación', 'tapa', 'coladera', 'desagüe']
+    };
+
+    // Buscar coincidencias específicas
+    for (final entry in categoryKeywords.entries) {
+      final category = entry.key;
+      final keywords = entry.value;
+
+      for (final keyword in keywords) {
+        if (contentLower.contains(keyword)) {
+          if (kDebugMode) {
+            print('Categoría detectada: $category (palabra clave: $keyword)');
+          }
+          return category;
         }
       }
+    }
+
+    // Si no se detecta nada específico, buscar en la respuesta directa
+    if (contentLower.contains('no es un problema urbano') ||
+        contentLower.contains('no es reportable') ||
+        contentLower.contains('no válido')) {
+      return 'No es un problema urbano válido';
     }
 
     // Si no se encuentra, devolver la categoría por defecto
     return defaultCategory;
   }
 
-  // Determinar si el contenido de la respuesta indica coincidencia con la categoría
-  static bool _determineIfMatch(String content, String requestedCategory) {
+  // Método mejorado para determinar coincidencia - MÁS ESTRICTO
+  static bool _determineIfMatchStrict(String content, String requestedCategory) {
     final contentLower = content.toLowerCase();
     final categoryLower = requestedCategory.toLowerCase();
 
-    // Verificar confirmación positiva en la respuesta
-    if (contentLower.contains('sí coincide') ||
-        contentLower.contains('coincide con') ||
-        contentLower.contains('es correcto') ||
-        contentLower.contains('confirmo que')) {
-      return true;
+    if (kDebugMode) {
+      print('Analizando coincidencia para categoría: $requestedCategory');
+      print('Contenido a analizar: $contentLower');
     }
 
-    // Verificar palabras clave específicas por categoría
-    switch (categoryLower) {
-      case 'bacheo':
-        return contentLower.contains('bache') ||
-            contentLower.contains('pavimento dañado') ||
-            contentLower.contains('asfalto deteriorado');
-      case 'alumbrado público':
-        return contentLower.contains('luminaria') ||
-            contentLower.contains('alumbrado') ||
-            contentLower.contains('poste de luz');
-      case 'basura acumulada':
-        return contentLower.contains('basura') ||
-            contentLower.contains('desechos') ||
-            contentLower.contains('residuos');
-      case 'drenajes obstruidos':
-        return contentLower.contains('drenaje') ||
-            contentLower.contains('alcantarilla') ||
-            contentLower.contains('agua estancada');
-      default:
+    // Primero, buscar respuestas negativas explícitas (tienen prioridad)
+    final negativeResponses = [
+      'no coincide',
+      'no es exactamente',
+      'no muestra',
+      'no corresponde',
+      'no es un problema de',
+      'no se trata de',
+      'diferente',
+      'no es válido',
+      'no es reportable'
+    ];
+
+    for (final negative in negativeResponses) {
+      if (contentLower.contains(negative)) {
+        if (kDebugMode) {
+          print('Respuesta negativa detectada: $negative');
+        }
         return false;
+      }
     }
+
+    // Buscar confirmaciones positivas explícitas
+    final positiveResponses = [
+      'sí coincide',
+      'coincide exactamente',
+      'sí muestra',
+      'corresponde exactamente',
+      'es exactamente',
+      'confirmo que es',
+      'efectivamente es',
+      'sí es un problema de'
+    ];
+
+    for (final positive in positiveResponses) {
+      if (contentLower.contains(positive)) {
+        if (kDebugMode) {
+          print('Respuesta positiva detectada: $positive');
+        }
+        return true;
+      }
+    }
+
+    // Verificación específica por categoría con palabras clave exactas
+    // Solo retorna true si encuentra palabras clave específicas Y no hay negaciones
+    Map<String, List<String>> strictKeywords = {
+      'bacheo': ['bache', 'pavimento dañado', 'asfalto deteriorado', 'hoyo en la calle', 'hundimiento'],
+      'alumbrado público': ['poste de luz', 'luminaria', 'alumbrado público', 'luz de calle'],
+      'basura acumulada': ['basura acumulada', 'desechos', 'residuos', 'basurero'],
+      'drenajes obstruidos': ['drenaje obstruido', 'alcantarilla', 'agua estancada', 'coladera tapada']
+    };
+
+    if (strictKeywords.containsKey(categoryLower)) {
+      final keywords = strictKeywords[categoryLower]!;
+      bool foundKeyword = false;
+
+      for (final keyword in keywords) {
+        if (contentLower.contains(keyword)) {
+          foundKeyword = true;
+          if (kDebugMode) {
+            print('Palabra clave específica encontrada: $keyword');
+          }
+          break;
+        }
+      }
+
+      // Solo confirmar si se encuentra palabra clave Y no hay negaciones previas
+      if (foundKeyword) {
+        // Verificar una vez más que no hay negaciones en el contexto
+        final contextualNegatives = [
+          'pero no es',
+          'sin embargo no',
+          'aunque parece',
+          'no exactamente',
+          'no del tipo'
+        ];
+
+        for (final contextNeg in contextualNegatives) {
+          if (contentLower.contains(contextNeg)) {
+            if (kDebugMode) {
+              print('Negación contextual detectada: $contextNeg');
+            }
+            return false;
+          }
+        }
+
+        return true;
+      }
+    }
+
+    // Por defecto, si no hay confirmación explícita, considerar que NO coincide
+    // Esto hace que el sistema sea más estricto
+    if (kDebugMode) {
+      print('No se encontró confirmación explícita, retornando false por defecto');
+    }
+    return false;
   }
 
   // Verificar metadatos de ubicación en la imagen
@@ -175,15 +281,16 @@ class OpenAIService {
       // En una implementación real, aquí extraeríamos los metadatos EXIF
       // Para esta demostración, simulamos el resultado
 
-      // Simulación: 80% de probabilidad de éxito en la verificación
-      final bool isVerified = DateTime.now().millisecond % 10 < 8;
+      // Simulación: 70% de probabilidad de éxito en la verificación
+      // (Reducido de 80% para ser más realista)
+      final bool isVerified = DateTime.now().millisecond % 10 < 7;
 
       return {
         'success': true,
         'isLocationVerified': isVerified,
         'message': isVerified
-            ? 'Los metadatos de ubicación coinciden con la ubicación reportada.'
-            : 'No se encontraron metadatos de ubicación válidos en la imagen.',
+            ? 'Los metadatos de ubicación en la imagen coinciden aproximadamente con la ubicación reportada.'
+            : 'No se encontraron metadatos de ubicación válidos en la imagen, o la ubicación no coincide con la reportada.',
       };
     } catch (e) {
       if (kDebugMode) {
@@ -195,5 +302,54 @@ class OpenAIService {
         'message': 'Error al verificar metadatos de ubicación: $e',
       };
     }
+  }
+
+  // Método adicional para validar múltiples imágenes (útil para implementaciones futuras)
+  static Future<Map<String, dynamic>> analyzeMultipleImages(
+      List<File> imageFiles,
+      String requestedCategory,
+      ) async {
+
+    if (imageFiles.isEmpty) {
+      return {
+        'success': false,
+        'message': 'No se proporcionaron imágenes para analizar.',
+        'isMatch': false,
+        'detectedCategory': requestedCategory,
+        'allImagesMatch': false,
+      };
+    }
+
+    List<Map<String, dynamic>> results = [];
+    int matchingImages = 0;
+
+    // Analizar cada imagen
+    for (int i = 0; i < imageFiles.length; i++) {
+      final result = await analyzeImage(
+          imageFiles[i],
+          requestedCategory,
+          "Analiza esta imagen ${i + 1} de ${imageFiles.length} y determina si muestra un problema de '$requestedCategory'."
+      );
+
+      results.add(result);
+      if (result['isMatch'] == true) {
+        matchingImages++;
+      }
+    }
+
+    // Determinar si la mayoría de imágenes coinciden
+    final bool majorityMatch = matchingImages > (imageFiles.length / 2);
+    final bool allMatch = matchingImages == imageFiles.length;
+
+    return {
+      'success': true,
+      'message': 'Se analizaron ${imageFiles.length} imágenes. $matchingImages coinciden con la categoría "$requestedCategory".',
+      'isMatch': majorityMatch, // Al menos la mayoría debe coincidir
+      'detectedCategory': results.first['detectedCategory'],
+      'allImagesMatch': allMatch,
+      'matchingCount': matchingImages,
+      'totalImages': imageFiles.length,
+      'individualResults': results,
+    };
   }
 }

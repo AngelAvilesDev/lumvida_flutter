@@ -30,18 +30,17 @@ class _ReportesScreenState extends State<ReportesScreen> {
   final TextEditingController _commentController = TextEditingController();
   final ImagePicker _imagePicker = ImagePicker();
 
+  // ViewModel manejado directamente sin Provider interno
+  late ReportesViewModel _reportesViewModel;
+
   // Variables para manejar sugerencias de IA
   bool _showAISuggestion = false;
   String _selectedCategory = '';
-
-  late ReportesViewModel _reportesViewModel;
 
   @override
   void initState() {
     super.initState();
     _selectedCategory = widget.categoria;
-
-    // Inicializar ViewModel
     _reportesViewModel = ReportesViewModel();
 
     // Si hay una categoría detectada por IA diferente, mostrar sugerencia
@@ -49,17 +48,29 @@ class _ReportesScreenState extends State<ReportesScreen> {
         widget.categoriaDetectadaPorIA != widget.categoria) {
       _showAISuggestion = true;
     }
+
+    // Escuchar cambios del ViewModel
+    _reportesViewModel.addListener(_onViewModelChanged);
+  }
+
+  void _onViewModelChanged() {
+    if (mounted) {
+      setState(() {}); // Rebuilds when ViewModel changes
+    }
   }
 
   @override
   void dispose() {
     _commentController.dispose();
+    _reportesViewModel.removeListener(_onViewModelChanged);
     _reportesViewModel.dispose();
     super.dispose();
   }
 
   // Función para cambiar la categoría según sugerencia de IA
   void _acceptAISuggestion() {
+    if (!mounted) return;
+
     setState(() {
       _selectedCategory = widget.categoriaDetectadaPorIA!;
       _showAISuggestion = false;
@@ -68,16 +79,19 @@ class _ReportesScreenState extends State<ReportesScreen> {
     // Limpiar selección en el ViewModel
     _reportesViewModel.setSelectedOption(null);
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Categoría cambiada a: $_selectedCategory'),
-        backgroundColor: Colors.green,
-        duration: const Duration(seconds: 2),
-      ),
-    );
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Categoría cambiada a: $_selectedCategory'),
+          backgroundColor: Colors.green,
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    }
   }
 
   void _dismissAISuggestion() {
+    if (!mounted) return;
     setState(() {
       _showAISuggestion = false;
     });
@@ -91,11 +105,13 @@ class _ReportesScreenState extends State<ReportesScreen> {
         imageQuality: 70,
       );
 
-      if (pickedFile != null) {
+      if (pickedFile != null && mounted) {
         _reportesViewModel.updatePhoto(index, File(pickedFile.path));
       }
     } catch (e) {
-      _showErrorSnackBar('Error al seleccionar imagen: $e');
+      if (mounted) {
+        _showErrorSnackBar('Error al seleccionar imagen: $e');
+      }
     }
   }
 
@@ -107,16 +123,20 @@ class _ReportesScreenState extends State<ReportesScreen> {
         imageQuality: 70,
       );
 
-      if (pickedFile != null) {
+      if (pickedFile != null && mounted) {
         _reportesViewModel.updatePhoto(index, File(pickedFile.path));
       }
     } catch (e) {
-      _showErrorSnackBar('Error al tomar foto: $e');
+      if (mounted) {
+        _showErrorSnackBar('Error al tomar foto: $e');
+      }
     }
   }
 
   // Función para mostrar opciones de imagen
   void _showImageOptions(int index) {
+    if (!mounted) return;
+
     showModalBottomSheet(
       context: context,
       builder: (BuildContext context) {
@@ -160,16 +180,24 @@ class _ReportesScreenState extends State<ReportesScreen> {
   }
 
   // Función para proceder con la verificación IA
-  Future<void> _proceedToVerification(BuildContext context, AuthViewModel authViewModel) async {
+  Future<void> _proceedToVerification() async {
+    if (!mounted) return;
+
+    final authViewModel = Provider.of<AuthViewModel>(context, listen: false);
+
     // Validar usando el ViewModel
     if (!_reportesViewModel.validateForm(_commentController.text)) {
-      _showErrorSnackBar(_reportesViewModel.errorMessage ?? 'Error de validación');
+      if (mounted) {
+        _showErrorSnackBar(_reportesViewModel.errorMessage ?? 'Error de validación');
+      }
       return;
     }
 
     // Si no está autenticado, mostrar diálogo
     if (!authViewModel.isAuthenticated) {
-      _mostrarDialogoInicioSesionRequerido(context);
+      if (mounted) {
+        _mostrarDialogoInicioSesionRequerido();
+      }
       return;
     }
 
@@ -186,7 +214,7 @@ class _ReportesScreenState extends State<ReportesScreen> {
     }
 
     // Navegar a la pantalla de verificación con IA
-    if (context.mounted) {
+    if (mounted) {
       Navigator.push(
         context,
         MaterialPageRoute(
@@ -197,9 +225,11 @@ class _ReportesScreenState extends State<ReportesScreen> {
             ubicacion: _reportesViewModel.selectedLocation!,
             direccion: _reportesViewModel.addressText,
             imagenes: _reportesViewModel.selectedPhotos,
-            onConfirm: () => _submitReport(context, authViewModel, descripcion),
+            onConfirm: () => _submitReport(descripcion),
             onEdit: () {
-              Navigator.pop(context); // Volver a editar
+              if (mounted) {
+                Navigator.pop(context);
+              }
             },
           ),
         ),
@@ -208,11 +238,11 @@ class _ReportesScreenState extends State<ReportesScreen> {
   }
 
   // Función para enviar el reporte (después de verificación IA)
-  Future<void> _submitReport(
-      BuildContext context,
-      AuthViewModel authViewModel,
-      String descripcion,
-      ) async {
+  Future<void> _submitReport(String descripcion) async {
+    if (!mounted) return;
+
+    final authViewModel = Provider.of<AuthViewModel>(context, listen: false);
+
     // Cerrar la pantalla de verificación IA
     Navigator.pop(context);
 
@@ -228,15 +258,8 @@ class _ReportesScreenState extends State<ReportesScreen> {
 
       if (mounted) {
         if (resultado['success']) {
-          // Navegar hasta InicioScreen
-          Navigator.of(context).popUntil((route) {
-            return route.settings.name == '/' ||
-                route.isFirst ||
-                route.settings.arguments?.toString().contains('InicioScreen') == true;
-          });
-
-          // Mostrar diálogo de éxito
-          _mostrarDialogoReporteExitoso(context, resultado['folio']);
+          // SOLO mostrar el diálogo, la navegación se hace cuando el usuario presiona "Entendido"
+          _mostrarDialogoReporteExitoso(resultado['folio']);
         } else {
           _showErrorSnackBar(resultado['message'] ?? 'Error al enviar el reporte');
         }
@@ -249,186 +272,179 @@ class _ReportesScreenState extends State<ReportesScreen> {
   }
 
   void _showErrorSnackBar(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: Colors.red,
-        duration: const Duration(seconds: 3),
-      ),
-    );
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(message),
+          backgroundColor: Colors.red,
+          duration: const Duration(seconds: 3),
+        ),
+      );
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    final authViewModel = Provider.of<AuthViewModel>(context);
     final category = ReportCategories.getCategoryByName(_selectedCategory);
 
-    return ChangeNotifierProvider.value(
-      value: _reportesViewModel,
-      child: Scaffold(
-        appBar: AppBar(
-          title: Text('Reportar $_selectedCategory', style: const TextStyle(color: kPrimaryColor)),
-          backgroundColor: Colors.transparent,
-          elevation: 0,
-          iconTheme: const IconThemeData(color: kPrimaryColor),
-        ),
-        body: Container(
-          decoration: backgroundDecoration,
-          child: SafeArea(
-            child: Consumer<ReportesViewModel>(
-              builder: (context, reportesVM, child) {
-                return Stack(
+    return Scaffold(
+      appBar: AppBar(
+        title: Text('Reportar $_selectedCategory', style: const TextStyle(color: kPrimaryColor)),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        iconTheme: const IconThemeData(color: kPrimaryColor),
+      ),
+      body: Container(
+        decoration: backgroundDecoration,
+        child: SafeArea(
+          child: Stack(
+            children: [
+              SingleChildScrollView(
+                padding: const EdgeInsets.all(20.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    SingleChildScrollView(
-                      padding: const EdgeInsets.all(20.0),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          // Sugerencia de IA (si aplicable)
-                          if (_showAISuggestion) _buildAISuggestionCard(),
+                    // Sugerencia de IA (si aplicable)
+                    if (_showAISuggestion) _buildAISuggestionCard(),
 
-                          // Icono del tipo de problema
-                          Center(
-                            child: Icon(
-                              category.icon,
-                              color: kPrimaryColor,
-                              size: 60,
-                            ),
-                          ),
-
-                          const SizedBox(height: 20),
-
-                          // Título principal
-                          Text(
-                            'Reportar $_selectedCategory',
-                            style: kTitleStyle,
-                          ),
-
-                          const SizedBox(height: 30),
-
-                          // Ubicación
-                          const Text(
-                            '¿DÓNDE SE UBICA EL PROBLEMA?',
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                              color: kPrimaryColor,
-                            ),
-                          ),
-
-                          const SizedBox(height: 10),
-
-                          // OSM Map Component
-                          OSMMapComponent(
-                            height: 250,
-                            trackMyLocation: true,
-                            allowPicking: true,
-                            onLocationSelected: (osm.GeoPoint location) {
-                              reportesVM.setSelectedLocation(location);
-                            },
-                          ),
-
-                          if (reportesVM.selectedLocation != null)
-                            Padding(
-                              padding: const EdgeInsets.only(top: 8.0),
-                              child: Text(
-                                'Ubicación: ${reportesVM.addressText}',
-                                style: const TextStyle(fontSize: 12, color: Colors.grey),
-                              ),
-                            ),
-
-                          const SizedBox(height: 30),
-
-                          // Descripción
-                          const Text(
-                            'DESCRIBE EL PROBLEMA:',
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                              color: kPrimaryColor,
-                            ),
-                          ),
-
-                          const SizedBox(height: 10),
-
-                          // Opciones de reporte
-                          ...category.options.map((option) => _buildCheckOption(
-                            option.description,
-                            option.description == reportesVM.selectedOption,
-                                () {
-                              reportesVM.setSelectedOption(option.description);
-                            },
-                          )).toList(),
-
-                          // Campo para comentarios adicionales
-                          if (reportesVM.selectedOption == 'Otro (especificar)') ...[
-                            const SizedBox(height: 20),
-                            TextField(
-                              controller: _commentController,
-                              decoration: InputDecoration(
-                                hintText: 'Describe el problema...',
-                                border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(10),
-                                ),
-                                filled: true,
-                                fillColor: Colors.white,
-                              ),
-                              maxLines: 3,
-                            ),
-                          ],
-
-                          const SizedBox(height: 30),
-
-                          // Sección de fotos
-                          _buildPhotosSection(),
-
-                          const SizedBox(height: 40),
-
-                          // Botón de continuar
-                          ElevatedButton.icon(
-                            onPressed: reportesVM.isSubmitting
-                                ? null
-                                : () => _proceedToVerification(context, authViewModel),
-                            style: kPrimaryButtonStyle,
-                            icon: const Icon(Icons.smart_toy),
-                            label: reportesVM.isSubmitting
-                                ? const Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                SizedBox(
-                                  width: 20,
-                                  height: 20,
-                                  child: CircularProgressIndicator(
-                                    color: Colors.white,
-                                    strokeWidth: 2.0,
-                                  ),
-                                ),
-                                SizedBox(width: 10),
-                                Text('Procesando...', style: kButtonTextStyle),
-                              ],
-                            )
-                                : const Text('Verificar con IA y continuar', style: kButtonTextStyle),
-                          ),
-                        ],
+                    // Icono del tipo de problema
+                    Center(
+                      child: Icon(
+                        category.icon,
+                        color: kPrimaryColor,
+                        size: 60,
                       ),
                     ),
 
-                    // Overlay de carga
-                    if (reportesVM.isSubmitting)
-                      Container(
-                        color: Colors.black.withOpacity(0.3),
-                        child: const Center(
-                          child: CircularProgressIndicator(color: kPrimaryColor),
+                    const SizedBox(height: 20),
+
+                    // Título principal
+                    Text(
+                      'Reportar $_selectedCategory',
+                      style: kTitleStyle,
+                    ),
+
+                    const SizedBox(height: 30),
+
+                    // Ubicación
+                    const Text(
+                      '¿DÓNDE SE UBICA EL PROBLEMA?',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: kPrimaryColor,
+                      ),
+                    ),
+
+                    const SizedBox(height: 10),
+
+                    // OSM Map Component
+                    OSMMapComponent(
+                      height: 250,
+                      trackMyLocation: true,
+                      allowPicking: true,
+                      onLocationSelected: (osm.GeoPoint location) {
+                        _reportesViewModel.setSelectedLocation(location);
+                      },
+                    ),
+
+                    if (_reportesViewModel.selectedLocation != null)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 8.0),
+                        child: Text(
+                          'Ubicación: ${_reportesViewModel.addressText}',
+                          style: const TextStyle(fontSize: 12, color: Colors.grey),
                         ),
                       ),
+
+                    const SizedBox(height: 30),
+
+                    // Descripción
+                    const Text(
+                      'DESCRIBE EL PROBLEMA:',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: kPrimaryColor,
+                      ),
+                    ),
+
+                    const SizedBox(height: 10),
+
+                    // Opciones de reporte
+                    ...category.options.map((option) => _buildCheckOption(
+                      option.description,
+                      option.description == _reportesViewModel.selectedOption,
+                          () {
+                        _reportesViewModel.setSelectedOption(option.description);
+                      },
+                    )).toList(),
+
+                    // Campo para comentarios adicionales
+                    if (_reportesViewModel.selectedOption == 'Otro (especificar)') ...[
+                      const SizedBox(height: 20),
+                      TextField(
+                        controller: _commentController,
+                        decoration: InputDecoration(
+                          hintText: 'Describe el problema...',
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          filled: true,
+                          fillColor: Colors.white,
+                        ),
+                        maxLines: 3,
+                      ),
+                    ],
+
+                    const SizedBox(height: 30),
+
+                    // Sección de fotos
+                    _buildPhotosSection(),
+
+                    const SizedBox(height: 40),
+
+                    // Botón de continuar
+                    ElevatedButton.icon(
+                      onPressed: _reportesViewModel.isSubmitting
+                          ? null
+                          : _proceedToVerification,
+                      style: kPrimaryButtonStyle,
+                      label: _reportesViewModel.isSubmitting
+                          ? const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                              color: Colors.white,
+                              strokeWidth: 2.0,
+                            ),
+                          ),
+                          SizedBox(width: 10),
+                          Text('Procesando...', style: kButtonTextStyle),
+                        ],
+                      )
+                          : const Text('Continuar', style: kButtonTextStyle),
+                    ),
                   ],
-                );
-              },
-            ),
+                ),
+              ),
+
+              // Overlay de carga
+              if (_reportesViewModel.isSubmitting)
+                Container(
+                  color: Colors.black.withOpacity(0.3),
+                  child: const Center(
+                    child: CircularProgressIndicator(color: kPrimaryColor),
+                  ),
+                ),
+            ],
           ),
         ),
-        bottomNavigationBar: _buildBottomNavigationBar(authViewModel),
       ),
+      bottomNavigationBar: _buildBottomNavigationBar(),
     );
   }
 
@@ -532,18 +548,14 @@ class _ReportesScreenState extends State<ReportesScreen> {
           ),
         ),
         const SizedBox(height: 20),
-        Consumer<ReportesViewModel>(
-          builder: (context, reportesVM, child) {
-            return Row(
-              children: [
-                _buildPhotoContainer(0, reportesVM.selectedPhotos),
-                const SizedBox(width: 10),
-                _buildPhotoContainer(1, reportesVM.selectedPhotos),
-                const SizedBox(width: 10),
-                _buildPhotoContainer(2, reportesVM.selectedPhotos),
-              ],
-            );
-          },
+        Row(
+          children: [
+            _buildPhotoContainer(0, _reportesViewModel.selectedPhotos),
+            const SizedBox(width: 10),
+            _buildPhotoContainer(1, _reportesViewModel.selectedPhotos),
+            const SizedBox(width: 10),
+            _buildPhotoContainer(2, _reportesViewModel.selectedPhotos),
+          ],
         ),
       ],
     );
@@ -670,62 +682,66 @@ class _ReportesScreenState extends State<ReportesScreen> {
     );
   }
 
-  Widget _buildBottomNavigationBar(AuthViewModel authViewModel) {
-    return Container(
-      height: 50,
-      decoration: const BoxDecoration(
-        color: kSecondaryColor,
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceAround,
-        children: [
-          const Expanded(
-            child: Center(
-              child: Text(
-                'Dashboard',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
+  Widget _buildBottomNavigationBar() {
+    return Consumer<AuthViewModel>(
+      builder: (context, authViewModel, _) => Container(
+        height: 50,
+        decoration: const BoxDecoration(
+          color: kSecondaryColor,
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceAround,
+          children: [
+            const Expanded(
+              child: Center(
+                child: Text(
+                  'Dashboard',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
               ),
             ),
-          ),
-          Container(
-            width: 1,
-            height: 30,
-            color: Colors.white.withOpacity(0.3),
-          ),
-          Expanded(
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: [
-                IconButton(
-                  icon: const Icon(Icons.location_on, color: Colors.white, size: 28),
-                  onPressed: () {},
-                  key: const ValueKey('location_icon'),
-                ),
-                IconButton(
-                  icon: const Icon(Icons.person, color: Colors.white, size: 28),
-                  onPressed: () {
-                    if (!authViewModel.isAuthenticated) {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (context) => const LoginScreen()),
-                      );
-                    }
-                  },
-                  key: const ValueKey('user_icon'),
-                ),
-              ],
+            Container(
+              width: 1,
+              height: 30,
+              color: Colors.white.withOpacity(0.3),
             ),
-          ),
-        ],
+            Expanded(
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.location_on, color: Colors.white, size: 28),
+                    onPressed: () {},
+                    key: const ValueKey('location_icon'),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.person, color: Colors.white, size: 28),
+                    onPressed: () {
+                      if (!authViewModel.isAuthenticated && mounted) {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (context) => const LoginScreen()),
+                        );
+                      }
+                    },
+                    key: const ValueKey('user_icon'),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
 
-  void _mostrarDialogoInicioSesionRequerido(BuildContext context) {
+  void _mostrarDialogoInicioSesionRequerido() {
+    if (!mounted) return;
+
     showDialog(
       context: context,
       builder: (context) {
@@ -734,16 +750,20 @@ class _ReportesScreenState extends State<ReportesScreen> {
           content: const Text('Para crear un reporte necesitas iniciar sesión.'),
           actions: [
             TextButton(
-              onPressed: () => Navigator.of(context).pop(),
+              onPressed: () {
+                if (mounted) Navigator.of(context).pop();
+              },
               child: const Text('Cancelar', style: TextStyle(color: kPrimaryColor)),
             ),
             ElevatedButton(
               onPressed: () {
-                Navigator.of(context).pop();
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => const LoginScreen()),
-                );
+                if (mounted) {
+                  Navigator.of(context).pop();
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => const LoginScreen()),
+                  );
+                }
               },
               style: ElevatedButton.styleFrom(backgroundColor: kPrimaryColor),
               child: const Text('Iniciar sesión'),
@@ -754,89 +774,137 @@ class _ReportesScreenState extends State<ReportesScreen> {
     );
   }
 
-  void _mostrarDialogoReporteExitoso(BuildContext context, String folio) {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-          title: Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: Colors.green.shade100,
-                  shape: BoxShape.circle,
+  void _mostrarDialogoReporteExitoso(String folio) {
+    if (!mounted) return;
+
+    // Usar un Future.delayed para asegurar que el contexto esté estable
+    Future.delayed(const Duration(milliseconds: 100), () {
+      if (!mounted) return;
+
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (BuildContext dialogContext) { // Usar un contexto específico del diálogo
+          return AlertDialog(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+            title: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.green.shade100,
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(Icons.check_circle, color: Colors.green.shade600, size: 32),
                 ),
-                child: Icon(Icons.check_circle, color: Colors.green.shade600, size: 32),
-              ),
-              const SizedBox(width: 12),
-              const Text('¡Reporte Enviado!', style: TextStyle(color: kPrimaryColor, fontWeight: FontWeight.bold, fontSize: 20)),
-            ],
-          ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text('Tu reporte ha sido enviado exitosamente y será revisado por nuestro equipo.', style: TextStyle(fontSize: 16)),
-              const SizedBox(height: 16),
-              const Text('Número de folio:', style: TextStyle(fontWeight: FontWeight.bold, color: kPrimaryColor)),
-              const SizedBox(height: 8),
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.grey.shade100,
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.grey.shade300),
-                ),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Text(folio, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: kPrimaryColor)),
+                const SizedBox(width: 12),
+                const Expanded(
+                  child: Text(
+                    '¡Reporte Enviado!',
+                    style: TextStyle(
+                        color: kPrimaryColor,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 18
                     ),
-                    IconButton(
-                      onPressed: () {
-                        Clipboard.setData(ClipboardData(text: folio));
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Folio copiado al portapapeles'),
-                            backgroundColor: Colors.green,
-                            duration: Duration(seconds: 2),
-                          ),
-                        );
-                      },
-                      icon: const Icon(Icons.copy, color: kPrimaryColor),
-                      tooltip: 'Copiar folio',
-                    ),
-                  ],
+                  ),
                 ),
-              ),
-              const SizedBox(height: 12),
-              Text(
-                'Puedes consultar el estado de tu reporte en la sección "Historial de reportes".',
-                style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
-              ),
-            ],
-          ),
-          actions: [
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: () => Navigator.of(context).pop(),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: kPrimaryColor,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                ),
-                child: const Text('Entendido', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-              ),
+              ],
             ),
-          ],
-        );
-      },
-    );
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                    'Tu reporte ha sido enviado exitosamente y será revisado por nuestro equipo.',
+                    style: TextStyle(fontSize: 16)
+                ),
+                const SizedBox(height: 16),
+                const Text(
+                    'Número de folio:',
+                    style: TextStyle(fontWeight: FontWeight.bold, color: kPrimaryColor)
+                ),
+                const SizedBox(height: 8),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade100,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.grey.shade300),
+                  ),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                            folio,
+                            style: const TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                                color: kPrimaryColor
+                            )
+                        ),
+                      ),
+                      IconButton(
+                        onPressed: () {
+                          Clipboard.setData(ClipboardData(text: folio));
+                          // Usar el contexto del widget principal para el SnackBar
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Folio copiado al portapapeles'),
+                              backgroundColor: Colors.green,
+                              duration: Duration(seconds: 2),
+                            ),
+                          );
+                        },
+                        icon: const Icon(Icons.copy, color: kPrimaryColor),
+                        tooltip: 'Copiar folio',
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  'Puedes consultar el estado de tu reporte en la sección "Historial de reportes".',
+                  style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
+                ),
+              ],
+            ),
+            actions: [
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: () {
+                    // PRIMERO: Cerrar el diálogo
+                    Navigator.of(dialogContext).pop();
+
+                    // SEGUNDO: Navegar de regreso al inicio después de cerrar el diálogo
+                    Future.delayed(const Duration(milliseconds: 100), () {
+                      if (mounted) {
+                        Navigator.of(context).popUntil((route) {
+                          return route.settings.name == '/' ||
+                              route.isFirst ||
+                              route.settings.arguments?.toString().contains('InicioScreen') == true;
+                        });
+                      }
+                    });
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: kPrimaryColor,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
+                  icon: const Icon(Icons.check, size: 20),
+                  label: const Text(
+                      'Entendido',
+                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)
+                  ),
+                ),
+              ),
+            ],
+          );
+        },
+      );
+    });
   }
 }

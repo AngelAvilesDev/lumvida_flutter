@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'dart:async';
 
 class MisReportesViewModel extends ChangeNotifier {
   // Estados
@@ -7,6 +8,7 @@ class MisReportesViewModel extends ChangeNotifier {
   String? _error;
   List<Map<String, dynamic>> _reportes = [];
   String _filtroActual = 'Todos';
+  StreamSubscription<QuerySnapshot>? _reportesSubscription;
 
   // Getters
   bool get isLoading => _isLoading;
@@ -23,23 +25,23 @@ class MisReportesViewModel extends ChangeNotifier {
 
       // Mapear filtros a estados reales
       if (filtro == 'pendientes') {
-        filtro = 'pendiente';
-      } else if (filtro == 'en revisión' || filtro == 'en revision') {
-        filtro = 'en revision';
-      } else if (filtro == 'asignado') {
-        filtro = 'asignado';
+        return _reportes.where((reporte) {
+          final estadoReporte = reporte['estado']?.toString().toLowerCase() ?? '';
+          return estadoReporte == 'pendiente' || estadoReporte == 'nuevo';
+        }).toList();
       } else if (filtro == 'en proceso') {
-        filtro = 'en proceso';
+        return _reportes.where((reporte) {
+          final estadoReporte = reporte['estado']?.toString().toLowerCase() ?? '';
+          return estadoReporte.contains('proceso') || estadoReporte == 'asignado';
+        }).toList();
       } else if (filtro == 'resueltos') {
-        filtro = 'resuelto';
+        return _reportes.where((reporte) {
+          final estadoReporte = reporte['estado']?.toString().toLowerCase() ?? '';
+          return estadoReporte == 'resuelto' || estadoReporte == 'completado';
+        }).toList();
       }
 
-      return _reportes.where((reporte) {
-        final estadoReporte = reporte['estado'].toLowerCase();
-        return estadoReporte == filtro ||
-            (filtro == 'pendiente' && (estadoReporte == 'nuevo' || estadoReporte == 'pendiente')) ||
-            (filtro == 'resuelto' && (estadoReporte == 'completado' || estadoReporte == 'resuelto'));
-      }).toList();
+      return _reportes;
     }
   }
 
@@ -49,8 +51,80 @@ class MisReportesViewModel extends ChangeNotifier {
     notifyListeners();
   }
 
-  // Cargar reportes del usuario
+  // Cargar reportes del usuario con Stream
   Future<void> cargarReportes(String userId) async {
+    if (_isLoading) return; // Evitar múltiples cargas simultáneas
+
+    _isLoading = true;
+    _error = null;
+    notifyListeners();
+
+    try {
+      // Cancelar suscripción anterior si existe
+      await _reportesSubscription?.cancel();
+
+      // Crear nueva suscripción a los reportes del usuario
+      _reportesSubscription = FirebaseFirestore.instance
+          .collection('reportes')
+          .where('userId', isEqualTo: userId)
+          .orderBy('fecha', descending: true)
+          .snapshots()
+          .listen(
+            (snapshot) {
+          if (kDebugMode) {
+            print('Recibidos ${snapshot.docs.length} reportes para usuario: $userId');
+          }
+
+          // Transformar los documentos en una lista de mapas
+          _reportes = snapshot.docs.map((doc) {
+            final data = doc.data();
+            return {
+              'id': doc.id,
+              'folio': data['folio'] ?? 'Sin folio',
+              'fecha': _formatearFecha(data['fecha']),
+              'estado': data['estado'] ?? 'pendiente',
+              'tipo': data['categoria'] ?? 'Sin categoría',
+              'descripcion': data['comentario'] ?? 'Sin descripción',
+              'ubicacion': data['direccion'] ?? 'Sin ubicación',
+              'nombreCompleto': data['nombreCompleto'] ?? '',
+              'telefono': data['telefono'] ?? '',
+              'isAnonymous': data['isAnonymous'] ?? false,
+              'imagenes': data['imagenes'] ?? [],
+              'historialEstados': data['historialEstados'] ?? [],
+              // Datos adicionales que podrían ser útiles
+              'latitud': data['latitud'],
+              'longitud': data['longitud'],
+              'fechaCreacion': data['fecha'], // Fecha original para ordenamiento
+            };
+          }).toList();
+
+          _isLoading = false;
+          _error = null;
+          notifyListeners();
+        },
+        onError: (error) {
+          if (kDebugMode) {
+            print('Error en stream de reportes: $error');
+          }
+          _isLoading = false;
+          _error = 'Error al cargar reportes: $error';
+          notifyListeners();
+        },
+      );
+    } catch (e) {
+      if (kDebugMode) {
+        print('Error iniciando stream de reportes: $e');
+      }
+      _isLoading = false;
+      _error = 'Error al cargar reportes: $e';
+      notifyListeners();
+    }
+  }
+
+  // Cargar reportes una sola vez (sin Stream)
+  Future<void> cargarReportesUnaVez(String userId) async {
+    if (_isLoading) return;
+
     _isLoading = true;
     _error = null;
     notifyListeners();
@@ -61,6 +135,10 @@ class MisReportesViewModel extends ChangeNotifier {
           .where('userId', isEqualTo: userId)
           .orderBy('fecha', descending: true)
           .get();
+
+      if (kDebugMode) {
+        print('Cargados ${reportesSnapshot.docs.length} reportes para usuario: $userId');
+      }
 
       if (reportesSnapshot.docs.isEmpty) {
         _reportes = [];
@@ -95,6 +173,9 @@ class MisReportesViewModel extends ChangeNotifier {
       _isLoading = false;
       notifyListeners();
     } catch (e) {
+      if (kDebugMode) {
+        print('Error cargando reportes: $e');
+      }
       _isLoading = false;
       _error = 'Error al cargar reportes: $e';
       notifyListeners();
@@ -103,7 +184,7 @@ class MisReportesViewModel extends ChangeNotifier {
 
   // Recargar reportes
   Future<void> recargarReportes(String userId) async {
-    await cargarReportes(userId);
+    await cargarReportesUnaVez(userId);
   }
 
   // Formatear fecha
@@ -114,10 +195,15 @@ class MisReportesViewModel extends ChangeNotifier {
       if (timestamp is Timestamp) {
         final fecha = timestamp.toDate();
         return '${fecha.day.toString().padLeft(2, '0')}/${fecha.month.toString().padLeft(2, '0')}/${fecha.year}';
+      } else if (timestamp is DateTime) {
+        return '${timestamp.day.toString().padLeft(2, '0')}/${timestamp.month.toString().padLeft(2, '0')}/${timestamp.year}';
       } else {
         return 'Fecha desconocida';
       }
     } catch (e) {
+      if (kDebugMode) {
+        print('Error formateando fecha: $e');
+      }
       return 'Fecha desconocida';
     }
   }
@@ -127,60 +213,44 @@ class MisReportesViewModel extends ChangeNotifier {
     try {
       return _reportes.firstWhere((reporte) => reporte['id'] == reporteId);
     } catch (e) {
+      if (kDebugMode) {
+        print('Reporte no encontrado: $reporteId');
+      }
       return null;
     }
   }
 
-  // Obtener estadísticas de reportes
-  Map<String, int> obtenerEstadisticas() {
-    final stats = {
-      'total': _reportes.length,
-      'pendientes': 0,
-      'enProceso': 0,
-      'resueltos': 0,
-      'cancelados': 0,
-    };
-
-    for (final reporte in _reportes) {
-      final estado = reporte['estado'].toLowerCase();
-      switch (estado) {
-        case 'pendiente':
-          stats['pendientes'] = (stats['pendientes'] ?? 0) + 1;
-          break;
-        case 'en proceso':
-          stats['enProceso'] = (stats['enProceso'] ?? 0) + 1;
-          break;
-        case 'resuelto':
-          stats['resueltos'] = (stats['resueltos'] ?? 0) + 1;
-          break;
-        case 'cancelado':
-          stats['cancelados'] = (stats['cancelados'] ?? 0) + 1;
-          break;
-      }
-    }
-
-    return stats;
-  }
-
-  // Buscar reportes por término
+    // Buscar reportes por término
   List<Map<String, dynamic>> buscarReportes(String termino) {
     if (termino.isEmpty) return reportesFiltrados;
 
     final terminoLower = termino.toLowerCase();
     return reportesFiltrados.where((reporte) {
-      return reporte['folio'].toLowerCase().contains(terminoLower) ||
-          reporte['tipo'].toLowerCase().contains(terminoLower) ||
-          reporte['descripcion'].toLowerCase().contains(terminoLower) ||
-          reporte['ubicacion'].toLowerCase().contains(terminoLower);
+      final folio = reporte['folio']?.toString().toLowerCase() ?? '';
+      final tipo = reporte['tipo']?.toString().toLowerCase() ?? '';
+      final descripcion = reporte['descripcion']?.toString().toLowerCase() ?? '';
+      final ubicacion = reporte['ubicacion']?.toString().toLowerCase() ?? '';
+
+      return folio.contains(terminoLower) ||
+          tipo.contains(terminoLower) ||
+          descripcion.contains(terminoLower) ||
+          ubicacion.contains(terminoLower);
     }).toList();
   }
 
   // Limpiar datos
   void limpiar() {
+    _reportesSubscription?.cancel();
     _reportes.clear();
     _filtroActual = 'Todos';
     _error = null;
     _isLoading = false;
     notifyListeners();
+  }
+
+  @override
+  void dispose() {
+    _reportesSubscription?.cancel();
+    super.dispose();
   }
 }

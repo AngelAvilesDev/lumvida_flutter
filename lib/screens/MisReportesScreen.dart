@@ -1,9 +1,9 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../utils/constants.dart';
 import '../viewmodels/AuthViewModel.dart';
-import '../viewmodels/MisReportesViewModel.dart';
 
 class MisReportesScreen extends StatefulWidget {
   const MisReportesScreen({Key? key}) : super(key: key);
@@ -13,148 +13,202 @@ class MisReportesScreen extends StatefulWidget {
 }
 
 class _MisReportesScreenState extends State<MisReportesScreen> {
-  Future<void> _cargarReportesIniciales(MisReportesViewModel viewModel) async {
+  List<Map<String, dynamic>> _reportes = [];
+  bool _isLoading = false;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _cargarReportes();
+  }
+
+  Future<void> _cargarReportes() async {
     final authViewModel = Provider.of<AuthViewModel>(context, listen: false);
 
     if (!authViewModel.isAuthenticated) {
-      viewModel.limpiar();
       return;
     }
 
-    await viewModel.cargarReportes(authViewModel.user!.uid);
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
+
+    try {
+      final reportesSnapshot = await FirebaseFirestore.instance
+          .collection('reportes')
+          .where('userId', isEqualTo: authViewModel.user!.uid)
+          .orderBy('fecha', descending: true)
+          .get();
+
+      final reportes = reportesSnapshot.docs.map((doc) {
+        final data = doc.data();
+        return {
+          'id': doc.id,
+          'folio': data['folio'] ?? 'Sin folio',
+          'fecha': _formatearFecha(data['fecha']),
+          'estado': data['estado'] ?? 'pendiente',
+          'tipo': data['categoria'] ?? 'Sin categoría',
+          'descripcion': data['comentario'] ?? 'Sin descripción',
+          'ubicacion': data['direccion'] ?? 'Sin ubicación',
+          'nombreCompleto': data['nombreCompleto'] ?? '',
+          'telefono': data['telefono'] ?? '',
+          'isAnonymous': data['isAnonymous'] ?? false,
+          'imagenes': data['imagenes'] ?? [],
+          'historialEstados': data['historialEstados'] ?? [],
+        };
+      }).toList();
+
+      setState(() {
+        _reportes = reportes;
+        _isLoading = false;
+      });
+    } catch (e) {
+      setState(() {
+        _error = 'Error al cargar reportes: $e';
+        _isLoading = false;
+      });
+    }
+  }
+
+  String _formatearFecha(dynamic timestamp) {
+    if (timestamp == null) return 'Fecha desconocida';
+
+    try {
+      if (timestamp is Timestamp) {
+        final fecha = timestamp.toDate();
+        return '${fecha.day.toString().padLeft(2, '0')}/${fecha.month.toString().padLeft(2, '0')}/${fecha.year}';
+      }
+      return 'Fecha desconocida';
+    } catch (e) {
+      return 'Fecha desconocida';
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    return ChangeNotifierProvider(
-      create: (context) => MisReportesViewModel(),
-      child: Consumer<MisReportesViewModel>(
-        builder: (context, misReportesVM, child) {
-          // Cargar datos solo una vez cuando se crea el ViewModel
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (!misReportesVM.isLoading && misReportesVM.reportes.isEmpty) {
-              _cargarReportesIniciales(misReportesVM);
-            }
-          });
+    final authViewModel = Provider.of<AuthViewModel>(context);
 
-          return Scaffold(
-            appBar: AppBar(
-              title: const Text('Mis Reportes', style: TextStyle(color: kPrimaryColor)),
-              backgroundColor: Colors.transparent,
-              elevation: 0,
-              iconTheme: const IconThemeData(color: kPrimaryColor),
+    if (!authViewModel.isAuthenticated) {
+      return Scaffold(
+        appBar: AppBar(
+          title: const Text('Mis Reportes', style: TextStyle(color: kPrimaryColor)),
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          iconTheme: const IconThemeData(color: kPrimaryColor),
+        ),
+        body: Container(
+          decoration: backgroundDecoration,
+          child: const Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.person_off, size: 64, color: Colors.grey),
+                SizedBox(height: 16),
+                Text(
+                  'Debes iniciar sesión para ver tus reportes',
+                  style: TextStyle(fontSize: 16, color: Colors.grey),
+                  textAlign: TextAlign.center,
+                ),
+              ],
             ),
-            body: Container(
-              decoration: backgroundDecoration,
-              child: Column(
-                children: [
-                  // Filtros
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 10.0),
-                    child: SingleChildScrollView(
-                      scrollDirection: Axis.horizontal,
-                      child: Row(
-                        children: [
-                          _buildFilterChip('Todos', misReportesVM.filtroActual == 'Todos', misReportesVM),
-                          _buildFilterChip('Pendientes', misReportesVM.filtroActual == 'Pendientes', misReportesVM),
-                          _buildFilterChip('En proceso', misReportesVM.filtroActual == 'En proceso', misReportesVM),
-                          _buildFilterChip('Resueltos', misReportesVM.filtroActual == 'Resueltos', misReportesVM),
-                        ],
-                      ),
-                    ),
-                  ),
-
-                  // Contenido principal
-                  Expanded(
-                    child: _buildMainContent(context, misReportesVM),
-                  ),
-                ],
-              ),
-            ),
-            bottomNavigationBar: _buildBottomNavigationBar(),
-          );
-        },
-      ),
-    );
-  }
-
-  Widget _buildMainContent(BuildContext context, MisReportesViewModel misReportesVM) {
-    if (misReportesVM.isLoading) {
-      return const Center(
-        child: CircularProgressIndicator(color: kPrimaryColor),
+          ),
+        ),
       );
     }
 
-    if (misReportesVM.error != null) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Mis Reportes', style: TextStyle(color: kPrimaryColor)),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        iconTheme: const IconThemeData(color: kPrimaryColor),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            onPressed: _cargarReportes,
+          ),
+        ],
+      ),
+      body: Container(
+        decoration: backgroundDecoration,
+        child: _buildMainContent(),
+      ),
+      bottomNavigationBar: _buildBottomNavigationBar(),
+    );
+  }
+
+  Widget _buildMainContent() {
+    if (_isLoading) {
+      return const Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            CircularProgressIndicator(color: kPrimaryColor),
+            SizedBox(height: 16),
+            Text('Cargando tus reportes...'),
+          ],
+        ),
+      );
+    }
+
+    if (_error != null) {
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
+            Icon(Icons.error_outline, size: 64, color: Colors.red.shade400),
+            const SizedBox(height: 16),
             Text(
-              misReportesVM.error!,
+              _error!,
               style: const TextStyle(color: Colors.red),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 16),
-            ElevatedButton(
-              onPressed: () => _cargarReportesIniciales(misReportesVM),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: kPrimaryColor,
-              ),
-              child: const Text('Reintentar'),
+            ElevatedButton.icon(
+              onPressed: _cargarReportes,
+              style: ElevatedButton.styleFrom(backgroundColor: kPrimaryColor),
+              icon: const Icon(Icons.refresh),
+              label: const Text('Reintentar'), // <-- reemplazado aquí
             ),
           ],
         ),
       );
     }
 
-    final reportesFiltrados = misReportesVM.reportesFiltrados;
-
-    if (reportesFiltrados.isEmpty) {
+    if (_reportes.isEmpty) {
       return const Center(
-        child: Text(
-          'No tienes reportes en esta categoría',
-          style: TextStyle(
-            fontSize: 16,
-            color: Colors.black54,
-          ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.inbox_outlined, size: 64, color: Colors.grey),
+            SizedBox(height: 16),
+            Text(
+              'No tienes reportes aún',
+              style: TextStyle(fontSize: 16, color: Colors.black54),
+            ),
+            SizedBox(height: 8),
+            Text(
+              'Crea tu primer reporte desde la pantalla principal',
+              style: TextStyle(fontSize: 14, color: Colors.grey),
+              textAlign: TextAlign.center,
+            ),
+          ],
         ),
       );
     }
 
     return RefreshIndicator(
-      onRefresh: () => _cargarReportesIniciales(misReportesVM),
+      onRefresh: _cargarReportes,
       color: kPrimaryColor,
       child: ListView.builder(
         padding: const EdgeInsets.all(16),
-        itemCount: reportesFiltrados.length,
+        itemCount: _reportes.length,
         itemBuilder: (context, index) {
-          final reporte = reportesFiltrados[index];
+          final reporte = _reportes[index];
           return _buildReportCard(context, reporte);
         },
-      ),
-    );
-  }
-
-  Widget _buildFilterChip(String label, bool isSelected, MisReportesViewModel viewModel) {
-    return GestureDetector(
-      onTap: () {
-        viewModel.cambiarFiltro(label);
-      },
-      child: Container(
-        margin: const EdgeInsets.only(right: 8),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        decoration: BoxDecoration(
-          color: isSelected ? Colors.orange : Colors.grey.shade200,
-          borderRadius: BorderRadius.circular(20),
-        ),
-        child: Text(
-          label,
-          style: TextStyle(
-            color: isSelected ? Colors.white : Colors.black54,
-            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-          ),
-        ),
       ),
     );
   }
@@ -182,13 +236,14 @@ class _MisReportesScreenState extends State<MisReportesScreen> {
       }
     ];
 
-    if (reporte['estado'].toLowerCase() == 'en proceso') {
+    String estadoLower = reporte['estado']?.toString().toLowerCase() ?? '';
+    if (estadoLower.contains('proceso') || estadoLower == 'asignado') {
       historialEstados.add({
         'estado': 'Asignado al departamento correspondiente',
         'fecha': reporte['fecha'],
         'hora': '10:30'
       });
-    } else if (reporte['estado'].toLowerCase() == 'resuelto') {
+    } else if (estadoLower == 'resuelto' || estadoLower == 'completado') {
       historialEstados.add({
         'estado': 'Asignado al departamento correspondiente',
         'fecha': reporte['fecha'],
@@ -218,14 +273,14 @@ class _MisReportesScreenState extends State<MisReportesScreen> {
               Row(
                 children: [
                   Icon(
-                    getIconForType(reporte['tipo']),
+                    getIconForType(reporte['tipo'] ?? ''),
                     color: kPrimaryColor,
                     size: 40,
                   ),
                   const SizedBox(width: 10),
                   Expanded(
                     child: Text(
-                      reporte['tipo'],
+                      reporte['tipo'] ?? 'Sin categoría',
                       style: const TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.bold,
@@ -236,11 +291,11 @@ class _MisReportesScreenState extends State<MisReportesScreen> {
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                     decoration: BoxDecoration(
-                      color: _getColorPorEstado(reporte['estado']),
+                      color: _getColorPorEstado(reporte['estado'] ?? ''),
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Text(
-                      reporte['estado'].toUpperCase(),
+                      (reporte['estado'] ?? 'PENDIENTE').toString().toUpperCase(),
                       style: const TextStyle(
                         color: Colors.white,
                         fontSize: 10,
@@ -254,7 +309,7 @@ class _MisReportesScreenState extends State<MisReportesScreen> {
 
               // Número de folio
               Text(
-                'Folio: ${reporte['folio']}',
+                'Folio: ${reporte['folio'] ?? 'Sin folio'}',
                 style: TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.w500,
@@ -265,7 +320,7 @@ class _MisReportesScreenState extends State<MisReportesScreen> {
 
               // Descripción
               Text(
-                reporte['descripcion'],
+                reporte['descripcion'] ?? 'Sin descripción',
                 style: const TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w500,
@@ -282,7 +337,7 @@ class _MisReportesScreenState extends State<MisReportesScreen> {
                   const SizedBox(width: 4),
                   Expanded(
                     child: Text(
-                      reporte['ubicacion'],
+                      reporte['ubicacion'] ?? 'Sin ubicación',
                       style: TextStyle(color: Colors.grey.shade600),
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
@@ -294,7 +349,7 @@ class _MisReportesScreenState extends State<MisReportesScreen> {
 
               // Fecha
               Text(
-                'Reportado el ${reporte['fecha']}',
+                'Reportado el ${reporte['fecha'] ?? 'Fecha desconocida'}',
                 style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
               ),
 
@@ -364,53 +419,53 @@ class _MisReportesScreenState extends State<MisReportesScreen> {
   }
 
   Widget _buildBottomNavigationBar() {
-    return Container(
-      height: 70,
-      decoration: const BoxDecoration(
-        color: kSecondaryColor,
-        borderRadius: BorderRadius.only(
-          topLeft: Radius.circular(30),
-          topRight: Radius.circular(30),
+    return Consumer<AuthViewModel>(
+      builder: (context, authViewModel, _) => Container(
+        height: 70,
+        decoration: const BoxDecoration(
+          color: kSecondaryColor,
+          borderRadius: BorderRadius.only(
+            topLeft: Radius.circular(30),
+            topRight: Radius.circular(30),
+          ),
         ),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceAround,
-        children: [
-          const Expanded(
-            child: Center(
-              child: Text(
-                'Dashboard',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceAround,
+          children: [
+            const Expanded(
+              child: Center(
+                child: Text(
+                  'Dashboard',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
               ),
             ),
-          ),
-          Container(
-            width: 1,
-            height: 30,
-            color: Colors.white.withOpacity(0.3),
-          ),
-          Expanded(
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: [
-                IconButton(
-                  icon: const Icon(Icons.location_on, color: Colors.white, size: 28),
-                  onPressed: () {},
-                ),
-                Consumer<AuthViewModel>(
-                  builder: (context, authViewModel, _) => IconButton(
+            Container(
+              width: 1,
+              height: 30,
+              color: Colors.white.withOpacity(0.3),
+            ),
+            Expanded(
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.location_on, color: Colors.white, size: 28),
+                    onPressed: () {},
+                  ),
+                  IconButton(
                     icon: const Icon(Icons.person, color: Colors.white, size: 28),
                     onPressed: () => _mostrarDialogoCerrarSesion(context, authViewModel),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -419,7 +474,6 @@ class _MisReportesScreenState extends State<MisReportesScreen> {
     // Verificar si el reporte tiene imágenes
     Widget? imagenWidget;
     if (reporte['imagenes'] != null && (reporte['imagenes'] as List).isNotEmpty) {
-      // Si hay URLs de imágenes, mostrar la primera
       final imageUrl = (reporte['imagenes'] as List).first;
       imagenWidget = Image.network(
         imageUrl,
@@ -435,26 +489,13 @@ class _MisReportesScreenState extends State<MisReportesScreen> {
           );
         },
       );
-    } else if (reporte['foto'] != null && reporte['foto'].toString().isNotEmpty) {
-      // Fallback para imágenes en base64 (compatibilidad)
-      try {
-        final imageBytes = base64Decode(reporte['foto']);
-        imagenWidget = Image.memory(
-          imageBytes,
-          fit: BoxFit.cover,
-          width: double.infinity,
-          height: 200,
-        );
-      } catch (e) {
-        print("Error decodificando imagen: $e");
-      }
     }
 
     showDialog(
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
-          title: Text('Reporte #${reporte['folio']}',
+          title: Text('Reporte #${reporte['folio'] ?? 'Sin folio'}',
               style: const TextStyle(color: kPrimaryColor, fontWeight: FontWeight.bold)),
           content: SingleChildScrollView(
             child: Column(
@@ -471,47 +512,15 @@ class _MisReportesScreenState extends State<MisReportesScreen> {
                 ],
 
                 // Fecha y estado
-                _buildDetailRow('Fecha', reporte['fecha']),
-                _buildDetailRow('Estado', reporte['estado']),
+                _buildDetailRow('Fecha', reporte['fecha'] ?? 'Fecha desconocida'),
+                _buildDetailRow('Estado', reporte['estado'] ?? 'Sin estado'),
 
                 // Categoría y descripción
-                _buildDetailRow('Categoría', reporte['tipo']),
-                _buildDetailSection('Comentario', reporte['descripcion']),
+                _buildDetailRow('Categoría', reporte['tipo'] ?? 'Sin categoría'),
+                _buildDetailSection('Comentario', reporte['descripcion'] ?? 'Sin descripción'),
 
                 // Ubicación
-                _buildDetailSection('Ubicación', reporte['ubicacion']),
-
-                // Datos del denunciante (si no es anónimo)
-                if (!(reporte['isAnonymous'] ?? false) && (reporte['nombreCompleto'] ?? '').isNotEmpty) ...[
-                  const SizedBox(height: 8),
-                  const Divider(),
-                  _buildDetailRow('Reportado por', reporte['nombreCompleto']),
-                  if ((reporte['telefono'] ?? '').isNotEmpty)
-                    _buildDetailRow('Teléfono', reporte['telefono']),
-                ],
-
-                // Estadísticas adicionales
-                const SizedBox(height: 8),
-                const Divider(),
-                Consumer<MisReportesViewModel>(
-                  builder: (context, misReportesVM, child) {
-                    final stats = misReportesVM.obtenerEstadisticas();
-                    return Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          'Estadísticas de tus reportes:',
-                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-                        ),
-                        const SizedBox(height: 8),
-                        Text('Total: ${stats['total']}', style: const TextStyle(fontSize: 12)),
-                        Text('Pendientes: ${stats['pendientes']}', style: const TextStyle(fontSize: 12)),
-                        Text('En proceso: ${stats['enProceso']}', style: const TextStyle(fontSize: 12)),
-                        Text('Resueltos: ${stats['resueltos']}', style: const TextStyle(fontSize: 12)),
-                      ],
-                    );
-                  },
-                ),
+                _buildDetailSection('Ubicación', reporte['ubicacion'] ?? 'Sin ubicación'),
               ],
             ),
           ),
@@ -532,8 +541,7 @@ class _MisReportesScreenState extends State<MisReportesScreen> {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('$label: ',
-              style: const TextStyle(fontWeight: FontWeight.bold)),
+          Text('$label: ', style: const TextStyle(fontWeight: FontWeight.bold)),
           Expanded(child: Text(value)),
         ],
       ),
@@ -546,8 +554,7 @@ class _MisReportesScreenState extends State<MisReportesScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(label,
-              style: const TextStyle(fontWeight: FontWeight.bold)),
+          Text(label, style: const TextStyle(fontWeight: FontWeight.bold)),
           const SizedBox(height: 4),
           Container(
             width: double.infinity,
@@ -574,7 +581,7 @@ class _MisReportesScreenState extends State<MisReportesScreen> {
       case 'asignado':
         return Colors.blue;
       case 'en proceso':
-        return Colors.yellow.shade700; // Amarillo más oscuro para mejor contraste
+        return Colors.yellow.shade700;
       case 'resuelto':
       case 'completado':
         return Colors.green;

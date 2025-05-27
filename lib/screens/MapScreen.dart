@@ -74,9 +74,6 @@ class _MapScreenState extends State<MapScreen> {
                   // Filtros
                   _buildFiltersSection(mapVM),
 
-                  // Estadísticas rápidas
-                  _buildStatsSection(mapVM),
-
                   // Mapa
                   Expanded(
                     child: mapVM.isLoading
@@ -142,82 +139,6 @@ class _MapScreenState extends State<MapScreen> {
           ],
         ),
       ),
-    );
-  }
-
-  Widget _buildStatsSection(MapViewModel mapVM) {
-    if (mapVM.isLoading) return const SizedBox.shrink();
-
-    final statsPorEstado = mapVM.obtenerEstadisticasPorEstado();
-
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.9),
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.1),
-            blurRadius: 4,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Column(
-        children: [
-          const Text(
-            'Estado de los reportes',
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-              color: kPrimaryColor,
-            ),
-          ),
-          const SizedBox(height: 12),
-          // Estadísticas por estado con nuevos colores
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: [
-              _buildStatItem('Pendientes', statsPorEstado['pendiente'] ?? 0, Colors.grey),
-              _buildStatItem('En Revisión', statsPorEstado['en revision'] ?? 0, Colors.orange),
-              _buildStatItem('Asignado', statsPorEstado['asignado'] ?? 0, Colors.blue),
-              _buildStatItem('En Proceso', statsPorEstado['en proceso'] ?? 0, Colors.yellow),
-              _buildStatItem('Resuelto', statsPorEstado['resuelto'] ?? 0, Colors.green),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildStatItem(String label, int value, Color color) {
-    return Column(
-      children: [
-        Container(
-          padding: const EdgeInsets.all(8),
-          decoration: BoxDecoration(
-            color: color.withOpacity(0.2),
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Text(
-            value.toString(),
-            style: TextStyle(
-              fontWeight: FontWeight.bold,
-              fontSize: 16,
-              color: color,
-            ),
-          ),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          label,
-          style: const TextStyle(
-            fontSize: 12,
-            fontWeight: FontWeight.w500,
-          ),
-        ),
-      ],
     );
   }
 

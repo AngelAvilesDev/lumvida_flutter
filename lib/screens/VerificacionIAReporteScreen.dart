@@ -4,7 +4,7 @@ import 'package:provider/provider.dart';
 import 'package:flutter_osm_plugin/flutter_osm_plugin.dart' as osm;
 import '../utils/constants.dart';
 import '../viewmodels/AuthViewModel.dart';
-import '../services/OpenAIService.dart';
+import '../viewmodels/VerificacionIAViewModel.dart';
 
 class VerificacionIAReporteScreen extends StatefulWidget {
   final String categoria;
@@ -33,140 +33,74 @@ class VerificacionIAReporteScreen extends StatefulWidget {
 }
 
 class _VerificacionIAReporteScreenState extends State<VerificacionIAReporteScreen> {
-  bool _isAnalyzing = true;
-  bool _isLocationVerified = false;
-  bool _isCategoryMatch = false;
-  String _detectedCategory = '';
-  String _analysisMessage = '';
-  String _locationVerificationMessage = '';
-  bool _analysisFailed = false;
-  bool _canSubmitReport = false; // Nueva variable para controlar si se puede enviar
+  late VerificacionIAViewModel _verificacionViewModel;
 
   @override
   void initState() {
     super.initState();
-    _analizarImagenes();
+    _verificacionViewModel = VerificacionIAViewModel();
+
+    // Inicializar datos del reporte
+    _verificacionViewModel.inicializarDatos(
+      categoria: widget.categoria,
+      opcionSeleccionada: widget.opcionSeleccionada,
+      comentario: widget.comentario,
+      ubicacion: widget.ubicacion,
+      direccion: widget.direccion,
+      imagenes: widget.imagenes,
+    );
+
+    // Iniciar análisis automáticamente
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _verificacionViewModel.analizarImagenes();
+    });
   }
 
-  // Análisis real con la API de OpenAI
-  Future<void> _analizarImagenes() async {
-    setState(() {
-      _isAnalyzing = true;
-      _analysisFailed = false;
-      _canSubmitReport = false; // Resetear al iniciar análisis
-    });
-
-    try {
-      // Si no hay imágenes, no podemos hacer análisis
-      if (widget.imagenes.isEmpty) {
-        setState(() {
-          _isAnalyzing = false;
-          _analysisFailed = true;
-          _analysisMessage = 'No se encontraron imágenes para analizar. Por favor adjunta imágenes del problema para poder verificar la categoría.';
-          _detectedCategory = widget.categoria;
-          _isCategoryMatch = false;
-          _canSubmitReport = false; // No se puede enviar sin imágenes
-        });
-        return;
-      }
-
-      // Analizamos la primera imagen con OpenAI
-      final Map<String, dynamic> imageAnalysis = await OpenAIService.analyzeImage(
-          widget.imagenes[0],  // Analizamos la primera imagen
-          widget.categoria,
-          "Analiza esta imagen y determina si muestra un problema de '${widget.categoria}' como se ha reportado. "
-              "Responde ÚNICAMENTE si la imagen coincide EXACTAMENTE con la categoría reportada. "
-              "Si coincide, confirma que sí. Si NO coincide, indica qué tipo de problema se muestra realmente en la imagen, "
-              "eligiendo ÚNICAMENTE entre: 'Bacheo', 'Alumbrado Público', 'Basura Acumulada' o 'Drenajes Obstruidos'. "
-              "Si la imagen no muestra ninguno de estos problemas urbanos, indica que no es un problema válido para reportar."
-      );
-
-      // Verificamos los metadatos de ubicación
-      final Map<String, dynamic> locationVerification = await OpenAIService.verifyLocationMetadata(
-        widget.imagenes[0],
-        widget.ubicacion.latitude,
-        widget.ubicacion.longitude,
-      );
-
-      // Actualizamos el estado con los resultados
-      setState(() {
-        _isAnalyzing = false;
-        _isCategoryMatch = imageAnalysis['isMatch'];
-        _detectedCategory = imageAnalysis['detectedCategory'];
-        _analysisMessage = imageAnalysis['message'];
-        _isLocationVerified = locationVerification['isLocationVerified'];
-        _locationVerificationMessage = locationVerification['message'];
-
-        // LÓGICA CRÍTICA: Solo permitir envío si la categoría coincide EXACTAMENTE
-        _canSubmitReport = _isCategoryMatch;
-      });
-    } catch (e) {
-      setState(() {
-        _isAnalyzing = false;
-        _analysisFailed = true;
-        _analysisMessage = 'Error al analizar las imágenes: $e';
-        _detectedCategory = widget.categoria;
-        _isCategoryMatch = false;
-        _isLocationVerified = false;
-        _locationVerificationMessage = 'No se pudieron verificar los metadatos de ubicación.';
-        _canSubmitReport = false; // No se puede enviar si hay error
-      });
-    }
+  @override
+  void dispose() {
+    _verificacionViewModel.dispose();
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Verificación con IA', style: TextStyle(color: kPrimaryColor)),
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        iconTheme: const IconThemeData(color: kPrimaryColor),
-      ),
-      body: Container(
-        decoration: backgroundDecoration,
-        child: SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Título
-                const Text(
-                  'Verificación automática',
-                  style: TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.bold,
-                    color: kPrimaryColor,
+    return ChangeNotifierProvider.value(
+      value: _verificacionViewModel,
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('Verificación con IA', style: TextStyle(color: kPrimaryColor)),
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          iconTheme: const IconThemeData(color: kPrimaryColor),
+        ),
+        body: Container(
+          decoration: backgroundDecoration,
+          child: SafeArea(
+            child: Consumer<VerificacionIAViewModel>(
+              builder: (context, verificacionVM, child) {
+                return Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Header con título y estado
+                      _buildHeader(verificacionVM),
+
+                      const SizedBox(height: 24),
+
+                      // Contenido principal
+                      Expanded(
+                        child: _buildMainContent(verificacionVM),
+                      ),
+
+                      // Botones de acción
+                      const SizedBox(height: 20),
+                      if (!verificacionVM.isAnalyzing)
+                        _buildActionButtons(verificacionVM),
+                    ],
                   ),
-                ),
-
-                const SizedBox(height: 8),
-
-                const Text(
-                  'Nuestro sistema está analizando tu reporte para garantizar su precisión.',
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: Colors.black54,
-                  ),
-                ),
-
-                const SizedBox(height: 24),
-
-                // Contenido principal
-                Expanded(
-                  child: _isAnalyzing
-                      ? _buildLoadingScreen()
-                      : _analysisFailed
-                      ? _buildErrorScreen()
-                      : _buildAnalysisResults(),
-                ),
-
-                // Botones de acción
-                const SizedBox(height: 20),
-                if (!_isAnalyzing)
-                  _buildActionButtons(),
-              ],
+                );
+              },
             ),
           ),
         ),
@@ -174,110 +108,108 @@ class _VerificacionIAReporteScreenState extends State<VerificacionIAReporteScree
     );
   }
 
-  Widget _buildActionButtons() {
+  Widget _buildHeader(VerificacionIAViewModel verificacionVM) {
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Mostrar mensaje de advertencia si no se puede enviar
-        if (!_canSubmitReport && !_analysisFailed)
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(16),
-            margin: const EdgeInsets.only(bottom: 16),
-            decoration: BoxDecoration(
-              color: Colors.red.shade50,
-              border: Border.all(color: Colors.red.shade300),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Icon(Icons.warning, color: Colors.red.shade600, size: 20),
-                    const SizedBox(width: 8),
-                    const Text(
-                      'No se puede enviar el reporte',
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        color: Colors.red,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                const Text(
-                  'La imagen no coincide con la categoría reportada. Por favor, revisa tu reporte y selecciona la categoría correcta o toma una nueva foto que corresponda al problema.',
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: Colors.red,
-                  ),
-                ),
-              ],
-            ),
-          ),
-
-        // Botones
         Row(
           children: [
-            Expanded(
-              child: OutlinedButton(
-                onPressed: () => widget.onEdit(),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: kPrimaryColor,
-                  side: const BorderSide(color: kPrimaryColor),
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-                ),
-                child: Text(_canSubmitReport ? 'Editar reporte' : 'Corregir reporte'),
+            const Text(
+              'Verificación automática',
+              style: TextStyle(
+                fontSize: 22,
+                fontWeight: FontWeight.bold,
+                color: kPrimaryColor,
               ),
             ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: ElevatedButton(
-                onPressed: _canSubmitReport ? () => widget.onConfirm() : null, // Disabled si no se puede enviar
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: _canSubmitReport ? kPrimaryColor : Colors.grey,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 12),
+            const Spacer(),
+            if (verificacionVM.isAnalyzing)
+              const SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(
+                  color: kPrimaryColor,
+                  strokeWidth: 2,
                 ),
-                child: Text(_canSubmitReport ? 'Confirmar y enviar' : 'No se puede enviar'),
+              )
+            else
+              Icon(
+                verificacionVM.canSubmitReport
+                    ? Icons.check_circle
+                    : verificacionVM.analysisFailed
+                    ? Icons.error
+                    : Icons.warning,
+                color: verificacionVM.canSubmitReport
+                    ? Colors.green
+                    : verificacionVM.analysisFailed
+                    ? Colors.red
+                    : Colors.orange,
+                size: 24,
               ),
-            ),
           ],
+        ),
+        const SizedBox(height: 8),
+        Text(
+          verificacionVM.obtenerMensajeEstado(),
+          style: TextStyle(
+            fontSize: 14,
+            color: verificacionVM.isAnalyzing
+                ? Colors.black54
+                : verificacionVM.canSubmitReport
+                ? Colors.green.shade700
+                : Colors.red.shade700,
+            fontWeight: FontWeight.w500,
+          ),
         ),
       ],
     );
   }
 
+  Widget _buildMainContent(VerificacionIAViewModel verificacionVM) {
+    if (verificacionVM.isAnalyzing) {
+      return _buildLoadingScreen();
+    } else if (verificacionVM.analysisFailed) {
+      return _buildErrorScreen(verificacionVM);
+    } else {
+      return _buildAnalysisResults(verificacionVM);
+    }
+  }
+
   Widget _buildLoadingScreen() {
-    return Center(
+    return const Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          const CircularProgressIndicator(color: kPrimaryColor),
-          const SizedBox(height: 24),
-          const Text(
+          CircularProgressIndicator(color: kPrimaryColor, strokeWidth: 3),
+          SizedBox(height: 32),
+          Text(
             'Analizando imágenes con IA...',
             style: TextStyle(
-              fontSize: 16,
+              fontSize: 18,
               fontWeight: FontWeight.bold,
             ),
             textAlign: TextAlign.center,
           ),
-          const SizedBox(height: 8),
+          SizedBox(height: 12),
           Text(
             'Verificando que la categoría reportada coincida exactamente con el contenido de las imágenes.',
             style: TextStyle(
               fontSize: 14,
-              color: Colors.grey.shade700,
+              color: Colors.grey,
             ),
             textAlign: TextAlign.center,
+          ),
+          SizedBox(height: 24),
+          LinearProgressIndicator(
+            color: kPrimaryColor,
+            backgroundColor: Colors.grey,
           ),
         ],
       ),
     );
   }
 
-  Widget _buildErrorScreen() {
+  Widget _buildErrorScreen(VerificacionIAViewModel verificacionVM) {
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -300,7 +232,7 @@ class _VerificacionIAReporteScreenState extends State<VerificacionIAReporteScree
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 24.0),
             child: Text(
-              _analysisMessage,
+              verificacionVM.analysisMessage,
               style: TextStyle(
                 fontSize: 14,
                 color: Colors.grey.shade700,
@@ -310,10 +242,11 @@ class _VerificacionIAReporteScreenState extends State<VerificacionIAReporteScree
           ),
           const SizedBox(height: 24),
           ElevatedButton.icon(
-            onPressed: _analizarImagenes,
+            onPressed: () => verificacionVM.reintentarAnalisis(),
             style: ElevatedButton.styleFrom(
               backgroundColor: kPrimaryColor,
               foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
             ),
             icon: const Icon(Icons.refresh),
             label: const Text('Intentar nuevamente'),
@@ -323,7 +256,7 @@ class _VerificacionIAReporteScreenState extends State<VerificacionIAReporteScree
     );
   }
 
-  Widget _buildAnalysisResults() {
+  Widget _buildAnalysisResults(VerificacionIAViewModel verificacionVM) {
     return SingleChildScrollView(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -332,63 +265,16 @@ class _VerificacionIAReporteScreenState extends State<VerificacionIAReporteScree
           _buildResultCard(
             icon: Icons.image_search,
             title: 'Análisis de imágenes',
-            message: _isCategoryMatch
-                ? '✅ La IA ha confirmado que la imagen muestra un problema de ${widget.categoria}.'
-                : '❌ La IA ha detectado un problema de $_detectedCategory en la imagen, pero reportaste ${widget.categoria}. No coinciden.',
-            isSuccess: _isCategoryMatch,
-            isRequired: true, // Marcamos como requerido
+            message: verificacionVM.isCategoryMatch
+                ? '✅ La IA ha confirmado que la imagen muestra un problema de ${verificacionVM.categoria}.'
+                : '❌ La IA ha detectado un problema de ${verificacionVM.detectedCategory} en la imagen, pero reportaste ${verificacionVM.categoria}. No coinciden.',
+            isSuccess: verificacionVM.isCategoryMatch,
+            isRequired: true,
           ),
 
-          // Detalles adicionales del análisis (opinión de ChatGPT)
-          if (_analysisMessage.isNotEmpty)
-            Padding(
-              padding: const EdgeInsets.only(left: 16.0, right: 16.0, top: 8.0),
-              child: Card(
-                elevation: 0,
-                color: _isCategoryMatch ? Colors.green.shade50 : Colors.red.shade50,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.all(12.0),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Icon(
-                        Icons.smart_toy,
-                        color: _isCategoryMatch ? Colors.green.shade600 : Colors.red.shade600,
-                        size: 18,
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Análisis detallado de IA:',
-                              style: TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.bold,
-                                color: _isCategoryMatch ? Colors.green.shade700 : Colors.red.shade700,
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              _analysisMessage,
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: _isCategoryMatch ? Colors.green.shade700 : Colors.red.shade700,
-                                fontStyle: FontStyle.italic,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
+          // Detalles adicionales del análisis
+          if (verificacionVM.analysisMessage.isNotEmpty)
+            _buildAnalysisDetailCard(verificacionVM),
 
           const SizedBox(height: 16),
 
@@ -396,21 +282,78 @@ class _VerificacionIAReporteScreenState extends State<VerificacionIAReporteScree
           _buildResultCard(
             icon: Icons.location_on,
             title: 'Verificación de ubicación',
-            message: _locationVerificationMessage,
-            isSuccess: _isLocationVerified,
-            isRequired: false, // No es requerido para enviar
+            message: verificacionVM.locationVerificationMessage,
+            isSuccess: verificacionVM.isLocationVerified,
+            isRequired: false,
           ),
 
           const SizedBox(height: 24),
 
           // Información del reporte
-          _buildSummaryCard(),
+          _buildSummaryCard(verificacionVM),
 
           const SizedBox(height: 16),
 
           // Muestra de imágenes analizadas
-          _buildImageGallery(),
+          _buildImageGallery(verificacionVM),
+
+          const SizedBox(height: 24),
+
+          // Resumen del análisis (para debugging o información adicional)
+          if (!verificacionVM.canSubmitReport)
+            _buildRecommendationCard(verificacionVM),
         ],
+      ),
+    );
+  }
+
+  Widget _buildAnalysisDetailCard(VerificacionIAViewModel verificacionVM) {
+    return Padding(
+      padding: const EdgeInsets.only(left: 16.0, right: 16.0, top: 8.0),
+      child: Card(
+        elevation: 0,
+        color: verificacionVM.isCategoryMatch ? Colors.green.shade50 : Colors.red.shade50,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(12.0),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(
+                Icons.smart_toy,
+                color: verificacionVM.isCategoryMatch ? Colors.green.shade600 : Colors.red.shade600,
+                size: 18,
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Análisis detallado de IA:',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        color: verificacionVM.isCategoryMatch ? Colors.green.shade700 : Colors.red.shade700,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      verificacionVM.analysisMessage,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: verificacionVM.isCategoryMatch ? Colors.green.shade700 : Colors.red.shade700,
+                        fontStyle: FontStyle.italic,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -426,11 +369,9 @@ class _VerificacionIAReporteScreenState extends State<VerificacionIAReporteScree
     Color iconColor;
 
     if (isRequired) {
-      // Para validaciones críticas, usar colores más fuertes
       cardColor = isSuccess ? Colors.green.shade100 : Colors.red.shade100;
       iconColor = isSuccess ? Colors.green.shade600 : Colors.red.shade600;
     } else {
-      // Para validaciones informativas, usar colores más suaves
       cardColor = isSuccess ? Colors.green.shade50 : Colors.amber.shade50;
       iconColor = isSuccess ? Colors.green.shade400 : Colors.amber.shade600;
     }
@@ -508,7 +449,7 @@ class _VerificacionIAReporteScreenState extends State<VerificacionIAReporteScree
     );
   }
 
-  Widget _buildSummaryCard() {
+  Widget _buildSummaryCard(VerificacionIAViewModel verificacionVM) {
     return Card(
       elevation: 2,
       shape: RoundedRectangleBorder(
@@ -528,11 +469,12 @@ class _VerificacionIAReporteScreenState extends State<VerificacionIAReporteScree
               ),
             ),
             const SizedBox(height: 12),
-            _buildInfoRow('Categoría:', widget.categoria),
-            _buildInfoRow('Tipo de problema:', widget.opcionSeleccionada),
-            if (widget.comentario.isNotEmpty)
-              _buildInfoRow('Comentario:', widget.comentario),
-            _buildInfoRow('Ubicación:', widget.direccion),
+            _buildInfoRow('Categoría:', verificacionVM.categoria),
+            _buildInfoRow('Tipo de problema:', verificacionVM.opcionSeleccionada),
+            if (verificacionVM.comentario.isNotEmpty)
+              _buildInfoRow('Comentario:', verificacionVM.comentario),
+            _buildInfoRow('Ubicación:', verificacionVM.direccion),
+            _buildInfoRow('Imágenes adjuntas:', '${verificacionVM.imagenes.length}'),
           ],
         ),
       ),
@@ -568,8 +510,8 @@ class _VerificacionIAReporteScreenState extends State<VerificacionIAReporteScree
     );
   }
 
-  Widget _buildImageGallery() {
-    if (widget.imagenes.isEmpty) {
+  Widget _buildImageGallery(VerificacionIAViewModel verificacionVM) {
+    if (verificacionVM.imagenes.isEmpty) {
       return const SizedBox.shrink();
     }
 
@@ -589,7 +531,7 @@ class _VerificacionIAReporteScreenState extends State<VerificacionIAReporteScree
           height: 120,
           child: ListView.builder(
             scrollDirection: Axis.horizontal,
-            itemCount: widget.imagenes.length,
+            itemCount: verificacionVM.imagenes.length,
             itemBuilder: (context, index) {
               return Container(
                 margin: const EdgeInsets.only(right: 8),
@@ -597,7 +539,7 @@ class _VerificacionIAReporteScreenState extends State<VerificacionIAReporteScree
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(10),
                   image: DecorationImage(
-                    image: FileImage(widget.imagenes[index]),
+                    image: FileImage(verificacionVM.imagenes[index]),
                     fit: BoxFit.cover,
                   ),
                 ),
@@ -609,13 +551,32 @@ class _VerificacionIAReporteScreenState extends State<VerificacionIAReporteScree
                       child: Container(
                         padding: const EdgeInsets.all(4),
                         decoration: BoxDecoration(
-                          color: _isCategoryMatch ? Colors.green : Colors.red,
+                          color: verificacionVM.isCategoryMatch ? Colors.green : Colors.red,
                           shape: BoxShape.circle,
                         ),
                         child: Icon(
-                          _isCategoryMatch ? Icons.check : Icons.close,
+                          verificacionVM.isCategoryMatch ? Icons.check : Icons.close,
                           color: Colors.white,
                           size: 16,
+                        ),
+                      ),
+                    ),
+                    Positioned(
+                      bottom: 8,
+                      left: 8,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: Colors.black.withOpacity(0.7),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          '${index + 1}',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
                       ),
                     ),
@@ -624,6 +585,122 @@ class _VerificacionIAReporteScreenState extends State<VerificacionIAReporteScree
               );
             },
           ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildRecommendationCard(VerificacionIAViewModel verificacionVM) {
+    return Card(
+      elevation: 2,
+      color: Colors.blue.shade50,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(color: Colors.blue.shade300),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.lightbulb_outline, color: Colors.blue.shade600, size: 20),
+                const SizedBox(width: 8),
+                const Text(
+                  'Recomendaciones',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: Colors.blue,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              verificacionVM.isCategoryMatch
+                  ? 'Tu reporte ha sido verificado correctamente. Puedes proceder a enviarlo.'
+                  : 'Para mejorar la precisión de tu reporte:\n'
+                  '• Verifica que la imagen muestre claramente el problema reportado\n'
+                  '• Considera cambiar la categoría a "${verificacionVM.detectedCategory}"\n'
+                  '• Toma una nueva foto que muestre específicamente el problema de "${verificacionVM.categoria}"',
+              style: const TextStyle(fontSize: 14),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildActionButtons(VerificacionIAViewModel verificacionVM) {
+    return Column(
+      children: [
+        // Mostrar mensaje de advertencia si no se puede enviar
+        if (!verificacionVM.canSubmitReport && !verificacionVM.analysisFailed)
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(16),
+            margin: const EdgeInsets.only(bottom: 16),
+            decoration: BoxDecoration(
+              color: Colors.red.shade50,
+              border: Border.all(color: Colors.red.shade300),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(Icons.warning, color: Colors.red.shade600, size: 20),
+                    const SizedBox(width: 8),
+                    const Text(
+                      'No se puede enviar el reporte',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: Colors.red,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  'La imagen no coincide con la categoría reportada. Por favor, revisa tu reporte y selecciona la categoría correcta o toma una nueva foto que corresponda al problema.',
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Colors.red,
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+        // Botones de acción
+        Row(
+          children: [
+            Expanded(
+              child: OutlinedButton(
+                onPressed: () => widget.onEdit(),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: kPrimaryColor,
+                  side: const BorderSide(color: kPrimaryColor),
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                ),
+                child: Text(verificacionVM.canSubmitReport ? 'Editar reporte' : 'Corregir reporte'),
+              ),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: ElevatedButton(
+                onPressed: verificacionVM.canSubmitReport ? () => widget.onConfirm() : null,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: verificacionVM.canSubmitReport ? kPrimaryColor : Colors.grey,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                ),
+                child: Text(verificacionVM.canSubmitReport ? 'Confirmar y enviar' : 'No se puede enviar'),
+              ),
+            ),
+          ],
         ),
       ],
     );

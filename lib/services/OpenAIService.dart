@@ -9,7 +9,7 @@ class OpenAIService {
   static String get apiKey => dotenv.env['OPENAI_API_KEY'] ?? '';
   static const String baseUrl = 'https://api.openai.com/v1';
 
-  // Analizar imágenes con Vision de OpenAI (GPT-4 Vision) - Versión mejorada y más estricta
+  // Analizar imágenes con Vision de OpenAI (GPT-4 Vision) - Versión corregida
   static Future<Map<String, dynamic>> analyzeImage(
       File imageFile,
       String requestedCategory,
@@ -23,7 +23,7 @@ class OpenAIService {
       // URL para la API de Chat Completions (que soporta GPT-4 Vision)
       final Uri url = Uri.parse('$baseUrl/chat/completions');
 
-      // Construir el mensaje con la imagen - PROMPT MEJORADO Y MÁS ESTRICTO
+      // Construir el mensaje con la imagen - PROMPT MEJORADO Y MÁS CLARO
       final Map<String, dynamic> requestBody = {
         "model": "gpt-4o",  // Modelo para análisis de imágenes
         "messages": [
@@ -38,11 +38,13 @@ CATEGORÍAS VÁLIDAS Y SUS CARACTERÍSTICAS:
 4. DRENAJES OBSTRUIDOS: Alcantarillas, tapas de drenaje, agua estancada, sistema de drenaje bloqueado
 
 INSTRUCCIONES CRÍTICAS:
-- Si la imagen NO muestra EXACTAMENTE el tipo de problema reportado, responde que NO COINCIDE
-- Si hay dudas, responde que NO COINCIDE
-- Solo confirma coincidencia si estás 100% seguro
-- Si la imagen no muestra ningún problema urbano válido, indica que no es reportable
-- Sé ESTRICTO en tu análisis"""
+- Responde ÚNICAMENTE en español sin caracteres especiales
+- Si la imagen NO muestra EXACTAMENTE el tipo de problema reportado, responde "NO COINCIDE"
+- Si hay dudas, responde "NO COINCIDE"
+- Solo confirma coincidencia si estás 100% seguro respondiendo "SI COINCIDE"
+- Si la imagen no muestra ningún problema urbano válido, indica "NO ES PROBLEMA URBANO"
+- Sé ESTRICTO en tu análisis
+- NO uses tildes ni caracteres especiales en tu respuesta"""
           },
           {
             "role": "user",
@@ -52,11 +54,11 @@ INSTRUCCIONES CRÍTICAS:
                 "text": """El usuario reportó un problema de categoria: "${requestedCategory}".
                 
 Por favor analiza esta imagen y responde:
-1. ¿La imagen muestra EXACTAMENTE un problema de "${requestedCategory}"?
-2. Si NO coincide, ¿qué tipo de problema muestra? (solo elige entre: Bacheo, Alumbrado Público, Basura Acumulada, Drenajes Obstruidos, o "No es un problema urbano válido")
-3. Explica tu decisión de forma clara y específica.
+1. ¿La imagen muestra EXACTAMENTE un problema de "${requestedCategory}"? (Responde solo: "SI COINCIDE" o "NO COINCIDE")
+2. Si NO coincide, ¿qué tipo de problema muestra? (solo elige entre: Bacheo, Alumbrado Publico, Basura Acumulada, Drenajes Obstruidos, o "No es problema urbano")
+3. Explica tu decisión de forma clara y específica en español sin tildes.
 
-IMPORTANTE: Solo responde SÍ COINCIDE si estás completamente seguro. En caso de duda, responde NO COINCIDE."""
+IMPORTANTE: Solo responde "SI COINCIDE" si estás completamente seguro. En caso de duda, responde "NO COINCIDE"."""
               },
               {
                 "type": "image_url",
@@ -75,29 +77,38 @@ IMPORTANTE: Solo responde SÍ COINCIDE si estás completamente seguro. En caso d
       final response = await http.post(
         url,
         headers: {
-          'Content-Type': 'application/json',
+          'Content-Type': 'application/json; charset=utf-8',
           'Authorization': 'Bearer $apiKey',
         },
-        body: jsonEncode(requestBody),
+        body: utf8.encode(jsonEncode(requestBody)), // Usar UTF-8 encoding explícito
       );
 
       if (response.statusCode == 200) {
-        final Map<String, dynamic> responseData = jsonDecode(response.body);
+        // Decodificar la respuesta con UTF-8
+        final String responseBody = utf8.decode(response.bodyBytes);
+        final Map<String, dynamic> responseData = jsonDecode(responseBody);
 
         // Extraer la respuesta generada
         final String content = responseData['choices'][0]['message']['content'];
 
         if (kDebugMode) {
-          print('Respuesta de OpenAI: $content');
+          print('Respuesta de OpenAI (corregida): $content');
+        }
+
+        // Limpiar y normalizar el contenido
+        final String cleanContent = _cleanAndNormalizeText(content);
+
+        if (kDebugMode) {
+          print('Contenido limpio: $cleanContent');
         }
 
         // Determinar si la imagen coincide con la categoría - LÓGICA MEJORADA
-        final bool isMatch = _determineIfMatchStrict(content, requestedCategory);
-        final String detectedCategory = _extractDetectedCategoryStrict(content, requestedCategory);
+        final bool isMatch = _determineIfMatchStrict(cleanContent, requestedCategory);
+        final String detectedCategory = _extractDetectedCategoryStrict(cleanContent, requestedCategory);
 
         return {
           'success': true,
-          'message': content,
+          'message': cleanContent,
           'isMatch': isMatch,
           'detectedCategory': detectedCategory,
         };
@@ -125,16 +136,46 @@ IMPORTANTE: Solo responde SÍ COINCIDE si estás completamente seguro. En caso d
     }
   }
 
+  // Limpiar y normalizar texto
+  static String _cleanAndNormalizeText(String text) {
+    // Reemplazar caracteres mal codificados comunes
+    String cleanText = text
+        .replaceAll('Ã', 'Í')
+        .replaceAll('Ã¡', 'á')
+        .replaceAll('Ã©', 'é')
+        .replaceAll('Ã­', 'í')
+        .replaceAll('Ã³', 'ó')
+        .replaceAll('Ãº', 'ú')
+        .replaceAll('Ã±', 'ñ')
+        .replaceAll('Â°', '°')
+        .replaceAll('â€™', "'")
+        .replaceAll('â€œ', '"')
+        .replaceAll('â€', '"');
+
+    // Normalizar espacios y saltos de línea
+    cleanText = cleanText
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
+
+    return cleanText;
+  }
+
   // Método mejorado para extraer la categoría detectada - MÁS PRECISO
   static String _extractDetectedCategoryStrict(String content, String defaultCategory) {
     final contentLower = content.toLowerCase();
 
+    // Buscar respuestas directas primero
+    if (contentLower.contains('no es problema urbano') ||
+        contentLower.contains('no es un problema urbano')) {
+      return 'No es un problema urbano válido';
+    }
+
     // Mapeo más preciso de palabras clave
     final Map<String, List<String>> categoryKeywords = {
-      'Bacheo': ['bache', 'bacheo', 'pavimento', 'asfalto', 'hundimiento', 'calle dañada', 'hoyo', 'grieta'],
-      'Alumbrado Público': ['alumbrado', 'luminaria', 'poste', 'luz', 'lámpara', 'cable', 'iluminación'],
+      'Bacheo': ['bacheo', 'bache', 'pavimento', 'asfalto', 'hundimiento', 'calle dañada', 'hoyo', 'grieta'],
+      'Alumbrado Público': ['alumbrado', 'luminaria', 'poste', 'luz', 'lampara', 'cable', 'iluminacion'],
       'Basura Acumulada': ['basura', 'desecho', 'residuo', 'basurero', 'desperdicio', 'escombro'],
-      'Drenajes Obstruidos': ['drenaje', 'alcantarilla', 'agua', 'inundación', 'tapa', 'coladera', 'desagüe']
+      'Drenajes Obstruidos': ['drenaje', 'alcantarilla', 'agua', 'inundacion', 'tapa', 'coladera', 'desague']
     };
 
     // Buscar coincidencias específicas
@@ -150,13 +191,6 @@ IMPORTANTE: Solo responde SÍ COINCIDE si estás completamente seguro. En caso d
           return category;
         }
       }
-    }
-
-    // Si no se detecta nada específico, buscar en la respuesta directa
-    if (contentLower.contains('no es un problema urbano') ||
-        contentLower.contains('no es reportable') ||
-        contentLower.contains('no válido')) {
-      return 'No es un problema urbano válido';
     }
 
     // Si no se encuentra, devolver la categoría por defecto
@@ -182,7 +216,7 @@ IMPORTANTE: Solo responde SÍ COINCIDE si estás completamente seguro. En caso d
       'no es un problema de',
       'no se trata de',
       'diferente',
-      'no es válido',
+      'no es valido',
       'no es reportable'
     ];
 
@@ -197,14 +231,14 @@ IMPORTANTE: Solo responde SÍ COINCIDE si estás completamente seguro. En caso d
 
     // Buscar confirmaciones positivas explícitas
     final positiveResponses = [
-      'sí coincide',
+      'si coincide',
       'coincide exactamente',
-      'sí muestra',
+      'si muestra',
       'corresponde exactamente',
       'es exactamente',
       'confirmo que es',
       'efectivamente es',
-      'sí es un problema de'
+      'si es un problema de'
     ];
 
     for (final positive in positiveResponses) {
@@ -217,10 +251,9 @@ IMPORTANTE: Solo responde SÍ COINCIDE si estás completamente seguro. En caso d
     }
 
     // Verificación específica por categoría con palabras clave exactas
-    // Solo retorna true si encuentra palabras clave específicas Y no hay negaciones
     Map<String, List<String>> strictKeywords = {
       'bacheo': ['bache', 'pavimento dañado', 'asfalto deteriorado', 'hoyo en la calle', 'hundimiento'],
-      'alumbrado público': ['poste de luz', 'luminaria', 'alumbrado público', 'luz de calle'],
+      'alumbrado público': ['poste de luz', 'luminaria', 'alumbrado publico', 'luz de calle'],
       'basura acumulada': ['basura acumulada', 'desechos', 'residuos', 'basurero'],
       'drenajes obstruidos': ['drenaje obstruido', 'alcantarilla', 'agua estancada', 'coladera tapada']
     };
@@ -264,25 +297,20 @@ IMPORTANTE: Solo responde SÍ COINCIDE si estás completamente seguro. En caso d
     }
 
     // Por defecto, si no hay confirmación explícita, considerar que NO coincide
-    // Esto hace que el sistema sea más estricto
     if (kDebugMode) {
       print('No se encontró confirmación explícita, retornando false por defecto');
     }
     return false;
   }
 
-  // Verificar metadatos de ubicación en la imagen
+  // Verificar metadatos de ubicación en la imagen (sin cambios)
   static Future<Map<String, dynamic>> verifyLocationMetadata(
       File imageFile,
       double reportedLatitude,
       double reportedLongitude,
       ) async {
     try {
-      // En una implementación real, aquí extraeríamos los metadatos EXIF
-      // Para esta demostración, simulamos el resultado
-
       // Simulación: 70% de probabilidad de éxito en la verificación
-      // (Reducido de 80% para ser más realista)
       final bool isVerified = DateTime.now().millisecond % 10 < 7;
 
       return {
@@ -304,7 +332,7 @@ IMPORTANTE: Solo responde SÍ COINCIDE si estás completamente seguro. En caso d
     }
   }
 
-  // Método adicional para validar múltiples imágenes (útil para implementaciones futuras)
+  // Método adicional para validar múltiples imágenes (sin cambios)
   static Future<Map<String, dynamic>> analyzeMultipleImages(
       List<File> imageFiles,
       String requestedCategory,
@@ -344,7 +372,7 @@ IMPORTANTE: Solo responde SÍ COINCIDE si estás completamente seguro. En caso d
     return {
       'success': true,
       'message': 'Se analizaron ${imageFiles.length} imágenes. $matchingImages coinciden con la categoría "$requestedCategory".',
-      'isMatch': majorityMatch, // Al menos la mayoría debe coincidir
+      'isMatch': majorityMatch,
       'detectedCategory': results.first['detectedCategory'],
       'allImagesMatch': allMatch,
       'matchingCount': matchingImages,

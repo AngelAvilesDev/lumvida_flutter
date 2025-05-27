@@ -1,11 +1,10 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:flutter_osm_plugin/flutter_osm_plugin.dart' as osm;
-import 'package:cloud_firestore/cloud_firestore.dart';
 import '../components/OSMMapComponent.dart';
 import '../utils/constants.dart';
 import '../viewmodels/AuthViewModel.dart';
+import '../viewmodels/MapViewModel.dart';
 
 class MapScreen extends StatefulWidget {
   const MapScreen({Key? key}) : super(key: key);
@@ -15,319 +14,306 @@ class MapScreen extends StatefulWidget {
 }
 
 class _MapScreenState extends State<MapScreen> {
-  bool _isLoading = true;
-  List<MarkerData> _reportMarkers = [];
-  String? _selectedFilter;
-  late osm.MapController _mapController;
+  late MapViewModel _mapViewModel;
 
   @override
   void initState() {
     super.initState();
-    _loadReportLocations();
-  }
+    _mapViewModel = MapViewModel();
 
-  Future<void> _loadReportLocations() async {
-    setState(() {
-      _isLoading = true;
+    // Cargar datos después de que se construya el widget
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _mapViewModel.cargarUbicacionesReportes();
     });
-
-    try {
-      // Consulta Firestore para obtener reportes
-      final reportesSnapshot = await FirebaseFirestore.instance
-          .collection('reportes')
-          .get();
-
-      if (kDebugMode) {
-        print('Número de reportes encontrados: ${reportesSnapshot.docs.length}');
-      }
-
-      final markers = <MarkerData>[];
-
-      for (var doc in reportesSnapshot.docs) {
-        final data = doc.data();
-
-        // Debug: Imprimir los datos del reporte
-        if (kDebugMode) {
-          print('Datos del reporte: $data');
-        }
-
-        // Verificar si el reporte tiene coordenadas - Usamos campos actualizados
-        double? latitud;
-        double? longitud;
-
-        // Intentar obtener coordenadas de ambas formas posibles según tu estructura
-        // Primera forma: campos latitud/longitud directos
-        if (data['latitud'] != null && data['longitud'] != null) {
-          latitud = (data['latitud'] as num).toDouble();
-          longitud = (data['longitud'] as num).toDouble();
-        }
-        // Segunda forma: dentro del campo ubicacion
-        else if (data['ubicacion'] != null &&
-            data['ubicacion'] is Map &&
-            data['ubicacion']['latitud'] != null &&
-            data['ubicacion']['longitud'] != null) {
-          latitud = (data['ubicacion']['latitud'] as num).toDouble();
-          longitud = (data['ubicacion']['longitud'] as num).toDouble();
-        }
-
-        if (latitud != null && longitud != null) {
-          // Definir un icono basado en la categoría
-          Icon markerIcon;
-          final categoria = data['categoria']?.toString().toLowerCase() ?? '';
-
-          if (kDebugMode) {
-            print('Categoría del reporte: $categoria');
-          }
-
-          switch (categoria) {
-            case 'bacheo':
-              markerIcon = const Icon(Icons.car_repair, color: Colors.red, size: 48);
-              break;
-            case 'alumbrado público':
-              markerIcon = const Icon(Icons.lightbulb_outline, color: Colors.yellow, size: 48);
-              break;
-            case 'basura acumulada':
-              markerIcon = const Icon(Icons.delete_outline, color: Colors.orange, size: 48);
-              break;
-            case 'drenajes obstruidos':
-              markerIcon = const Icon(Icons.water_drop, color: Colors.blue, size: 48);
-              break;
-            default:
-              markerIcon = const Icon(Icons.report_problem, color: Colors.red, size: 48);
-          }
-
-          if (kDebugMode) {
-            print('Añadiendo marcador en: Lat $latitud, Lon $longitud');
-          }
-
-          markers.add(
-            MarkerData(
-              position: osm.GeoPoint(
-                latitude: latitud,
-                longitude: longitud,
-              ),
-              icon: osm.MarkerIcon(icon: markerIcon),
-              title: '${data['categoria'] ?? 'Sin categoría'} - ${data['folio'] ?? 'Sin folio'}',
-            ),
-          );
-        } else {
-          if (kDebugMode) {
-            print('Reporte sin coordenadas válidas: ${doc.id}');
-          }
-        }
-      }
-
-      if (kDebugMode) {
-        print('Total de marcadores creados: ${markers.length}');
-      }
-
-      setState(() {
-        _reportMarkers = markers;
-        _isLoading = false;
-      });
-    } catch (e) {
-      if (kDebugMode) {
-        print('Error cargando ubicaciones: $e');
-      }
-      setState(() {
-        _isLoading = false;
-      });
-    }
   }
 
-  // Método para aplicar filtros y actualizar el mapa
-  Future<void> _applyFilter(String? filter) async {
-    setState(() {
-      _selectedFilter = filter;
-    });
-
-    if (kDebugMode) {
-      print('Aplicando filtro: $filter');
-    }
-
-    // Eliminar todos los marcadores existentes y agregar solo los filtrados
-    try {
-      // Obtener marcadores filtrados
-      final filteredMarkers = _getFilteredMarkers();
-
-      if (kDebugMode) {
-        print('Número de marcadores filtrados: ${filteredMarkers.length}');
-      }
-
-      // Recrear el componente del mapa para forzar la actualización
-      setState(() {});
-    } catch (e) {
-      if (kDebugMode) {
-        print('Error al aplicar filtro: $e');
-      }
-    }
-  }
-
-  List<MarkerData> _getFilteredMarkers() {
-    if (_selectedFilter == null || _selectedFilter == 'Todos') {
-      return _reportMarkers;
-    }
-
-    // Filtrar marcadores según el filtro seleccionado
-    return _reportMarkers.where((marker) {
-      String categoriaOriginal = marker.title?.split(' - ').first.toLowerCase() ?? '';
-      String filtro = _selectedFilter!.toLowerCase();
-
-      if (kDebugMode) {
-        print('Comparando categoría: "$categoriaOriginal" con filtro: "$filtro"');
-      }
-
-      // Verificar si la categoría coincide con el filtro
-      if (filtro == 'bacheo' && categoriaOriginal.contains('bacheo')) {
-        return true;
-      } else if (filtro == 'alumbrado' && categoriaOriginal.contains('alumbrado')) {
-        return true;
-      } else if (filtro == 'basura' && categoriaOriginal.contains('basura')) {
-        return true;
-      } else if (filtro == 'drenajes' && (
-          categoriaOriginal.contains('drenajes') ||
-              categoriaOriginal.contains('obstruidos'))) {
-        return true;
-      }
-
-      return false;
-    }).toList();
+  @override
+  void dispose() {
+    _mapViewModel.dispose();
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    // Obtener marcadores filtrados
-    final filteredMarkers = _getFilteredMarkers();
+    return ChangeNotifierProvider.value(
+      value: _mapViewModel,
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('Mapa de Reportes', style: TextStyle(color: kPrimaryColor)),
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          iconTheme: const IconThemeData(color: kPrimaryColor),
+          actions: [
+            Consumer<MapViewModel>(
+              builder: (context, mapVM, child) {
+                return IconButton(
+                  icon: mapVM.isLoading
+                      ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(
+                      color: kPrimaryColor,
+                      strokeWidth: 2,
+                    ),
+                  )
+                      : const Icon(Icons.refresh),
+                  onPressed: mapVM.isLoading ? null : () {
+                    mapVM.recargar();
+                  },
+                );
+              },
+            ),
+          ],
+        ),
+        body: Container(
+          decoration: backgroundDecoration,
+          child: Consumer<MapViewModel>(
+            builder: (context, mapVM, child) {
+              return Column(
+                children: [
+                  // Filtros
+                  _buildFiltersSection(mapVM),
+
+                  // Estadísticas rápidas
+                  _buildStatsSection(mapVM),
+
+                  // Mapa
+                  Expanded(
+                    child: mapVM.isLoading
+                        ? const Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          CircularProgressIndicator(color: kPrimaryColor),
+                          SizedBox(height: 16),
+                          Text('Cargando reportes...'),
+                        ],
+                      ),
+                    )
+                        : mapVM.error != null
+                        ? _buildErrorSection(mapVM)
+                        : _buildMapSection(mapVM),
+                  ),
+
+                  // Contador de reportes
+                  _buildReportCounter(mapVM),
+                ],
+              );
+            },
+          ),
+        ),
+        bottomNavigationBar: _buildBottomNavigationBar(),
+      ),
+    );
+  }
+
+  Widget _buildFiltersSection(MapViewModel mapVM) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(
+          children: [
+            _buildFilterChip(
+              'Todos',
+              mapVM.selectedFilter == null || mapVM.selectedFilter == 'Todos',
+                  () => mapVM.aplicarFiltro('Todos'),
+            ),
+            _buildFilterChip(
+              'Bacheo',
+              mapVM.selectedFilter == 'Bacheo',
+                  () => mapVM.aplicarFiltro('Bacheo'),
+            ),
+            _buildFilterChip(
+              'Alumbrado',
+              mapVM.selectedFilter == 'Alumbrado',
+                  () => mapVM.aplicarFiltro('Alumbrado'),
+            ),
+            _buildFilterChip(
+              'Basura',
+              mapVM.selectedFilter == 'Basura',
+                  () => mapVM.aplicarFiltro('Basura'),
+            ),
+            _buildFilterChip(
+              'Drenajes',
+              mapVM.selectedFilter == 'Drenajes',
+                  () => mapVM.aplicarFiltro('Drenajes'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStatsSection(MapViewModel mapVM) {
+    if (mapVM.isLoading) return const SizedBox.shrink();
+
+    final statsPorEstado = mapVM.obtenerEstadisticasPorEstado();
+
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.9),
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.1),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          const Text(
+            'Estado de los reportes',
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+              color: kPrimaryColor,
+            ),
+          ),
+          const SizedBox(height: 12),
+          // Estadísticas por estado con nuevos colores
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            children: [
+              _buildStatItem('Pendientes', statsPorEstado['pendiente'] ?? 0, Colors.grey),
+              _buildStatItem('En Revisión', statsPorEstado['en revision'] ?? 0, Colors.orange),
+              _buildStatItem('Asignado', statsPorEstado['asignado'] ?? 0, Colors.blue),
+              _buildStatItem('En Proceso', statsPorEstado['en proceso'] ?? 0, Colors.yellow),
+              _buildStatItem('Resuelto', statsPorEstado['resuelto'] ?? 0, Colors.green),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStatItem(String label, int value, Color color) {
+    return Column(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: color.withOpacity(0.2),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Text(
+            value.toString(),
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              fontSize: 16,
+              color: color,
+            ),
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          label,
+          style: const TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildErrorSection(MapViewModel mapVM) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            Icons.error_outline,
+            color: Colors.red.shade400,
+            size: 64,
+          ),
+          const SizedBox(height: 16),
+          const Text(
+            'Error al cargar el mapa',
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 32),
+            child: Text(
+              mapVM.error ?? 'Error desconocido',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: Colors.grey.shade600,
+              ),
+            ),
+          ),
+          const SizedBox(height: 24),
+          ElevatedButton.icon(
+            onPressed: () => mapVM.recargar(),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: kPrimaryColor,
+              foregroundColor: Colors.white,
+            ),
+            icon: const Icon(Icons.refresh),
+            label: const Text('Reintentar'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMapSection(MapViewModel mapVM) {
+    final filteredMarkers = mapVM.filteredMarkers;
 
     if (kDebugMode) {
       print('Construyendo mapa con ${filteredMarkers.length} marcadores');
     }
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Mapa de Reportes', style: TextStyle(color: kPrimaryColor)),
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        iconTheme: const IconThemeData(color: kPrimaryColor),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: () {
-              _loadReportLocations();
-            },
+    return Padding(
+      padding: const EdgeInsets.all(16.0),
+      child: OSMMapComponent(
+        key: ValueKey('osm_map_${mapVM.selectedFilter ?? "todos"}_${filteredMarkers.length}'),
+        height: double.infinity,
+        trackMyLocation: true,
+        markers: filteredMarkers,
+      ),
+    );
+  }
+
+  Widget _buildReportCounter(MapViewModel mapVM) {
+    if (mapVM.isLoading) return const SizedBox.shrink();
+
+    final filteredCount = mapVM.filteredMarkers.length;
+    final totalCount = mapVM.reportMarkers.length;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+      color: Colors.grey.shade100,
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            'Mostrando $filteredCount de $totalCount reportes',
+            style: const TextStyle(
+              color: Colors.grey,
+              fontSize: 12,
+              fontWeight: FontWeight.w500,
+            ),
           ),
+          if (mapVM.selectedFilter != null && mapVM.selectedFilter != 'Todos')
+            TextButton.icon(
+              onPressed: () => mapVM.aplicarFiltro('Todos'),
+              icon: const Icon(Icons.clear, size: 16),
+              label: const Text('Limpiar filtro'),
+              style: TextButton.styleFrom(
+                foregroundColor: kPrimaryColor,
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+              ),
+            ),
         ],
-      ),
-      body: Container(
-        decoration: backgroundDecoration,
-        child: Column(
-          children: [
-            // Filtros
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-              child: SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                child: Row(
-                  children: [
-                    _buildFilterChip('Todos', _selectedFilter == null || _selectedFilter == 'Todos', () {
-                      _applyFilter('Todos');
-                    }),
-                    _buildFilterChip('Bacheo', _selectedFilter == 'Bacheo', () {
-                      _applyFilter('Bacheo');
-                    }),
-                    _buildFilterChip('Alumbrado', _selectedFilter == 'Alumbrado', () {
-                      _applyFilter('Alumbrado');
-                    }),
-                    _buildFilterChip('Basura', _selectedFilter == 'Basura', () {
-                      _applyFilter('Basura');
-                    }),
-                    _buildFilterChip('Drenajes', _selectedFilter == 'Drenajes', () {
-                      _applyFilter('Drenajes');
-                    }),
-                  ],
-                ),
-              ),
-            ),
-
-            // Mapa - El key fuerza la reconstrucción completa cuando cambian los filtros
-            Expanded(
-              child: _isLoading
-                  ? const Center(child: CircularProgressIndicator(color: kPrimaryColor))
-                  : Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: OSMMapComponent(
-                  key: ValueKey('osm_map_${_selectedFilter ?? "todos"}_${filteredMarkers.length}'),
-                  height: double.infinity,
-                  trackMyLocation: true,
-                  markers: filteredMarkers,
-                ),
-              ),
-            ),
-
-            // Contador de reportes (opcional, para depuración)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 8.0),
-              child: Text(
-                'Mostrando ${filteredMarkers.length} reportes',
-                style: const TextStyle(color: Colors.grey, fontSize: 12),
-              ),
-            ),
-          ],
-        ),
-      ),
-      bottomNavigationBar: Container(
-        height: 50,
-        decoration: const BoxDecoration(
-          color: kSecondaryColor,
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceAround,
-          children: [
-            const Expanded(
-              child: Center(
-                child: Text(
-                  'Dashboard',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
-            ),
-            Container(
-              width: 1,
-              height: 30,
-              color: Colors.white.withOpacity(0.3),
-            ),
-            Expanded(
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: [
-                  IconButton(
-                    icon: const Icon(Icons.location_on, color: Colors.white, size: 28),
-                    onPressed: () {
-                      // Recargar datos
-                      _loadReportLocations();
-                    },
-                  ),
-                  Consumer<AuthViewModel>(
-                    builder: (context, authViewModel, _) => IconButton(
-                      icon: const Icon(Icons.person, color: Colors.white, size: 28),
-                      onPressed: () {
-                        if (authViewModel.isAuthenticated) {
-                          _mostrarDialogoCerrarSesion(context);
-                        } else {
-                          // Navegar a la pantalla de login
-                        }
-                      },
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
       ),
     );
   }
@@ -341,6 +327,13 @@ class _MapScreenState extends State<MapScreen> {
         decoration: BoxDecoration(
           color: isSelected ? kPrimaryColor : Colors.grey.shade200,
           borderRadius: BorderRadius.circular(20),
+          boxShadow: isSelected ? [
+            BoxShadow(
+              color: kPrimaryColor.withOpacity(0.3),
+              blurRadius: 4,
+              offset: const Offset(0, 2),
+            ),
+          ] : null,
         ),
         child: Text(
           label,
@@ -353,7 +346,71 @@ class _MapScreenState extends State<MapScreen> {
     );
   }
 
-  void _mostrarDialogoCerrarSesion(BuildContext context) {
+  Widget _buildBottomNavigationBar() {
+    return Container(
+      height: 50,
+      decoration: const BoxDecoration(
+        color: kSecondaryColor,
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceAround,
+        children: [
+          const Expanded(
+            child: Center(
+              child: Text(
+                'Dashboard',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ),
+          Container(
+            width: 1,
+            height: 30,
+            color: Colors.white.withOpacity(0.3),
+          ),
+          Expanded(
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                Consumer<MapViewModel>(
+                  builder: (context, mapVM, child) {
+                    return IconButton(
+                      icon: const Icon(Icons.location_on, color: Colors.white, size: 28),
+                      onPressed: () => mapVM.recargar(),
+                    );
+                  },
+                ),
+                Consumer<AuthViewModel>(
+                  builder: (context, authViewModel, _) => IconButton(
+                    icon: const Icon(Icons.person, color: Colors.white, size: 28),
+                    onPressed: () {
+                      if (authViewModel.isAuthenticated) {
+                        _mostrarDialogoCerrarSesion(context, authViewModel);
+                      } else {
+                        // Navegar a la pantalla de login
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Inicia sesión para acceder a más funciones'),
+                            backgroundColor: kPrimaryColor,
+                          ),
+                        );
+                      }
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _mostrarDialogoCerrarSesion(BuildContext context, AuthViewModel authViewModel) {
     showDialog(
       context: context,
       builder: (context) {
@@ -362,17 +419,20 @@ class _MapScreenState extends State<MapScreen> {
           content: const Text('¿Estás seguro de que quieres cerrar sesión?'),
           actions: [
             TextButton(
-              onPressed: () {
-                Navigator.of(context).pop();
-              },
+              onPressed: () => Navigator.of(context).pop(),
               child: const Text('Cancelar', style: TextStyle(color: kPrimaryColor)),
             ),
             ElevatedButton(
               onPressed: () async {
-                final authViewModel = Provider.of<AuthViewModel>(context, listen: false);
                 await authViewModel.signOut();
                 if (context.mounted) {
                   Navigator.of(context).pop();
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Sesión cerrada correctamente'),
+                      backgroundColor: Colors.green,
+                    ),
+                  );
                 }
               },
               style: ElevatedButton.styleFrom(backgroundColor: Colors.red),

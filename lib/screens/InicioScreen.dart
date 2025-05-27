@@ -5,7 +5,7 @@ import '../viewmodels/AuthViewModel.dart';
 import 'LoginScreen.dart';
 import 'MisReportesScreen.dart';
 import 'ReportesScreen.dart';
-import 'MapScreen.dart'; // Importamos la pantalla del mapa
+import 'MapScreen.dart';
 
 class InicioScreen extends StatelessWidget {
   const InicioScreen({Key? key}) : super(key: key);
@@ -13,7 +13,6 @@ class InicioScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final authViewModel = Provider.of<AuthViewModel>(context);
-    final screenWidth = MediaQuery.of(context).size.width;
 
     return Scaffold(
       body: Container(
@@ -140,8 +139,6 @@ class InicioScreen extends StatelessWidget {
       bottomNavigationBar: _buildBottomNavigationBar(context),
     );
   }
-
-  // Actualización solo del método _buildCategoryButton en InicioScreen.dart
 
   Widget _buildCategoryButton({
     required BuildContext context,

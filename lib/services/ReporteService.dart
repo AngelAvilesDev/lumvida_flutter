@@ -16,7 +16,7 @@ class ReporteService {
 
   ReporteService() : _reportesRef = FirebaseFirestore.instance.collection('reportes');
 
-  // Obtener todos los reportes
+  // Obtener todos los reportes (sin cambios)
   Stream<List<Map<String, dynamic>>> getReportes() {
     return _reportesRef
         .orderBy('fecha', descending: true)
@@ -31,7 +31,7 @@ class ReporteService {
     });
   }
 
-  // Obtener reportes filtrados por categoría
+  // Obtener reportes filtrados por categoría (sin cambios)
   Stream<List<Map<String, dynamic>>> getReportesByCategoria(String categoria) {
     return _reportesRef
         .where('categoria', isEqualTo: categoria)
@@ -47,7 +47,7 @@ class ReporteService {
     });
   }
 
-  // Obtener reportes de un usuario específico
+  // Obtener reportes de un usuario específico (sin cambios)
   Stream<List<Map<String, dynamic>>> getReportesByUser(String userId) {
     return _reportesRef
         .where('userId', isEqualTo: userId)
@@ -63,7 +63,7 @@ class ReporteService {
     });
   }
 
-  // Obtener un reporte por su ID
+  // Obtener un reporte por su ID (sin cambios)
   Future<Map<String, dynamic>?> getReporteById(String reporteId) async {
     try {
       final docSnapshot = await _reportesRef.doc(reporteId).get();
@@ -82,7 +82,7 @@ class ReporteService {
     }
   }
 
-  // Crear un nuevo reporte
+  // Crear un nuevo reporte - MEJORADO CON MEJOR MANEJO DE ERRORES
   Future<String?> crearReporte({
     required String userId,
     required String categoria,
@@ -109,9 +109,32 @@ class ReporteService {
       // Lista para almacenar URLs de imágenes subidas
       List<String> imagenesUrls = [];
 
-      // Subir imágenes si existen
+      // Subir imágenes si existen - CON MEJOR MANEJO DE ERRORES
       if (imagenes != null && imagenes.isNotEmpty) {
-        imagenesUrls = await _subirImagenes(imagenes, folio);
+        if (kDebugMode) {
+          print('Iniciando subida de ${imagenes.length} imágenes...');
+        }
+
+        final result = await _subirImagenes(imagenes, folio);
+
+        if (result['success']) {
+          imagenesUrls = result['urls'];
+          if (kDebugMode) {
+            print('Imágenes subidas exitosamente: ${imagenesUrls.length}');
+          }
+        } else {
+          // Si falló la subida de imágenes, mostrar error específico
+          if (kDebugMode) {
+            print('Error al subir imágenes: ${result['error']}');
+          }
+
+          // Decidir si continuar sin imágenes o fallar completamente
+          if (result['error'].contains('unauthorized') || result['error'].contains('permission')) {
+            throw Exception('Sin permisos para subir imágenes. Verifica la configuración de Firebase Storage.');
+          }
+          // Para otros errores, continuar sin imágenes
+          imagenesUrls = [];
+        }
       }
 
       // Crear el reporte con historial inicial
@@ -140,62 +163,133 @@ class ReporteService {
 
       // Guardar en Firestore
       final docRef = await _reportesRef.add(nuevoReporte);
+
+      if (kDebugMode) {
+        print('Reporte creado exitosamente con ID: ${docRef.id}');
+      }
+
       return docRef.id;
     } catch (e) {
       if (kDebugMode) {
         print('Error al crear reporte: $e');
       }
-      return null;
+      rethrow; // Re-lanzar la excepción para que el ViewModel la maneje
     }
   }
 
-  // Subir imágenes al Storage
-  Future<List<String>> _subirImagenes(List<File> imagenes, String folio) async {
+  // Subir imágenes al Storage - MEJORADO CON MEJOR MANEJO DE ERRORES
+  Future<Map<String, dynamic>> _subirImagenes(List<File> imagenes, String folio) async {
     List<String> urls = [];
+    List<String> errores = [];
 
     for (int i = 0; i < imagenes.length; i++) {
       final file = imagenes[i];
       final fileName = '$folio-$i.jpg';
 
       try {
+        if (kDebugMode) {
+          print('Subiendo imagen $i: $fileName');
+        }
+
+        // Verificar que el archivo existe y es válido
+        if (!await file.exists()) {
+          errores.add('Archivo $fileName no existe');
+          continue;
+        }
+
+        // Verificar el tamaño del archivo (máximo 10MB)
+        final fileSize = await file.length();
+        if (fileSize > 10 * 1024 * 1024) {
+          errores.add('Archivo $fileName es demasiado grande (${(fileSize / 1024 / 1024).toStringAsFixed(1)}MB)');
+          continue;
+        }
+
         final Reference ref = _storage.ref().child('reportes/$folio/$fileName');
-        final UploadTask uploadTask = ref.putFile(file);
+
+        // Configurar metadata
+        final SettableMetadata metadata = SettableMetadata(
+          contentType: 'image/jpeg',
+          customMetadata: {
+            'uploadedBy': 'lumvida_app',
+            'folio': folio,
+            'timestamp': DateTime.now().toIso8601String(),
+          },
+        );
+
+        final UploadTask uploadTask = ref.putFile(file, metadata);
+
+        // Monitorear el progreso de subida
+        uploadTask.snapshotEvents.listen((TaskSnapshot snapshot) {
+          final progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+          if (kDebugMode) {
+            print('Progreso subida $fileName: ${progress.toStringAsFixed(1)}%');
+          }
+        });
+
         final TaskSnapshot snapshot = await uploadTask;
         final String downloadUrl = await snapshot.ref.getDownloadURL();
 
         urls.add(downloadUrl);
-      } catch (e) {
+
         if (kDebugMode) {
-          print('Error al subir imagen $i: $e');
+          print('Imagen $fileName subida exitosamente: $downloadUrl');
+        }
+
+      } on FirebaseException catch (e) {
+        final errorMsg = 'Error Firebase al subir imagen $i: ${e.code} - ${e.message}';
+        errores.add(errorMsg);
+        if (kDebugMode) {
+          print(errorMsg);
+        }
+
+        // Si es un error de permisos, fallar inmediatamente
+        if (e.code == 'unauthorized' || e.code == 'permission-denied') {
+          return {
+            'success': false,
+            'urls': <String>[],
+            'error': 'Sin permisos para subir imágenes: ${e.message}',
+            'errores': errores,
+          };
+        }
+      } catch (e) {
+        final errorMsg = 'Error general al subir imagen $i: $e';
+        errores.add(errorMsg);
+        if (kDebugMode) {
+          print(errorMsg);
         }
       }
     }
 
-    return urls;
+    final bool success = urls.isNotEmpty;
+
+    return {
+      'success': success,
+      'urls': urls,
+      'error': errores.isNotEmpty ? errores.join(', ') : null,
+      'errores': errores,
+      'uploadedCount': urls.length,
+      'totalCount': imagenes.length,
+    };
   }
 
-  // Actualizar el estado de un reporte
+  // Actualizar el estado de un reporte (sin cambios)
   Future<bool> actualizarEstadoReporte({
     required String reporteId,
     required String nuevoEstado,
     String? comentario,
   }) async {
     try {
-      // Obtener el reporte actual
       final docSnapshot = await _reportesRef.doc(reporteId).get();
       if (!docSnapshot.exists) return false;
 
-      // Obtener el historial actual
       List<dynamic> historialActual = (docSnapshot.data() as Map<String, dynamic>)['historialEstados'] ?? [];
 
-      // Agregar el nuevo estado al historial
       historialActual.add({
         'estado': nuevoEstado,
         'fecha': Timestamp.now(),
         'comentario': comentario
       });
 
-      // Actualizar el documento
       await _reportesRef.doc(reporteId).update({
         'estado': nuevoEstado,
         'historialEstados': historialActual,
@@ -210,14 +304,14 @@ class ReporteService {
     }
   }
 
-  // Generar un folio único
+  // Generar un folio único (sin cambios)
   String _generarFolio() {
     final timestamp = DateTime.now().millisecondsSinceEpoch.toString().substring(6);
     final random = _uuid.v4().substring(0, 4);
     return 'REP-$timestamp-$random';
   }
 
-  // Codificar una imagen en base64 (útil para almacenar en caché local)
+  // Codificar una imagen en base64 (sin cambios)
   Future<String> imageToBase64(File file) async {
     try {
       final bytes = await file.readAsBytes();
@@ -230,10 +324,9 @@ class ReporteService {
     }
   }
 
-  // Obtener la dirección de unas coordenadas usando OpenStreetMap Nominatim
+  // Obtener la dirección de unas coordenadas usando OpenStreetMap Nominatim (sin cambios)
   Future<String> obtenerDireccion(osm.GeoPoint posicion) async {
     try {
-      //Usamos la API de Nominatim directamente
       final url = Uri.parse(
         'https://nominatim.openstreetmap.org/reverse?format=json&lat=${posicion.latitude}&lon=${posicion.longitude}&zoom=18&addressdetails=1',
       );
@@ -252,13 +345,50 @@ class ReporteService {
         }
       }
 
-      // Si todo falla, retornamos las coordenadas formateadas
       return 'Latitud: ${posicion.latitude.toStringAsFixed(6)}, Longitud: ${posicion.longitude.toStringAsFixed(6)}';
     } catch (e) {
       if (kDebugMode) {
         print('Error al obtener dirección: $e');
       }
       return 'Error al obtener la dirección';
+    }
+  }
+
+  // Método para limpiar imágenes huérfanas en Storage (opcional)
+  Future<void> limpiarImagenesHuerfanas(String folio) async {
+    try {
+      final Reference folderRef = _storage.ref().child('reportes/$folio');
+      final ListResult result = await folderRef.listAll();
+
+      for (Reference fileRef in result.items) {
+        await fileRef.delete();
+        if (kDebugMode) {
+          print('Imagen huérfana eliminada: ${fileRef.name}');
+        }
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        print('Error al limpiar imágenes huérfanas: $e');
+      }
+    }
+  }
+
+  // Método para obtener información de Storage (para debugging)
+  Future<Map<String, dynamic>> getStorageInfo() async {
+    try {
+      final Reference rootRef = _storage.ref();
+      final ListResult result = await rootRef.child('reportes').listAll();
+
+      return {
+        'totalFolders': result.prefixes.length,
+        'totalFiles': result.items.length,
+        'storageUrl': _storage.bucket,
+      };
+    } catch (e) {
+      if (kDebugMode) {
+        print('Error al obtener info de Storage: $e');
+      }
+      return {'error': e.toString()};
     }
   }
 }

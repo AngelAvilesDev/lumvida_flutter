@@ -67,12 +67,6 @@ class _VerificacionIAReporteScreenState extends State<VerificacionIAReporteScree
     return ChangeNotifierProvider.value(
       value: _verificacionViewModel,
       child: Scaffold(
-        appBar: AppBar(
-          title: const Text('Verificación con IA', style: TextStyle(color: kPrimaryColor)),
-          backgroundColor: Colors.transparent,
-          elevation: 0,
-          iconTheme: const IconThemeData(color: kPrimaryColor),
-        ),
         body: Container(
           decoration: backgroundDecoration,
           child: SafeArea(

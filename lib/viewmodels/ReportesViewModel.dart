@@ -16,6 +16,9 @@ class ReportesViewModel extends ChangeNotifier {
   String _addressText = "Selecciona una ubicación en el mapa";
   List<File> _selectedPhotos = [];
 
+  // Flag para controlar si el ViewModel ha sido disposed
+  bool _disposed = false;
+
   // Getters
   bool get isSubmitting => _isSubmitting;
   bool get isAnalyzing => _isAnalyzing;
@@ -27,28 +30,33 @@ class ReportesViewModel extends ChangeNotifier {
 
   // Setters con notificación
   void setSelectedOption(String? option) {
+    if (_disposed) return;
     _selectedOption = option;
     notifyListeners();
   }
 
   void setSelectedLocation(osm.GeoPoint location) {
+    if (_disposed) return;
     _selectedLocation = location;
     _addressText = 'Lat: ${location.latitude.toStringAsFixed(6)}, Lon: ${location.longitude.toStringAsFixed(6)}';
     notifyListeners();
   }
 
   void updateAddressText(String address) {
+    if (_disposed) return;
     _addressText = address;
     notifyListeners();
   }
 
   // Manejo de fotos
   void addPhoto(File photo) {
+    if (_disposed) return;
     _selectedPhotos.add(photo);
     notifyListeners();
   }
 
   void updatePhoto(int index, File photo) {
+    if (_disposed) return;
     if (index < _selectedPhotos.length) {
       _selectedPhotos[index] = photo;
     } else {
@@ -58,6 +66,7 @@ class ReportesViewModel extends ChangeNotifier {
   }
 
   void removePhoto(int index) {
+    if (_disposed) return;
     if (index < _selectedPhotos.length) {
       _selectedPhotos.removeAt(index);
       notifyListeners();
@@ -66,6 +75,8 @@ class ReportesViewModel extends ChangeNotifier {
 
   // Validaciones
   bool validateForm(String comentario) {
+    if (_disposed) return false;
+
     _errorMessage = null;
 
     if (_selectedOption == null) {
@@ -97,6 +108,15 @@ class ReportesViewModel extends ChangeNotifier {
 
   // Análisis con IA
   Future<Map<String, dynamic>> analizarImagenesConIA(String categoria) async {
+    if (_disposed) {
+      return {
+        'success': false,
+        'message': 'ViewModel was disposed',
+        'isMatch': false,
+        'detectedCategory': categoria,
+      };
+    }
+
     if (_selectedPhotos.isEmpty) {
       return {
         'success': false,
@@ -108,7 +128,7 @@ class ReportesViewModel extends ChangeNotifier {
 
     _isAnalyzing = true;
     _errorMessage = null;
-    notifyListeners();
+    if (!_disposed) notifyListeners();
 
     try {
       final resultado = await OpenAIService.analyzeImage(
@@ -117,14 +137,18 @@ class ReportesViewModel extends ChangeNotifier {
         "Analiza esta imagen y determina si muestra un problema de '$categoria' como se ha reportado.",
       );
 
-      _isAnalyzing = false;
-      notifyListeners();
+      if (!_disposed) {
+        _isAnalyzing = false;
+        notifyListeners();
+      }
 
       return resultado;
     } catch (e) {
-      _isAnalyzing = false;
-      _errorMessage = 'Error al analizar imágenes: $e';
-      notifyListeners();
+      if (!_disposed) {
+        _isAnalyzing = false;
+        _errorMessage = 'Error al analizar imágenes: $e';
+        notifyListeners();
+      }
 
       return {
         'success': false,
@@ -144,6 +168,13 @@ class ReportesViewModel extends ChangeNotifier {
     required String telefono,
     required bool isAnonymous,
   }) async {
+    if (_disposed) {
+      return {
+        'success': false,
+        'message': 'ViewModel was disposed',
+      };
+    }
+
     if (_selectedLocation == null) {
       return {
         'success': false,
@@ -153,7 +184,7 @@ class ReportesViewModel extends ChangeNotifier {
 
     _isSubmitting = true;
     _errorMessage = null;
-    notifyListeners();
+    if (!_disposed) notifyListeners();
 
     try {
       // Obtener dirección real si es necesario
@@ -180,8 +211,10 @@ class ReportesViewModel extends ChangeNotifier {
         final reporteCompleto = await _reporteService.getReporteById(reporteId);
         final folio = reporteCompleto?['folio'] ?? 'Sin folio';
 
-        _isSubmitting = false;
-        notifyListeners();
+        if (!_disposed) {
+          _isSubmitting = false;
+          notifyListeners();
+        }
 
         return {
           'success': true,
@@ -190,9 +223,11 @@ class ReportesViewModel extends ChangeNotifier {
           'message': 'Reporte creado exitosamente',
         };
       } else {
-        _isSubmitting = false;
-        _errorMessage = 'Error al crear el reporte';
-        notifyListeners();
+        if (!_disposed) {
+          _isSubmitting = false;
+          _errorMessage = 'Error al crear el reporte';
+          notifyListeners();
+        }
 
         return {
           'success': false,
@@ -200,32 +235,36 @@ class ReportesViewModel extends ChangeNotifier {
         };
       }
     } on Exception catch (e) {
-      _isSubmitting = false;
+      if (!_disposed) {
+        _isSubmitting = false;
 
-      // Manejar errores específicos
-      String userFriendlyMessage;
-      if (e.toString().contains('permission') || e.toString().contains('unauthorized')) {
-        userFriendlyMessage = 'Error de permisos: No se pueden subir las imágenes. Contacta al administrador.';
-      } else if (e.toString().contains('network') || e.toString().contains('connection')) {
-        userFriendlyMessage = 'Error de conexión: Verifica tu conexión a internet e inténtalo de nuevo.';
-      } else if (e.toString().contains('storage') || e.toString().contains('upload')) {
-        userFriendlyMessage = 'Error al subir imágenes: Intenta con imágenes más pequeñas o menos imágenes.';
-      } else {
-        userFriendlyMessage = 'Error inesperado: ${e.toString()}';
+        // Manejar errores específicos
+        String userFriendlyMessage;
+        if (e.toString().contains('permission') || e.toString().contains('unauthorized')) {
+          userFriendlyMessage = 'Error de permisos: No se pueden subir las imágenes. Contacta al administrador.';
+        } else if (e.toString().contains('network') || e.toString().contains('connection')) {
+          userFriendlyMessage = 'Error de conexión: Verifica tu conexión a internet e inténtalo de nuevo.';
+        } else if (e.toString().contains('storage') || e.toString().contains('upload')) {
+          userFriendlyMessage = 'Error al subir imágenes: Intenta con imágenes más pequeñas o menos imágenes.';
+        } else {
+          userFriendlyMessage = 'Error inesperado: ${e.toString()}';
+        }
+
+        _errorMessage = userFriendlyMessage;
+        notifyListeners();
       }
-
-      _errorMessage = userFriendlyMessage;
-      notifyListeners();
 
       return {
         'success': false,
-        'message': userFriendlyMessage,
+        'message': 'Error: ${e.toString()}',
         'originalError': e.toString(),
       };
     } catch (e) {
-      _isSubmitting = false;
-      _errorMessage = 'Error: $e';
-      notifyListeners();
+      if (!_disposed) {
+        _isSubmitting = false;
+        _errorMessage = 'Error: $e';
+        notifyListeners();
+      }
 
       return {
         'success': false,
@@ -236,6 +275,8 @@ class ReportesViewModel extends ChangeNotifier {
 
   // Limpiar formulario
   void limpiarFormulario() {
+    if (_disposed) return;
+
     _selectedOption = null;
     _selectedLocation = null;
     _addressText = "Selecciona una ubicación en el mapa";
@@ -248,11 +289,11 @@ class ReportesViewModel extends ChangeNotifier {
 
   // Obtener dirección de coordenadas
   Future<void> obtenerDireccionDeUbicacion() async {
-    if (_selectedLocation == null) return;
+    if (_disposed || _selectedLocation == null) return;
 
     try {
       final direccion = await _reporteService.obtenerDireccion(_selectedLocation!);
-      if (direccion.isNotEmpty && !direccion.contains('Error')) {
+      if (!_disposed && direccion.isNotEmpty && !direccion.contains('Error')) {
         _addressText = direccion;
         notifyListeners();
       }
@@ -261,5 +302,11 @@ class ReportesViewModel extends ChangeNotifier {
         print('Error al obtener dirección: $e');
       }
     }
+  }
+
+  @override
+  void dispose() {
+    _disposed = true;
+    super.dispose();
   }
 }

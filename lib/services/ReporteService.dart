@@ -2,7 +2,6 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_osm_plugin/flutter_osm_plugin.dart' as osm;
 import 'package:http/http.dart' as http;
@@ -10,7 +9,6 @@ import 'package:uuid/uuid.dart';
 
 class ReporteService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  final FirebaseStorage _storage = FirebaseStorage.instance;
   final CollectionReference _reportesRef;
   final Uuid _uuid = const Uuid();
 
@@ -82,7 +80,7 @@ class ReporteService {
     }
   }
 
-  // Crear un nuevo reporte - MEJORADO CON MEJOR MANEJO DE ERRORES
+  // Crear un nuevo reporte - MODIFICADO PARA USAR BASE64
   Future<String?> crearReporte({
     required String userId,
     required String categoria,
@@ -106,34 +104,30 @@ class ReporteService {
         }
       }
 
-      // Lista para almacenar URLs de imágenes subidas
-      List<String> imagenesUrls = [];
+      // Lista para almacenar las imágenes en Base64
+      List<String> imagenesBase64 = [];
 
-      // Subir imágenes si existen - CON MEJOR MANEJO DE ERRORES
+      // Convertir imágenes a Base64 si existen
       if (imagenes != null && imagenes.isNotEmpty) {
         if (kDebugMode) {
-          print('Iniciando subida de ${imagenes.length} imágenes...');
+          print('Convirtiendo ${imagenes.length} imágenes a Base64...');
         }
 
-        final result = await _subirImagenes(imagenes, folio);
+        final result = await _convertirImagenesABase64(imagenes);
 
         if (result['success']) {
-          imagenesUrls = result['urls'];
+          imagenesBase64 = result['base64Images'];
           if (kDebugMode) {
-            print('Imágenes subidas exitosamente: ${imagenesUrls.length}');
+            print('Imágenes convertidas exitosamente: ${imagenesBase64.length}');
           }
         } else {
-          // Si falló la subida de imágenes, mostrar error específico
+          // Si falló la conversión, mostrar error específico
           if (kDebugMode) {
-            print('Error al subir imágenes: ${result['error']}');
+            print('Error al convertir imágenes: ${result['error']}');
           }
 
-          // Decidir si continuar sin imágenes o fallar completamente
-          if (result['error'].contains('unauthorized') || result['error'].contains('permission')) {
-            throw Exception('Sin permisos para subir imágenes. Verifica la configuración de Firebase Storage.');
-          }
-          // Para otros errores, continuar sin imágenes
-          imagenesUrls = [];
+          // Para errores de conversión, continuar sin imágenes
+          imagenesBase64 = [];
         }
       }
 
@@ -151,7 +145,7 @@ class ReporteService {
         'nombreCompleto': nombreCompleto,
         'telefono': telefono,
         'isAnonymous': isAnonymous,
-        'imagenes': imagenesUrls,
+        'imagenes': imagenesBase64,  // Aquí guardamos las imágenes en Base64
         'historialEstados': [
           {
             'estado': 'Reporte recibido',
@@ -177,82 +171,49 @@ class ReporteService {
     }
   }
 
-  // Subir imágenes al Storage - MEJORADO CON MEJOR MANEJO DE ERRORES
-  Future<Map<String, dynamic>> _subirImagenes(List<File> imagenes, String folio) async {
-    List<String> urls = [];
+  // Convertir imágenes a Base64 - NUEVO MÉTODO
+  Future<Map<String, dynamic>> _convertirImagenesABase64(List<File> imagenes) async {
+    List<String> base64Images = [];
     List<String> errores = [];
 
     for (int i = 0; i < imagenes.length; i++) {
       final file = imagenes[i];
-      final fileName = '$folio-$i.jpg';
 
       try {
         if (kDebugMode) {
-          print('Subiendo imagen $i: $fileName');
+          print('Convirtiendo imagen $i a Base64');
         }
 
         // Verificar que el archivo existe y es válido
         if (!await file.exists()) {
-          errores.add('Archivo $fileName no existe');
+          errores.add('Archivo $i no existe');
           continue;
         }
 
         // Verificar el tamaño del archivo (máximo 10MB)
         final fileSize = await file.length();
         if (fileSize > 10 * 1024 * 1024) {
-          errores.add('Archivo $fileName es demasiado grande (${(fileSize / 1024 / 1024).toStringAsFixed(1)}MB)');
+          errores.add('Archivo $i es demasiado grande (${(fileSize / 1024 / 1024).toStringAsFixed(1)}MB)');
           continue;
         }
 
-        final Reference ref = _storage.ref().child('reportes/$folio/$fileName');
+        // Leer los bytes del archivo
+        final bytes = await file.readAsBytes();
 
-        // Configurar metadata
-        final SettableMetadata metadata = SettableMetadata(
-          contentType: 'image/jpeg',
-          customMetadata: {
-            'uploadedBy': 'lumvida_app',
-            'folio': folio,
-            'timestamp': DateTime.now().toIso8601String(),
-          },
-        );
+        // Convertir a Base64
+        final base64String = base64Encode(bytes);
 
-        final UploadTask uploadTask = ref.putFile(file, metadata);
+        // Agregar prefijo del tipo de imagen para poder mostrarla después
+        final base64WithPrefix = 'data:image/jpeg;base64,$base64String';
 
-        // Monitorear el progreso de subida
-        uploadTask.snapshotEvents.listen((TaskSnapshot snapshot) {
-          final progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-          if (kDebugMode) {
-            print('Progreso subida $fileName: ${progress.toStringAsFixed(1)}%');
-          }
-        });
-
-        final TaskSnapshot snapshot = await uploadTask;
-        final String downloadUrl = await snapshot.ref.getDownloadURL();
-
-        urls.add(downloadUrl);
+        base64Images.add(base64WithPrefix);
 
         if (kDebugMode) {
-          print('Imagen $fileName subida exitosamente: $downloadUrl');
+          print('Imagen $i convertida exitosamente (${(base64String.length / 1024).toStringAsFixed(1)}KB)');
         }
 
-      } on FirebaseException catch (e) {
-        final errorMsg = 'Error Firebase al subir imagen $i: ${e.code} - ${e.message}';
-        errores.add(errorMsg);
-        if (kDebugMode) {
-          print(errorMsg);
-        }
-
-        // Si es un error de permisos, fallar inmediatamente
-        if (e.code == 'unauthorized' || e.code == 'permission-denied') {
-          return {
-            'success': false,
-            'urls': <String>[],
-            'error': 'Sin permisos para subir imágenes: ${e.message}',
-            'errores': errores,
-          };
-        }
       } catch (e) {
-        final errorMsg = 'Error general al subir imagen $i: $e';
+        final errorMsg = 'Error al convertir imagen $i: $e';
         errores.add(errorMsg);
         if (kDebugMode) {
           print(errorMsg);
@@ -260,14 +221,14 @@ class ReporteService {
       }
     }
 
-    final bool success = urls.isNotEmpty;
+    final bool success = base64Images.isNotEmpty;
 
     return {
       'success': success,
-      'urls': urls,
+      'base64Images': base64Images,
       'error': errores.isNotEmpty ? errores.join(', ') : null,
       'errores': errores,
-      'uploadedCount': urls.length,
+      'convertedCount': base64Images.length,
       'totalCount': imagenes.length,
     };
   }
@@ -311,16 +272,34 @@ class ReporteService {
     return 'REP-$timestamp-$random';
   }
 
-  // Codificar una imagen en base64 (sin cambios)
+  // Codificar una imagen en base64 - MÉTODO MEJORADO
   Future<String> imageToBase64(File file) async {
     try {
       final bytes = await file.readAsBytes();
-      return base64Encode(bytes);
+      final base64String = base64Encode(bytes);
+      return 'data:image/jpeg;base64,$base64String';
     } catch (e) {
       if (kDebugMode) {
         print('Error al convertir imagen a base64: $e');
       }
       return '';
+    }
+  }
+
+  // Método para convertir Base64 de vuelta a imagen (para mostrar)
+  static List<int> base64ToBytes(String base64String) {
+    try {
+      // Remover el prefijo si existe
+      String cleanBase64 = base64String;
+      if (base64String.contains(',')) {
+        cleanBase64 = base64String.split(',')[1];
+      }
+      return base64Decode(cleanBase64);
+    } catch (e) {
+      if (kDebugMode) {
+        print('Error al decodificar Base64: $e');
+      }
+      return [];
     }
   }
 
@@ -354,41 +333,57 @@ class ReporteService {
     }
   }
 
-  // Método para limpiar imágenes huérfanas en Storage (opcional)
-  Future<void> limpiarImagenesHuerfanas(String folio) async {
+  // Método para validar imágenes antes de convertir
+  Future<bool> validarImagen(File file) async {
     try {
-      final Reference folderRef = _storage.ref().child('reportes/$folio');
-      final ListResult result = await folderRef.listAll();
-
-      for (Reference fileRef in result.items) {
-        await fileRef.delete();
-        if (kDebugMode) {
-          print('Imagen huérfana eliminada: ${fileRef.name}');
-        }
+      // Verificar que existe
+      if (!await file.exists()) {
+        return false;
       }
+
+      // Verificar tamaño (máximo 10MB)
+      final fileSize = await file.length();
+      if (fileSize > 10 * 1024 * 1024) {
+        return false;
+      }
+
+      // Verificar que es una imagen válida intentando leer los primeros bytes
+      final bytes = await file.openRead(0, 10).toList();
+      if (bytes.isEmpty) {
+        return false;
+      }
+
+      return true;
     } catch (e) {
       if (kDebugMode) {
-        print('Error al limpiar imágenes huérfanas: $e');
+        print('Error al validar imagen: $e');
       }
+      return false;
     }
   }
 
-  // Método para obtener información de Storage (para debugging)
-  Future<Map<String, dynamic>> getStorageInfo() async {
-    try {
-      final Reference rootRef = _storage.ref();
-      final ListResult result = await rootRef.child('reportes').listAll();
+  // Método para obtener información de tamaño de las imágenes Base64
+  Map<String, dynamic> obtenerInfoImagenes(List<String> imagenesBase64) {
+    int totalSize = 0;
+    List<Map<String, dynamic>> imagenInfo = [];
 
-      return {
-        'totalFolders': result.prefixes.length,
-        'totalFiles': result.items.length,
-        'storageUrl': _storage.bucket,
-      };
-    } catch (e) {
-      if (kDebugMode) {
-        print('Error al obtener info de Storage: $e');
-      }
-      return {'error': e.toString()};
+    for (int i = 0; i < imagenesBase64.length; i++) {
+      final imagen = imagenesBase64[i];
+      final sizeInBytes = (imagen.length * 3 / 4).round(); // Aproximación del tamaño real
+      totalSize += sizeInBytes;
+
+      imagenInfo.add({
+        'index': i,
+        'sizeKB': (sizeInBytes / 1024).toStringAsFixed(1),
+        'hasPrefix': imagen.contains('data:image'),
+      });
     }
+
+    return {
+      'totalImages': imagenesBase64.length,
+      'totalSizeKB': (totalSize / 1024).toStringAsFixed(1),
+      'totalSizeMB': (totalSize / 1024 / 1024).toStringAsFixed(2),
+      'imageInfo': imagenInfo,
+    };
   }
 }

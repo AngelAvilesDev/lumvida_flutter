@@ -4,6 +4,8 @@ import 'package:provider/provider.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../utils/constants.dart';
 import '../viewmodels/AuthViewModel.dart';
+import '../components/base64_image_widget.dart'; // Importar el nuevo widget
+import '../components/BottomNavigationWidget.dart'; // Importar el nuevo componente
 
 class MisReportesScreen extends StatefulWidget {
   const MisReportesScreen({Key? key}) : super(key: key);
@@ -55,7 +57,7 @@ class _MisReportesScreenState extends State<MisReportesScreen> {
           'nombreCompleto': data['nombreCompleto'] ?? '',
           'telefono': data['telefono'] ?? '',
           'isAnonymous': data['isAnonymous'] ?? false,
-          'imagenes': data['imagenes'] ?? [],
+          'imagenes': data['imagenes'] ?? [], // Ahora son Base64
           'historialEstados': data['historialEstados'] ?? [],
         };
       }).toList();
@@ -135,7 +137,7 @@ class _MisReportesScreenState extends State<MisReportesScreen> {
         decoration: backgroundDecoration,
         child: _buildMainContent(),
       ),
-      bottomNavigationBar: _buildBottomNavigationBar(),
+      bottomNavigationBar: const BottomNavigationWidget(currentScreen: 'inicio'), // Cambiado para usar el componente común
     );
   }
 
@@ -170,7 +172,7 @@ class _MisReportesScreenState extends State<MisReportesScreen> {
               onPressed: _cargarReportes,
               style: ElevatedButton.styleFrom(backgroundColor: kPrimaryColor),
               icon: const Icon(Icons.refresh),
-              label: const Text('Reintentar'), // <-- reemplazado aquí
+              label: const Text('Reintentar'),
             ),
           ],
         ),
@@ -353,6 +355,36 @@ class _MisReportesScreenState extends State<MisReportesScreen> {
                 style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
               ),
 
+              // Mostrar preview de imágenes si existen
+              if (reporte['imagenes'] != null && (reporte['imagenes'] as List).isNotEmpty) ...[
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    const Icon(Icons.image, size: 16, color: Colors.grey),
+                    const SizedBox(width: 4),
+                    Text(
+                      '${(reporte['imagenes'] as List).length} imagen(es)',
+                      style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                SizedBox(
+                  height: 60,
+                  child: ReportImageGallery(
+                    base64Images: List<String>.from(reporte['imagenes']),
+                    imageSize: 60,
+                    onImageTap: (index, base64) {
+                      FullScreenImageModal.show(
+                        context,
+                        base64,
+                        title: 'Imagen ${index + 1} - ${reporte['folio']}',
+                      );
+                    },
+                  ),
+                ),
+              ],
+
               const Divider(height: 24),
 
               // Seguimiento de estados
@@ -419,78 +451,10 @@ class _MisReportesScreenState extends State<MisReportesScreen> {
   }
 
   Widget _buildBottomNavigationBar() {
-    return Consumer<AuthViewModel>(
-      builder: (context, authViewModel, _) => Container(
-        height: 70,
-        decoration: const BoxDecoration(
-          color: kSecondaryColor,
-          borderRadius: BorderRadius.only(
-            topLeft: Radius.circular(30),
-            topRight: Radius.circular(30),
-          ),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceAround,
-          children: [
-            const Expanded(
-              child: Center(
-                child: Text(
-                  'Dashboard',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
-            ),
-            Container(
-              width: 1,
-              height: 30,
-              color: Colors.white.withOpacity(0.3),
-            ),
-            Expanded(
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: [
-                  IconButton(
-                    icon: const Icon(Icons.location_on, color: Colors.white, size: 28),
-                    onPressed: () {},
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.person, color: Colors.white, size: 28),
-                    onPressed: () => _mostrarDialogoCerrarSesion(context, authViewModel),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
+    return const BottomNavigationWidget(currentScreen: 'inicio'); // Usar el componente común
   }
 
   void _mostrarDetalleReporte(BuildContext context, Map<String, dynamic> reporte) {
-    // Verificar si el reporte tiene imágenes
-    Widget? imagenWidget;
-    if (reporte['imagenes'] != null && (reporte['imagenes'] as List).isNotEmpty) {
-      final imageUrl = (reporte['imagenes'] as List).first;
-      imagenWidget = Image.network(
-        imageUrl,
-        fit: BoxFit.cover,
-        width: double.infinity,
-        height: 200,
-        errorBuilder: (context, error, stackTrace) {
-          return Container(
-            width: double.infinity,
-            height: 200,
-            color: Colors.grey.shade200,
-            child: const Icon(Icons.image_not_supported, size: 50, color: Colors.grey),
-          );
-        },
-      );
-    }
-
     showDialog(
       context: context,
       builder: (BuildContext context) {
@@ -502,11 +466,26 @@ class _MisReportesScreenState extends State<MisReportesScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
-                // Mostrar imagen si existe
-                if (imagenWidget != null) ...[
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(8),
-                    child: imagenWidget,
+                // Mostrar galería de imágenes si existen
+                if (reporte['imagenes'] != null && (reporte['imagenes'] as List).isNotEmpty) ...[
+                  const Text(
+                    'Imágenes del reporte:',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 8),
+                  SizedBox(
+                    height: 120,
+                    child: ReportImageGallery(
+                      base64Images: List<String>.from(reporte['imagenes']),
+                      imageSize: 120,
+                      onImageTap: (index, base64) {
+                        FullScreenImageModal.show(
+                          context,
+                          base64,
+                          title: 'Imagen ${index + 1} - ${reporte['folio']}',
+                        );
+                      },
+                    ),
                   ),
                   const SizedBox(height: 16),
                 ],
@@ -590,33 +569,5 @@ class _MisReportesScreenState extends State<MisReportesScreen> {
       default:
         return Colors.grey;
     }
-  }
-
-  void _mostrarDialogoCerrarSesion(BuildContext context, AuthViewModel authViewModel) {
-    showDialog(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: const Text('Cerrar sesión', style: TextStyle(color: kPrimaryColor)),
-          content: const Text('¿Estás seguro de que quieres cerrar sesión?'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('Cancelar', style: TextStyle(color: kPrimaryColor)),
-            ),
-            ElevatedButton(
-              onPressed: () async {
-                await authViewModel.signOut();
-                if (context.mounted) {
-                  Navigator.of(context).popUntil((route) => route.isFirst);
-                }
-              },
-              style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-              child: const Text('Cerrar sesión'),
-            ),
-          ],
-        );
-      },
-    );
   }
 }

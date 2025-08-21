@@ -2,10 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../utils/constants.dart';
 import '../viewmodels/AuthViewModel.dart';
+import '../components/BottomNavigationWidget.dart';
 import 'LoginScreen.dart';
 import 'MisReportesScreen.dart';
 import 'ReportesScreen.dart';
-import 'MapScreen.dart';
 
 class InicioScreen extends StatelessWidget {
   const InicioScreen({Key? key}) : super(key: key);
@@ -136,7 +136,7 @@ class InicioScreen extends StatelessWidget {
           ),
         ),
       ),
-      bottomNavigationBar: _buildBottomNavigationBar(context),
+      bottomNavigationBar: const BottomNavigationWidget(currentScreen: 'inicio'),
     );
   }
 
@@ -188,77 +188,6 @@ class InicioScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildBottomNavigationBar(BuildContext context) {
-    return Consumer<AuthViewModel>(
-      builder: (context, authViewModel, _) => Container(
-        height: 60,
-        decoration: const BoxDecoration(
-          color: kSecondaryColor,
-          borderRadius: BorderRadius.only(
-            topLeft: Radius.circular(20),
-            topRight: Radius.circular(20),
-          ),
-        ),
-        child: Row(
-          children: [
-            // Dashboard
-            const Expanded(
-              child: Center(
-                child: Text(
-                  'Dashboard',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
-            ),
-
-            // Separador vertical
-            Container(
-              width: 1,
-              height: 30,
-              color: Colors.white.withOpacity(0.3),
-            ),
-
-            // Iconos de ubicación y perfil
-            Expanded(
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: [
-                  IconButton(
-                    icon: const Icon(Icons.location_on, color: Colors.white, size: 24),
-                    onPressed: () {
-                      // Navegación a la pantalla del mapa
-                      Navigator.push(
-                          context,
-                          MaterialPageRoute(builder: (_) => const MapScreen())
-                      );
-                    },
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.person, color: Colors.white, size: 24),
-                    onPressed: () {
-                      if (authViewModel.isAuthenticated) {
-                        _mostrarDialogoCerrarSesion(context);
-                      } else {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(builder: (_) => const LoginScreen()),
-                        );
-                      }
-                    },
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
   void _mostrarDialogoInicioSesionRequerido(BuildContext context) {
     showDialog(
       context: context,
@@ -287,49 +216,6 @@ class InicioScreen extends StatelessWidget {
                 backgroundColor: kPrimaryColor,
               ),
               child: const Text('Iniciar sesión'),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  void _mostrarDialogoCerrarSesion(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: const Text('Cerrar sesión'),
-          content: const Text('¿Estás seguro de que quieres cerrar sesión?'),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.of(context).pop();
-              },
-              child: const Text('Cancelar', style: TextStyle(color: kPrimaryColor)),
-            ),
-            ElevatedButton(
-              onPressed: () async {
-                final authViewModel = Provider.of<AuthViewModel>(
-                  context,
-                  listen: false,
-                );
-                await authViewModel.signOut();
-
-                if (context.mounted) {
-                  Navigator.of(context).pop();
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Sesión cerrada correctamente'),
-                      backgroundColor: Colors.green,
-                    ),
-                  );
-                }
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.red,
-              ),
-              child: const Text('Cerrar sesión'),
             ),
           ],
         );

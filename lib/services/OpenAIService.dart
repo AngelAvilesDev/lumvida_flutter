@@ -9,7 +9,7 @@ class OpenAIService {
   static String get apiKey => dotenv.env['OPENAI_API_KEY'] ?? '';
   static const String baseUrl = 'https://api.openai.com/v1';
 
-  // Analizar imágenes con Vision de OpenAI (GPT-4 Vision) - Versión corregida
+  // Analizar imágenes con Vision de OpenAI (GPT-4 Vision) - SOBRECARGA PARA FILE
   static Future<Map<String, dynamic>> analyzeImage(
       File imageFile,
       String requestedCategory,
@@ -19,6 +19,38 @@ class OpenAIService {
       // Convertir imagen a base64
       final bytes = await imageFile.readAsBytes();
       final base64Image = base64Encode(bytes);
+
+      // Llamar al método principal con el base64
+      return await analyzeImageFromBase64(
+        base64Image,
+        requestedCategory,
+        prompt,
+      );
+    } catch (e) {
+      if (kDebugMode) {
+        print('Error al leer archivo de imagen: $e');
+      }
+      return {
+        'success': false,
+        'message': 'Error al procesar la imagen: $e',
+        'isMatch': false,
+        'detectedCategory': requestedCategory,
+      };
+    }
+  }
+
+  // Analizar imágenes con Vision de OpenAI desde Base64 - MÉTODO PRINCIPAL
+  static Future<Map<String, dynamic>> analyzeImageFromBase64(
+      String base64Image,
+      String requestedCategory,
+      String prompt,
+      ) async {
+    try {
+      // Limpiar el base64 si tiene prefijo
+      String cleanBase64 = base64Image;
+      if (base64Image.contains(',')) {
+        cleanBase64 = base64Image.split(',')[1];
+      }
 
       // URL para la API de Chat Completions (que soporta GPT-4 Vision)
       final Uri url = Uri.parse('$baseUrl/chat/completions');
@@ -63,7 +95,7 @@ IMPORTANTE: Solo responde "SI COINCIDE" si estás completamente seguro. En caso 
               {
                 "type": "image_url",
                 "image_url": {
-                  "url": "data:image/jpeg;base64,$base64Image"
+                  "url": "data:image/jpeg;base64,$cleanBase64"
                 }
               }
             ]
@@ -136,7 +168,56 @@ IMPORTANTE: Solo responde "SI COINCIDE" si estás completamente seguro. En caso 
     }
   }
 
-  // Limpiar y normalizar texto
+  // Analizar múltiples imágenes desde Base64 - NUEVO MÉTODO
+  static Future<Map<String, dynamic>> analyzeMultipleImagesFromBase64(
+      List<String> base64Images,
+      String requestedCategory,
+      ) async {
+
+    if (base64Images.isEmpty) {
+      return {
+        'success': false,
+        'message': 'No se proporcionaron imágenes para analizar.',
+        'isMatch': false,
+        'detectedCategory': requestedCategory,
+        'allImagesMatch': false,
+      };
+    }
+
+    List<Map<String, dynamic>> results = [];
+    int matchingImages = 0;
+
+    // Analizar cada imagen
+    for (int i = 0; i < base64Images.length; i++) {
+      final result = await analyzeImageFromBase64(
+          base64Images[i],
+          requestedCategory,
+          "Analiza esta imagen ${i + 1} de ${base64Images.length} y determina si muestra un problema de '$requestedCategory'."
+      );
+
+      results.add(result);
+      if (result['isMatch'] == true) {
+        matchingImages++;
+      }
+    }
+
+    // Determinar si la mayoría de imágenes coinciden
+    final bool majorityMatch = matchingImages > (base64Images.length / 2);
+    final bool allMatch = matchingImages == base64Images.length;
+
+    return {
+      'success': true,
+      'message': 'Se analizaron ${base64Images.length} imágenes. $matchingImages coinciden con la categoría "$requestedCategory".',
+      'isMatch': majorityMatch,
+      'detectedCategory': results.first['detectedCategory'],
+      'allImagesMatch': allMatch,
+      'matchingCount': matchingImages,
+      'totalImages': base64Images.length,
+      'individualResults': results,
+    };
+  }
+
+  // Limpiar y normalizar texto (sin cambios)
   static String _cleanAndNormalizeText(String text) {
     // Reemplazar caracteres mal codificados comunes
     String cleanText = text
@@ -160,7 +241,7 @@ IMPORTANTE: Solo responde "SI COINCIDE" si estás completamente seguro. En caso 
     return cleanText;
   }
 
-  // Método mejorado para extraer la categoría detectada - MÁS PRECISO
+  // Método mejorado para extraer la categoría detectada - MÁS PRECISO (sin cambios)
   static String _extractDetectedCategoryStrict(String content, String defaultCategory) {
     final contentLower = content.toLowerCase();
 
@@ -197,7 +278,7 @@ IMPORTANTE: Solo responde "SI COINCIDE" si estás completamente seguro. En caso 
     return defaultCategory;
   }
 
-  // Método mejorado para determinar coincidencia - MÁS ESTRICTO
+  // Método mejorado para determinar coincidencia - MÁS ESTRICTO (sin cambios)
   static bool _determineIfMatchStrict(String content, String requestedCategory) {
     final contentLower = content.toLowerCase();
     final categoryLower = requestedCategory.toLowerCase();
@@ -303,9 +384,38 @@ IMPORTANTE: Solo responde "SI COINCIDE" si estás completamente seguro. En caso 
     return false;
   }
 
-  // Verificar metadatos de ubicación en la imagen (sin cambios)
+  // Verificar metadatos de ubicación en la imagen (simulado - sin cambios)
   static Future<Map<String, dynamic>> verifyLocationMetadata(
       File imageFile,
+      double reportedLatitude,
+      double reportedLongitude,
+      ) async {
+    try {
+      // Simulación: 70% de probabilidad de éxito en la verificación
+      final bool isVerified = DateTime.now().millisecond % 10 < 7;
+
+      return {
+        'success': true,
+        'isLocationVerified': isVerified,
+        'message': isVerified
+            ? 'Los metadatos de ubicación en la imagen coinciden aproximadamente con la ubicación reportada.'
+            : 'No se encontraron metadatos de ubicación válidos en la imagen, o la ubicación no coincide con la reportada.',
+      };
+    } catch (e) {
+      if (kDebugMode) {
+        print('Error al verificar metadatos: $e');
+      }
+      return {
+        'success': false,
+        'isLocationVerified': false,
+        'message': 'Error al verificar metadatos de ubicación: $e',
+      };
+    }
+  }
+
+  // Verificar metadatos desde Base64 - NUEVO MÉTODO
+  static Future<Map<String, dynamic>> verifyLocationMetadataFromBase64(
+      String base64Image,
       double reportedLatitude,
       double reportedLongitude,
       ) async {
@@ -379,5 +489,44 @@ IMPORTANTE: Solo responde "SI COINCIDE" si estás completamente seguro. En caso 
       'totalImages': imageFiles.length,
       'individualResults': results,
     };
+  }
+
+  // Método utilitario para convertir File a Base64
+  static Future<String> fileToBase64(File file) async {
+    try {
+      final bytes = await file.readAsBytes();
+      final base64String = base64Encode(bytes);
+      return 'data:image/jpeg;base64,$base64String';
+    } catch (e) {
+      if (kDebugMode) {
+        print('Error al convertir archivo a Base64: $e');
+      }
+      return '';
+    }
+  }
+
+  // Método utilitario para validar Base64
+  static bool isValidBase64Image(String base64String) {
+    try {
+      // Verificar si tiene el formato correcto
+      if (!base64String.contains('data:image') && !base64String.contains('base64,')) {
+        return false;
+      }
+
+      // Extraer solo la parte Base64
+      String cleanBase64 = base64String;
+      if (base64String.contains(',')) {
+        cleanBase64 = base64String.split(',')[1];
+      }
+
+      // Intentar decodificar
+      final decoded = base64Decode(cleanBase64);
+      return decoded.isNotEmpty;
+    } catch (e) {
+      if (kDebugMode) {
+        print('Base64 inválido: $e');
+      }
+      return false;
+    }
   }
 }

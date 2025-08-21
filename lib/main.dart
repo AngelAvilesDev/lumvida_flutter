@@ -3,6 +3,9 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/services.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:lumvida_app/screens/RegisterScreen.dart';
+import 'package:lumvida_app/screens/ProfileScreen.dart';
+import 'package:lumvida_app/screens/MapScreen.dart';
+import 'package:lumvida_app/screens/MisReportesScreen.dart';
 import 'package:provider/provider.dart';
 import 'firebase_options.dart';
 import 'viewmodels/AuthViewModel.dart';
@@ -93,6 +96,10 @@ class MyApp extends StatelessWidget {
           '/register': (context) => const RegisterScreen(),
           '/login': (context) => const LoginScreen(),
           '/home': (context) => const InicioScreen(),
+          '/inicio': (context) => const InicioScreen(),
+          '/mapa': (context) => const MapScreen(),
+          '/perfil': (context) => const ProfileScreen(),
+          '/mis_reportes': (context) => const MisReportesScreen(),
         },
       ),
     );

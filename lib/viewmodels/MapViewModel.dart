@@ -20,29 +20,35 @@ class MapViewModel extends ChangeNotifier {
   String? get selectedFilter => _selectedFilter;
   List<Map<String, dynamic>> get rawReportes => _rawReportes;
 
-  // Marcadores filtrados
+  // Marcadores filtrados - LÓGICA CORREGIDA
   List<MarkerData> get filteredMarkers {
     if (_selectedFilter == null || _selectedFilter == 'Todos') {
       return _reportMarkers;
     }
 
     return _reportMarkers.where((marker) {
-      String categoriaOriginal = marker.title?.split(' - ').first.toLowerCase() ?? '';
-      String filtro = _selectedFilter!.toLowerCase();
+      if (marker.title == null) return false;
 
-      if (filtro == 'bacheo' && categoriaOriginal.contains('bacheo')) {
-        return true;
-      } else if (filtro == 'alumbrado' && categoriaOriginal.contains('alumbrado')) {
-        return true;
-      } else if (filtro == 'basura' && categoriaOriginal.contains('basura')) {
-        return true;
-      } else if (filtro == 'drenajes' && (
-          categoriaOriginal.contains('drenajes') ||
-              categoriaOriginal.contains('obstruidos'))) {
-        return true;
+      String categoriaOriginal = marker.title!.split(' - ').first.toLowerCase().trim();
+      String filtro = _selectedFilter!.toLowerCase().trim();
+
+      if (kDebugMode) {
+        print('Comparando: "$categoriaOriginal" con filtro: "$filtro"');
       }
 
-      return false;
+      // Lógica de filtrado más específica
+      switch (filtro) {
+        case 'bacheo':
+          return categoriaOriginal.contains('bacheo');
+        case 'alumbrado':
+          return categoriaOriginal.contains('alumbrado');
+        case 'basura':
+          return categoriaOriginal.contains('basura');
+        case 'drenajes':
+          return categoriaOriginal.contains('drenajes') || categoriaOriginal.contains('drenaje');
+        default:
+          return categoriaOriginal.contains(filtro);
+      }
     }).toList();
   }
 
@@ -72,7 +78,7 @@ class MapViewModel extends ChangeNotifier {
         });
 
         if (kDebugMode) {
-          print('Datos del reporte: $data');
+          print('Datos del reporte: ${data['categoria']} - ${data['folio']}');
         }
 
         // Obtener coordenadas
@@ -96,7 +102,7 @@ class MapViewModel extends ChangeNotifier {
           final markerIcon = _getIconForCategory(categoria);
 
           if (kDebugMode) {
-            print('Añadiendo marcador en: Lat $latitud, Lon $longitud');
+            print('Añadiendo marcador en: Lat $latitud, Lon $longitud - Categoría: $categoria');
           }
 
           markers.add(
@@ -105,7 +111,7 @@ class MapViewModel extends ChangeNotifier {
                 latitude: latitud,
                 longitude: longitud,
               ),
-              icon: osm.MarkerIcon(icon: markerIcon),
+              icon: const osm.MarkerIcon(icon: Icon(Icons.location_on, color: Colors.red, size: 40)),
               title: '${data['categoria'] ?? 'Sin categoría'} - ${data['folio'] ?? 'Sin folio'}',
             ),
           );
@@ -133,30 +139,42 @@ class MapViewModel extends ChangeNotifier {
     }
   }
 
-  // Aplicar filtro
+  // Aplicar filtro - CON DEBUG MEJORADO
   void aplicarFiltro(String? filtro) {
-    _selectedFilter = filtro;
-    notifyListeners();
-
     if (kDebugMode) {
       print('Aplicando filtro: $filtro');
-      print('Número de marcadores filtrados: ${filteredMarkers.length}');
+      print('Marcadores totales antes del filtro: ${_reportMarkers.length}');
     }
+
+    _selectedFilter = filtro;
+
+    if (kDebugMode) {
+      print('Marcadores después del filtro: ${filteredMarkers.length}');
+      for (var marker in filteredMarkers) {
+        print('Marcador filtrado: ${marker.title}');
+      }
+    }
+
+    notifyListeners();
   }
 
-  // Obtener icono para categoría
+  // Obtener icono para categoría - ICONOS MEJORADOS
   Icon _getIconForCategory(String categoria) {
-    switch (categoria) {
+    switch (categoria.toLowerCase().trim()) {
       case 'bacheo':
-        return const Icon(Icons.car_repair, color: Colors.red, size: 48);
+        return const Icon(Icons.construction, color: Colors.orange, size: 40);
       case 'alumbrado público':
-        return const Icon(Icons.lightbulb_outline, color: Colors.yellow, size: 48);
+      case 'alumbrado':
+        return const Icon(Icons.lightbulb, color: Colors.yellow, size: 40);
       case 'basura acumulada':
-        return const Icon(Icons.delete_outline, color: Colors.orange, size: 48);
+      case 'basura':
+        return const Icon(Icons.delete, color: Colors.brown, size: 40);
       case 'drenajes obstruidos':
-        return const Icon(Icons.water_drop, color: Colors.blue, size: 48);
+      case 'drenajes':
+      case 'drenaje':
+        return const Icon(Icons.water_drop, color: Colors.blue, size: 40);
       default:
-        return const Icon(Icons.report_problem, color: Colors.red, size: 48);
+        return const Icon(Icons.report_problem, color: Colors.red, size: 40);
     }
   }
 

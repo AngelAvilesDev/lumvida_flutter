@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_osm_plugin/flutter_osm_plugin.dart' as osm;
 import 'package:flutter/material.dart';
 import '../components/OSMMapComponent.dart';
+import '../utils/constants.dart'; // Importar constants
 
 class MapViewModel extends ChangeNotifier {
   // Estados
@@ -99,7 +100,7 @@ class MapViewModel extends ChangeNotifier {
         if (latitud != null && longitud != null) {
           // Definir icono según categoría
           final categoria = data['categoria']?.toString().toLowerCase() ?? '';
-          final markerIcon = _getIconForCategory(categoria);
+          final markerIcon = _getMarkerIconForCategory(categoria);
 
           if (kDebugMode) {
             print('Añadiendo marcador en: Lat $latitud, Lon $longitud - Categoría: $categoria');
@@ -111,7 +112,7 @@ class MapViewModel extends ChangeNotifier {
                 latitude: latitud,
                 longitude: longitud,
               ),
-              icon: const osm.MarkerIcon(icon: Icon(Icons.location_on, color: Colors.red, size: 40)),
+              icon: markerIcon,
               title: '${data['categoria'] ?? 'Sin categoría'} - ${data['folio'] ?? 'Sin folio'}',
             ),
           );
@@ -158,23 +159,71 @@ class MapViewModel extends ChangeNotifier {
     notifyListeners();
   }
 
-  // Obtener icono para categoría - ICONOS MEJORADOS
+  // Obtener MarkerIcon para categoría - USANDO COLORS CONSISTENTES
+  osm.MarkerIcon _getMarkerIconForCategory(String categoria) {
+    final icon = _getIconForCategory(categoria);
+    return osm.MarkerIcon(icon: icon);
+  }
+
+  // Obtener icono para categoría - ICONOS MEJORADOS CON CONSTANTS
   Icon _getIconForCategory(String categoria) {
+    const double iconSize = 40.0;
+
     switch (categoria.toLowerCase().trim()) {
       case 'bacheo':
-        return const Icon(Icons.construction, color: Colors.orange, size: 40);
+        return Icon(
+          Icons.car_crash,
+          color: Colors.orange.shade700,
+          size: iconSize,
+        );
       case 'alumbrado público':
       case 'alumbrado':
-        return const Icon(Icons.lightbulb, color: Colors.yellow, size: 40);
+        return Icon(
+          Icons.lightbulb,
+          color: Colors.amber.shade600,
+          size: iconSize,
+        );
       case 'basura acumulada':
       case 'basura':
-        return const Icon(Icons.delete, color: Colors.brown, size: 40);
+        return Icon(
+          Icons.delete,
+          color: Colors.brown.shade700,
+          size: iconSize,
+        );
       case 'drenajes obstruidos':
       case 'drenajes':
       case 'drenaje':
-        return const Icon(Icons.water_drop, color: Colors.blue, size: 40);
+        return Icon(
+          Icons.water_drop,
+          color: Colors.blue.shade700,
+          size: iconSize,
+        );
       default:
-        return const Icon(Icons.report_problem, color: Colors.red, size: 40);
+        return const Icon(
+          Icons.report_problem,
+          color: kPrimaryColor, // Usando el color primario de constants
+          size: iconSize,
+        );
+    }
+  }
+
+  // Método para obtener color de categoría (útil para gráficas y UI)
+  Color getCategoryColor(String categoria) {
+    switch (categoria.toLowerCase().trim()) {
+      case 'bacheo':
+        return Colors.orange.shade700;
+      case 'alumbrado público':
+      case 'alumbrado':
+        return Colors.amber.shade600;
+      case 'basura acumulada':
+      case 'basura':
+        return Colors.brown.shade700;
+      case 'drenajes obstruidos':
+      case 'drenajes':
+      case 'drenaje':
+        return Colors.blue.shade700;
+      default:
+        return kPrimaryColor; // Color primario por defecto
     }
   }
 
@@ -234,6 +283,24 @@ class MapViewModel extends ChangeNotifier {
     }
 
     return stats;
+  }
+
+  // Obtener color para estado (usando constants)
+  Color getEstadoColor(String estado) {
+    switch (estado.toLowerCase()) {
+      case 'pendiente':
+        return Colors.grey.shade600;
+      case 'en revision':
+        return Colors.blue.shade600;
+      case 'asignado':
+        return Colors.orange.shade600;
+      case 'en proceso':
+        return Colors.amber.shade700;
+      case 'resuelto':
+        return Colors.green.shade700;
+      default:
+        return kSecondaryColor; // Color secundario de constants
+    }
   }
 
   // Buscar reportes cerca de una ubicación

@@ -1,6 +1,6 @@
 import 'dart:io';
 import 'package:flutter/foundation.dart';
-import 'package:flutter_osm_plugin/flutter_osm_plugin.dart' as osm;
+import 'package:google_maps_flutter/google_maps_flutter.dart'; // CAMBIADO DE OSM
 import '../services/OpenAIService.dart';
 
 class VerificacionIAViewModel extends ChangeNotifier {
@@ -18,10 +18,10 @@ class VerificacionIAViewModel extends ChangeNotifier {
   String _categoria = '';
   String _opcionSeleccionada = '';
   String _comentario = '';
-  osm.GeoPoint? _ubicacion;
+  LatLng? _ubicacion; // CAMBIADO DE osm.GeoPoint
   String _direccion = '';
   List<File> _imagenes = [];
-  List<String> _imagenesBase64 = []; // NUEVO: Para almacenar Base64
+  List<String> _imagenesBase64 = [];
 
   // Getters
   bool get isAnalyzing => _isAnalyzing;
@@ -37,17 +37,17 @@ class VerificacionIAViewModel extends ChangeNotifier {
   String get categoria => _categoria;
   String get opcionSeleccionada => _opcionSeleccionada;
   String get comentario => _comentario;
-  osm.GeoPoint? get ubicacion => _ubicacion;
+  LatLng? get ubicacion => _ubicacion; // ACTUALIZADO
   String get direccion => _direccion;
   List<File> get imagenes => _imagenes;
-  List<String> get imagenesBase64 => _imagenesBase64; // NUEVO
+  List<String> get imagenesBase64 => _imagenesBase64;
 
-  // Inicializar con datos del reporte
+  // Inicializar con datos del reporte - ACTUALIZADO
   void inicializarDatos({
     required String categoria,
     required String opcionSeleccionada,
     required String comentario,
-    required osm.GeoPoint ubicacion,
+    required LatLng ubicacion, // CAMBIADO DE osm.GeoPoint
     required String direccion,
     required List<File> imagenes,
   }) {
@@ -67,17 +67,17 @@ class VerificacionIAViewModel extends ChangeNotifier {
     _locationVerificationMessage = '';
     _analysisFailed = false;
     _canSubmitReport = false;
-    _imagenesBase64.clear(); // Limpiar Base64 previos
+    _imagenesBase64.clear();
 
     notifyListeners();
   }
 
-  // Inicializar con datos del reporte y Base64 - NUEVO MÉTODO
+  // Inicializar con datos del reporte y Base64 - ACTUALIZADO
   void inicializarDatosConBase64({
     required String categoria,
     required String opcionSeleccionada,
     required String comentario,
-    required osm.GeoPoint ubicacion,
+    required LatLng ubicacion, // CAMBIADO DE osm.GeoPoint
     required String direccion,
     required List<File> imagenes,
     required List<String> imagenesBase64,
@@ -103,7 +103,7 @@ class VerificacionIAViewModel extends ChangeNotifier {
     notifyListeners();
   }
 
-  // Analizar imágenes con IA - MEJORADO PARA USAR BASE64
+  // Analizar imágenes con IA - ACTUALIZADO PARA LATLNG
   Future<void> analizarImagenes() async {
     _isAnalyzing = true;
     _analysisFailed = false;
@@ -143,13 +143,13 @@ class VerificacionIAViewModel extends ChangeNotifier {
               "Si la imagen no muestra ninguno de estos problemas urbanos, indica que no es un problema válido para reportar."
       );
 
-      // Verificar metadatos de ubicación usando Base64
+      // Verificar metadatos de ubicación usando Base64 - ACTUALIZADO PARA LATLNG
       Map<String, dynamic> locationVerification = {'isLocationVerified': false, 'message': ''};
       if (_ubicacion != null && _imagenesBase64.isNotEmpty) {
         locationVerification = await OpenAIService.verifyLocationMetadataFromBase64(
           _imagenesBase64[0],
-          _ubicacion!.latitude,
-          _ubicacion!.longitude,
+          _ubicacion!.latitude, // USANDO LatLng
+          _ubicacion!.longitude, // USANDO LatLng
         );
       }
 
@@ -170,7 +170,7 @@ class VerificacionIAViewModel extends ChangeNotifier {
     }
   }
 
-  // Convertir imágenes a Base64 - NUEVO MÉTODO PRIVADO
+  // Convertir imágenes a Base64 - SIN CAMBIOS
   Future<void> _convertirImagenesABase64() async {
     try {
       _imagenesBase64.clear();
@@ -201,7 +201,7 @@ class VerificacionIAViewModel extends ChangeNotifier {
     }
   }
 
-  // Finalizar análisis con error
+  // Finalizar análisis con error - SIN CAMBIOS
   void _finalizarAnalisisConError(String mensaje) {
     _isAnalyzing = false;
     _analysisFailed = true;
@@ -214,12 +214,12 @@ class VerificacionIAViewModel extends ChangeNotifier {
     notifyListeners();
   }
 
-  // Reintentar análisis
+  // Reintentar análisis - SIN CAMBIOS
   Future<void> reintentarAnalisis() async {
     await analizarImagenes();
   }
 
-  // Analizar múltiples imágenes - NUEVO MÉTODO
+  // Analizar múltiples imágenes - ACTUALIZADO PARA LATLNG
   Future<void> analizarMultiplesImagenes() async {
     _isAnalyzing = true;
     _analysisFailed = false;
@@ -245,13 +245,13 @@ class VerificacionIAViewModel extends ChangeNotifier {
           _categoria
       );
 
-      // Verificar metadatos de ubicación
+      // Verificar metadatos de ubicación - ACTUALIZADO PARA LATLNG
       Map<String, dynamic> locationVerification = {'isLocationVerified': false, 'message': ''};
       if (_ubicacion != null && _imagenesBase64.isNotEmpty) {
         locationVerification = await OpenAIService.verifyLocationMetadataFromBase64(
           _imagenesBase64[0],
-          _ubicacion!.latitude,
-          _ubicacion!.longitude,
+          _ubicacion!.latitude, // USANDO LatLng
+          _ubicacion!.longitude, // USANDO LatLng
         );
       }
 
@@ -272,7 +272,7 @@ class VerificacionIAViewModel extends ChangeNotifier {
     }
   }
 
-  // Obtener resumen del análisis
+  // Obtener resumen del análisis - SIN CAMBIOS
   Map<String, dynamic> obtenerResumenAnalisis() {
     return {
       'categoria_solicitada': _categoria,
@@ -287,12 +287,12 @@ class VerificacionIAViewModel extends ChangeNotifier {
     };
   }
 
-  // Validar si se puede proceder
+  // Validar si se puede proceder - SIN CAMBIOS
   bool puedeProcedera() {
     return !_isAnalyzing && !_analysisFailed && _canSubmitReport;
   }
 
-  // Obtener mensaje de estado
+  // Obtener mensaje de estado - SIN CAMBIOS
   String obtenerMensajeEstado() {
     if (_isAnalyzing) {
       return 'Analizando imágenes con IA...';
@@ -307,7 +307,7 @@ class VerificacionIAViewModel extends ChangeNotifier {
     }
   }
 
-  // Obtener estadísticas de las imágenes Base64
+  // Obtener estadísticas de las imágenes Base64 - SIN CAMBIOS
   Map<String, dynamic> obtenerEstadisticasImagenes() {
     if (_imagenesBase64.isEmpty) {
       return {
@@ -319,7 +319,6 @@ class VerificacionIAViewModel extends ChangeNotifier {
 
     int totalSize = 0;
     for (final imagen in _imagenesBase64) {
-      // Calcular tamaño aproximado del Base64
       totalSize += (imagen.length * 3 / 4).round();
     }
 
@@ -331,7 +330,7 @@ class VerificacionIAViewModel extends ChangeNotifier {
     };
   }
 
-  // Validar integridad de las imágenes Base64
+  // Validar integridad de las imágenes Base64 - SIN CAMBIOS
   bool validarIntegridadImagenes() {
     if (_imagenesBase64.isEmpty) return false;
 
@@ -344,7 +343,7 @@ class VerificacionIAViewModel extends ChangeNotifier {
     return true;
   }
 
-  // Limpiar datos
+  // Limpiar datos - SIN CAMBIOS
   void limpiar() {
     _isAnalyzing = false;
     _isLocationVerified = false;
@@ -360,7 +359,7 @@ class VerificacionIAViewModel extends ChangeNotifier {
     _ubicacion = null;
     _direccion = '';
     _imagenes.clear();
-    _imagenesBase64.clear(); // Limpiar también Base64
+    _imagenesBase64.clear();
     notifyListeners();
   }
 }

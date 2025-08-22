@@ -1,5 +1,6 @@
+import 'dart:math' as math; // AGREGAR IMPORT DE MATEMÁTICAS
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:flutter_osm_plugin/flutter_osm_plugin.dart' as osm;
+import 'package:google_maps_flutter/google_maps_flutter.dart'; // CAMBIADO DE OSM
 
 class ReporteModel {
   final String id;
@@ -132,14 +133,61 @@ class ReporteModel {
     );
   }
 
-  // Obtener GeoPoint para OSM
-  osm.GeoPoint toOsmGeoPoint() {
-    return osm.GeoPoint(latitude: latitud, longitude: longitud);
+  // MÉTODO ACTUALIZADO: Obtener LatLng para Google Maps
+  LatLng toLatLng() {
+    return LatLng(latitud, longitud);
   }
+
+  // MÉTODO LEGACY: Mantener compatibilidad con OSM si aún se usa en algún lugar
+  // osm.GeoPoint toOsmGeoPoint() {
+  //   return osm.GeoPoint(latitude: latitud, longitude: longitud);
+  // }
 
   // Formatear fecha como string
   String get fechaFormateada {
     return '${fecha.day.toString().padLeft(2, '0')}/${fecha.month.toString().padLeft(2, '0')}/${fecha.year}';
+  }
+
+  // NUEVO: Método para obtener información de ubicación
+  Map<String, dynamic> get ubicacionInfo {
+    return {
+      'latitud': latitud,
+      'longitud': longitud,
+      'latlng': toLatLng(),
+      'direccion': direccion,
+    };
+  }
+
+  // NUEVO: Validar si tiene coordenadas válidas
+  bool get tieneUbicacionValida {
+    return latitud != 0.0 && longitud != 0.0;
+  }
+
+  // NUEVO: Obtener distancia a otra ubicación (en km)
+  double distanciaA(LatLng otraUbicacion) {
+    if (!tieneUbicacionValida) return double.infinity;
+
+    // Fórmula de Haversine simplificada
+    const double radioTierra = 6371; // km
+
+    final double dLat = _gradosARadianes(otraUbicacion.latitude - latitud);
+    final double dLon = _gradosARadianes(otraUbicacion.longitude - longitud);
+
+    final double lat1Rad = _gradosARadianes(latitud);
+    final double lat2Rad = _gradosARadianes(otraUbicacion.latitude);
+
+    final double a =
+        math.sin(dLat / 2) * math.sin(dLat / 2) +
+            math.cos(lat1Rad) * math.cos(lat2Rad) *
+                math.sin(dLon / 2) * math.sin(dLon / 2);
+
+    final double c = 2 * math.asin(math.sqrt(a));
+
+    return radioTierra * c;
+  }
+
+  double _gradosARadianes(double grados) {
+    return grados * (math.pi / 180); // USAR math.pi
   }
 }
 
@@ -178,5 +226,17 @@ class HistorialEstado {
 
   String get horaFormateada {
     return '${fecha.hour.toString().padLeft(2, '0')}:${fecha.minute.toString().padLeft(2, '0')}';
+  }
+
+  // NUEVO: Obtener timestamp completo formateado
+  String get fechaHoraCompleta {
+    return '$fechaFormateada a las $horaFormateada';
+  }
+
+  // NUEVO: Verificar si es un estado reciente (últimas 24 horas)
+  bool get esReciente {
+    final ahora = DateTime.now();
+    final diferencia = ahora.difference(fecha);
+    return diferencia.inHours < 24;
   }
 }

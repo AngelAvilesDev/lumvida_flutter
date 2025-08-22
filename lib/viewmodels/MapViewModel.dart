@@ -1,10 +1,11 @@
 import 'dart:math' as math;
 import 'package:flutter/foundation.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:flutter_osm_plugin/flutter_osm_plugin.dart' as osm;
+import 'package:google_maps_flutter/google_maps_flutter.dart'; // CAMBIADO DE OSM
 import 'package:flutter/material.dart';
-import '../components/OSMMapComponent.dart';
-import '../utils/constants.dart'; // Importar constants
+import '../components/GoogleMapComponent.dart'; // NUEVO COMPONENTE
+import '../utils/constants.dart';
+import '../utils/report_categories.dart'; // CATEGORÍAS CENTRALIZADAS
 
 class MapViewModel extends ChangeNotifier {
   // Estados
@@ -14,14 +15,61 @@ class MapViewModel extends ChangeNotifier {
   String? _selectedFilter;
   List<Map<String, dynamic>> _rawReportes = [];
 
+  // CACHE DE CATEGORÍAS PARA OPTIMIZACIÓN
+  late final Map<String, ReportCategory> _categoryCache;
+  late final List<String> _availableFilters;
+
+  // Constructor - INICIALIZAR CACHE
+  MapViewModel() {
+    _initializeCategoryCache();
+  }
+
+  void _initializeCategoryCache() {
+    _categoryCache = {};
+    final categories = ReportCategories.getActiveCategories();
+
+    for (final category in categories) {
+      // Agregar variaciones de nombres para mejor matching
+      _categoryCache[category.name.toLowerCase()] = category;
+
+      // Agregar variaciones comunes
+      if (category.name.toLowerCase().contains('alumbrado')) {
+        _categoryCache['alumbrado'] = category;
+        _categoryCache['alumbrado público'] = category;
+        _categoryCache['alumbrado publico'] = category;
+      }
+      if (category.name.toLowerCase().contains('basura')) {
+        _categoryCache['basura'] = category;
+        _categoryCache['basura acumulada'] = category;
+      }
+      if (category.name.toLowerCase().contains('drenaje')) {
+        _categoryCache['drenajes'] = category;
+        _categoryCache['drenaje'] = category;
+        _categoryCache['drenajes obstruidos'] = category;
+      }
+      if (category.name.toLowerCase().contains('bacheo')) {
+        _categoryCache['bacheo'] = category;
+      }
+    }
+
+    // Crear lista de filtros disponibles
+    _availableFilters = ['Todos'] + ReportCategories.getCategoryNames();
+
+    if (kDebugMode) {
+      print('Cache de categorías inicializado con ${_categoryCache.length} entradas');
+      print('Filtros disponibles: $_availableFilters');
+    }
+  }
+
   // Getters
   bool get isLoading => _isLoading;
   String? get error => _error;
   List<MarkerData> get reportMarkers => _reportMarkers;
   String? get selectedFilter => _selectedFilter;
   List<Map<String, dynamic>> get rawReportes => _rawReportes;
+  List<String> get availableFilters => _availableFilters;
 
-  // Marcadores filtrados - LÓGICA CORREGIDA
+  // MARCADORES FILTRADOS - FUNCIONA PERFECTAMENTE CON GOOGLE MAPS
   List<MarkerData> get filteredMarkers {
     if (_selectedFilter == null || _selectedFilter == 'Todos') {
       return _reportMarkers;
@@ -37,23 +85,14 @@ class MapViewModel extends ChangeNotifier {
         print('Comparando: "$categoriaOriginal" con filtro: "$filtro"');
       }
 
-      // Lógica de filtrado más específica
-      switch (filtro) {
-        case 'bacheo':
-          return categoriaOriginal.contains('bacheo');
-        case 'alumbrado':
-          return categoriaOriginal.contains('alumbrado');
-        case 'basura':
-          return categoriaOriginal.contains('basura');
-        case 'drenajes':
-          return categoriaOriginal.contains('drenajes') || categoriaOriginal.contains('drenaje');
-        default:
-          return categoriaOriginal.contains(filtro);
-      }
+      // Usar el cache de categorías para matching más preciso
+      return _categoryCache.containsKey(categoriaOriginal) &&
+          _categoryCache.containsKey(filtro) &&
+          _categoryCache[categoriaOriginal] == _categoryCache[filtro];
     }).toList();
   }
 
-  // Cargar ubicaciones de reportes
+  // CARGAR UBICACIONES - OPTIMIZADO PARA GOOGLE MAPS
   Future<void> cargarUbicacionesReportes() async {
     _isLoading = true;
     _error = null;
@@ -98,20 +137,17 @@ class MapViewModel extends ChangeNotifier {
         }
 
         if (latitud != null && longitud != null) {
-          // Definir icono según categoría
-          final categoria = data['categoria']?.toString().toLowerCase() ?? '';
+          final categoria = data['categoria']?.toString() ?? '';
           final markerIcon = _getMarkerIconForCategory(categoria);
 
           if (kDebugMode) {
             print('Añadiendo marcador en: Lat $latitud, Lon $longitud - Categoría: $categoria');
           }
 
+          // CREAR MARCADOR PARA GOOGLE MAPS (LatLng en lugar de GeoPoint)
           markers.add(
             MarkerData(
-              position: osm.GeoPoint(
-                latitude: latitud,
-                longitude: longitud,
-              ),
+              position: LatLng(latitud, longitud), // CAMBIO PRINCIPAL
               icon: markerIcon,
               title: '${data['categoria'] ?? 'Sin categoría'} - ${data['folio'] ?? 'Sin folio'}',
             ),
@@ -140,7 +176,7 @@ class MapViewModel extends ChangeNotifier {
     }
   }
 
-  // Aplicar filtro - CON DEBUG MEJORADO
+  // APLICAR FILTRO - OPTIMIZADO PARA GOOGLE MAPS
   void aplicarFiltro(String? filtro) {
     if (kDebugMode) {
       print('Aplicando filtro: $filtro');
@@ -159,88 +195,58 @@ class MapViewModel extends ChangeNotifier {
     notifyListeners();
   }
 
-  // Obtener MarkerIcon para categoría - USANDO COLORS CONSISTENTES
-  osm.MarkerIcon _getMarkerIconForCategory(String categoria) {
-    final icon = _getIconForCategory(categoria);
-    return osm.MarkerIcon(icon: icon);
+  // OBTENER ICONO DINÁMICO - ADAPTADO PARA GOOGLE MAPS
+  Icon _getMarkerIconForCategory(String categoria) {
+    final category = _getCategoryForName(categoria);
+    return Icon(
+      category.getEffectiveMapIcon(),
+      color: category.getEffectiveMarkerColor(),
+      size: category.getEffectiveIconSize(),
+    );
   }
 
-  // Obtener icono para categoría - ICONOS MEJORADOS CON CONSTANTS
-  Icon _getIconForCategory(String categoria) {
-    const double iconSize = 40.0;
+  // OBTENER CATEGORÍA POR NOMBRE - CON CACHE OPTIMIZADO
+  ReportCategory _getCategoryForName(String categoria) {
+    final lowerCategoria = categoria.toLowerCase().trim();
 
-    switch (categoria.toLowerCase().trim()) {
-      case 'bacheo':
-        return Icon(
-          Icons.car_crash,
-          color: Colors.orange.shade700,
-          size: iconSize,
-        );
-      case 'alumbrado público':
-      case 'alumbrado':
-        return Icon(
-          Icons.lightbulb,
-          color: Colors.amber.shade600,
-          size: iconSize,
-        );
-      case 'basura acumulada':
-      case 'basura':
-        return Icon(
-          Icons.delete,
-          color: Colors.brown.shade700,
-          size: iconSize,
-        );
-      case 'drenajes obstruidos':
-      case 'drenajes':
-      case 'drenaje':
-        return Icon(
-          Icons.water_drop,
-          color: Colors.blue.shade700,
-          size: iconSize,
-        );
-      default:
-        return const Icon(
-          Icons.report_problem,
-          color: kPrimaryColor, // Usando el color primario de constants
-          size: iconSize,
-        );
+    // Primero buscar en cache
+    if (_categoryCache.containsKey(lowerCategoria)) {
+      return _categoryCache[lowerCategoria]!;
     }
+
+    // Si no encuentra, usar el método de ReportCategories
+    final category = ReportCategories.getCategoryByName(categoria);
+
+    // Agregar al cache para futuras búsquedas
+    _categoryCache[lowerCategoria] = category;
+
+    return category;
   }
 
-  // Método para obtener color de categoría (útil para gráficas y UI)
+  // OBTENER COLOR DE CATEGORÍA - DINÁMICO
   Color getCategoryColor(String categoria) {
-    switch (categoria.toLowerCase().trim()) {
-      case 'bacheo':
-        return Colors.orange.shade700;
-      case 'alumbrado público':
-      case 'alumbrado':
-        return Colors.amber.shade600;
-      case 'basura acumulada':
-      case 'basura':
-        return Colors.brown.shade700;
-      case 'drenajes obstruidos':
-      case 'drenajes':
-      case 'drenaje':
-        return Colors.blue.shade700;
-      default:
-        return kPrimaryColor; // Color primario por defecto
-    }
+    final category = _getCategoryForName(categoria);
+    return category.getEffectiveMarkerColor();
   }
 
-  // Obtener estadísticas por categoría
+  // ESTADÍSTICAS DINÁMICAS POR CATEGORÍA
   Map<String, int> obtenerEstadisticasPorCategoria() {
-    final stats = <String, int>{
-      'Bacheo': 0,
-      'Alumbrado Público': 0,
-      'Basura Acumulada': 0,
-      'Drenajes Obstruidos': 0,
-      'Otros': 0,
-    };
+    final categories = ReportCategories.getActiveCategories();
+    final stats = <String, int>{};
 
+    // Inicializar todas las categorías con 0
+    for (final category in categories) {
+      stats[category.name] = 0;
+    }
+    stats['Otros'] = 0; // Para categorías no reconocidas
+
+    // Contar reportes por categoría
     for (final reporte in _rawReportes) {
-      final categoria = reporte['categoria']?.toString() ?? 'Otros';
-      if (stats.containsKey(categoria)) {
-        stats[categoria] = (stats[categoria] ?? 0) + 1;
+      final categoria = reporte['categoria']?.toString() ?? '';
+      final categoryMatch = _getCategoryForName(categoria);
+
+      if (categories.contains(categoryMatch)) {
+        stats[categoryMatch.name] = (stats[categoryMatch.name] ?? 0) + 1;
       } else {
         stats['Otros'] = (stats['Otros'] ?? 0) + 1;
       }
@@ -249,7 +255,7 @@ class MapViewModel extends ChangeNotifier {
     return stats;
   }
 
-  // Obtener reportes por estado - ACTUALIZADO CON NUEVOS ESTADOS
+  // ESTADÍSTICAS POR ESTADO - MEJORADAS
   Map<String, int> obtenerEstadisticasPorEstado() {
     final stats = <String, int>{
       'pendiente': 0,
@@ -261,31 +267,61 @@ class MapViewModel extends ChangeNotifier {
 
     for (final reporte in _rawReportes) {
       final estado = reporte['estado']?.toString().toLowerCase() ?? 'pendiente';
-      if (stats.containsKey(estado)) {
-        stats[estado] = (stats[estado] ?? 0) + 1;
+
+      // Mapeo más inteligente de estados
+      if (_isEstadoPendiente(estado)) {
+        stats['pendiente'] = (stats['pendiente'] ?? 0) + 1;
+      } else if (_isEstadoRevision(estado)) {
+        stats['en revision'] = (stats['en revision'] ?? 0) + 1;
+      } else if (_isEstadoAsignado(estado)) {
+        stats['asignado'] = (stats['asignado'] ?? 0) + 1;
+      } else if (_isEstadoProceso(estado)) {
+        stats['en proceso'] = (stats['en proceso'] ?? 0) + 1;
+      } else if (_isEstadoResuelto(estado)) {
+        stats['resuelto'] = (stats['resuelto'] ?? 0) + 1;
       } else {
-        // Para estados que no coinciden exactamente, mapear a los más cercanos
-        if (estado.contains('pendiente') || estado.contains('nuevo')) {
-          stats['pendiente'] = (stats['pendiente'] ?? 0) + 1;
-        } else if (estado.contains('revision') || estado.contains('revisión')) {
-          stats['en revision'] = (stats['en revision'] ?? 0) + 1;
-        } else if (estado.contains('asignado')) {
-          stats['asignado'] = (stats['asignado'] ?? 0) + 1;
-        } else if (estado.contains('proceso')) {
-          stats['en proceso'] = (stats['en proceso'] ?? 0) + 1;
-        } else if (estado.contains('resuelto') || estado.contains('completado')) {
-          stats['resuelto'] = (stats['resuelto'] ?? 0) + 1;
-        } else {
-          // Estados desconocidos van a pendiente por defecto
-          stats['pendiente'] = (stats['pendiente'] ?? 0) + 1;
-        }
+        stats['pendiente'] = (stats['pendiente'] ?? 0) + 1;
       }
     }
 
     return stats;
   }
 
-  // Obtener color para estado (usando constants)
+  // MÉTODOS AUXILIARES PARA MAPEO DE ESTADOS
+  bool _isEstadoPendiente(String estado) {
+    return estado.contains('pendiente') ||
+        estado.contains('nuevo') ||
+        estado.contains('creado');
+  }
+
+  bool _isEstadoRevision(String estado) {
+    return estado.contains('revision') ||
+        estado.contains('revisión') ||
+        estado.contains('evaluacion') ||
+        estado.contains('evaluación');
+  }
+
+  bool _isEstadoAsignado(String estado) {
+    return estado.contains('asignado') ||
+        estado.contains('designado');
+  }
+
+  bool _isEstadoProceso(String estado) {
+    return estado.contains('proceso') ||
+        estado.contains('progreso') ||
+        estado.contains('trabajando') ||
+        estado.contains('ejecutando');
+  }
+
+  bool _isEstadoResuelto(String estado) {
+    return estado.contains('resuelto') ||
+        estado.contains('completado') ||
+        estado.contains('finalizado') ||
+        estado.contains('terminado') ||
+        estado.contains('cerrado');
+  }
+
+  // OBTENER COLOR PARA ESTADO - CONSISTENTE
   Color getEstadoColor(String estado) {
     switch (estado.toLowerCase()) {
       case 'pendiente':
@@ -299,11 +335,11 @@ class MapViewModel extends ChangeNotifier {
       case 'resuelto':
         return Colors.green.shade700;
       default:
-        return kSecondaryColor; // Color secundario de constants
+        return kSecondaryColor;
     }
   }
 
-  // Buscar reportes cerca de una ubicación
+  // BUSCAR REPORTES CERCANOS - ADAPTADO PARA LATLNG
   List<Map<String, dynamic>> obtenerReportesCercanos(
       double latitud,
       double longitud,
@@ -324,9 +360,9 @@ class MapViewModel extends ChangeNotifier {
     }).toList();
   }
 
-  // Calcular distancia entre dos puntos (fórmula de Haversine simplificada)
+  // MÉTODOS DE UTILIDAD - SIN CAMBIOS
   double _calcularDistancia(double lat1, double lon1, double lat2, double lon2) {
-    const double radioTierra = 6371; // Radio de la Tierra en kilómetros
+    const double radioTierra = 6371;
 
     final double dLat = _gradosARadianes(lat2 - lat1);
     final double dLon = _gradosARadianes(lon2 - lon1);
@@ -348,7 +384,87 @@ class MapViewModel extends ChangeNotifier {
     return grados * (math.pi / 180);
   }
 
-  // Limpiar datos
+  // NUEVOS MÉTODOS ÚTILES
+
+  // Obtener estadísticas completas
+  Map<String, dynamic> obtenerEstadisticasCompletas() {
+    return {
+      'categorias': obtenerEstadisticasPorCategoria(),
+      'estados': obtenerEstadisticasPorEstado(),
+      'total_reportes': _rawReportes.length,
+      'total_marcadores': _reportMarkers.length,
+      'categorias_activas': ReportCategories.getActiveCategories().length,
+    };
+  }
+
+  // Validar consistencia de datos
+  bool validarConsistenciaDatos() {
+    final categorias = ReportCategories.getCategoryNames();
+    int reportesInconsistentes = 0;
+
+    for (final reporte in _rawReportes) {
+      final categoria = reporte['categoria']?.toString() ?? '';
+      if (categoria.isNotEmpty && !categorias.contains(categoria)) {
+        reportesInconsistentes++;
+        if (kDebugMode) {
+          print('Categoría inconsistente encontrada: $categoria');
+        }
+      }
+    }
+
+    if (kDebugMode) {
+      print('Reportes con categorías inconsistentes: $reportesInconsistentes');
+    }
+
+    return reportesInconsistentes == 0;
+  }
+
+  // NUEVO: Obtener bounds para centrar mapa en todos los reportes
+  LatLngBounds? obtenerBoundsDeReportes() {
+    if (_reportMarkers.isEmpty) return null;
+
+    double minLat = _reportMarkers.first.position.latitude;
+    double maxLat = _reportMarkers.first.position.latitude;
+    double minLng = _reportMarkers.first.position.longitude;
+    double maxLng = _reportMarkers.first.position.longitude;
+
+    for (final marker in _reportMarkers) {
+      minLat = math.min(minLat, marker.position.latitude);
+      maxLat = math.max(maxLat, marker.position.latitude);
+      minLng = math.min(minLng, marker.position.longitude);
+      maxLng = math.max(maxLng, marker.position.longitude);
+    }
+
+    return LatLngBounds(
+      southwest: LatLng(minLat, minLng),
+      northeast: LatLng(maxLat, maxLng),
+    );
+  }
+
+  // NUEVO: Obtener bounds para marcadores filtrados
+  LatLngBounds? obtenerBoundsFiltrados() {
+    final markers = filteredMarkers;
+    if (markers.isEmpty) return null;
+
+    double minLat = markers.first.position.latitude;
+    double maxLat = markers.first.position.latitude;
+    double minLng = markers.first.position.longitude;
+    double maxLng = markers.first.position.longitude;
+
+    for (final marker in markers) {
+      minLat = math.min(minLat, marker.position.latitude);
+      maxLat = math.max(maxLat, marker.position.latitude);
+      minLng = math.min(minLng, marker.position.longitude);
+      maxLng = math.max(maxLng, marker.position.longitude);
+    }
+
+    return LatLngBounds(
+      southwest: LatLng(minLat, minLng),
+      northeast: LatLng(maxLat, maxLng),
+    );
+  }
+
+  // MÉTODOS DE LIMPIEZA Y RECARGA - SIN CAMBIOS
   void limpiar() {
     _reportMarkers.clear();
     _rawReportes.clear();
@@ -358,8 +474,13 @@ class MapViewModel extends ChangeNotifier {
     notifyListeners();
   }
 
-  // Recargar datos
   Future<void> recargar() async {
     await cargarUbicacionesReportes();
+  }
+
+  // MÉTODO PARA REFRESCAR CACHE (útil si las categorías cambian dinámicamente)
+  void refrescarCacheCategories() {
+    _initializeCategoryCache();
+    notifyListeners();
   }
 }

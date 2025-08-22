@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/services.dart';
@@ -12,24 +13,48 @@ import 'viewmodels/AuthViewModel.dart';
 import 'screens/InicioScreen.dart';
 import 'screens/LoginScreen.dart';
 import 'utils/constants.dart';
+import 'utils/api_config.dart'; // IMPORTAR LA CONFIGURACIÓN DE API
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Cargar las variables de entorno
-  await dotenv.load(fileName: ".env");
+  try {
+    // CARGAR VARIABLES DE ENTORNO PRIMERO
+    await dotenv.load(fileName: ".env");
+    if (kDebugMode) {
+      print('✅ Variables de entorno cargadas correctamente');
+    }
 
-  // Inicializar Firebase
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
+    // VERIFICAR QUE LAS API KEYS ESTÉN DISPONIBLES
+    ApiConfig.debugApiKeys(); // Mostrar status de las API keys
 
-  // Configurar orientación preferida
-  await SystemChrome.setPreferredOrientations([
-    DeviceOrientation.portraitUp,
-    DeviceOrientation.portraitDown,
-  ]);
+    if (!ApiConfig.areKeysConfigured) {
+      if (kDebugMode) {
+        print('⚠️  ADVERTENCIA: Algunas API keys no están configuradas correctamente');
+      }
+    }
+
+    // INICIALIZAR FIREBASE
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
+    if (kDebugMode) {
+      print('✅ Firebase inicializado correctamente');
+    }
+
+    // CONFIGURAR ORIENTACIÓN PREFERIDA
+    await SystemChrome.setPreferredOrientations([
+      DeviceOrientation.portraitUp,
+      DeviceOrientation.portraitDown,
+    ]);
+
+  } catch (e) {
+    if (kDebugMode) {
+      print('❌ Error al inicializar la aplicación: $e');
+    }
+    // La app continuará pero mostrará errores donde sea necesario
+  }
 
   runApp(const MyApp());
 }

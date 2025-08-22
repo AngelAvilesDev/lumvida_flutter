@@ -1,7 +1,8 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../components/OSMMapComponent.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart'; // NUEVO IMPORT
+import '../components/GoogleMapComponent.dart'; // NUEVO COMPONENTE
 import '../components/BottomNavigationWidget.dart';
 import '../utils/constants.dart';
 import '../viewmodels/AuthViewModel.dart';
@@ -20,8 +21,8 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
   late AnimationController _fabAnimationController;
   bool _isFilterExpanded = false;
 
-  // GlobalKey para acceder al OSMMapComponent
-  final GlobalKey<OSMMapComponentState> _mapKey = GlobalKey();
+  // GlobalKey para acceder al GoogleMapComponent
+  final GlobalKey<GoogleMapComponentState> _mapKey = GlobalKey();
 
   @override
   void initState() {
@@ -67,9 +68,35 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
   }
 
   void _goToMyLocation() {
-    // Acceder al OSMMapComponent a través del GlobalKey
+    // Acceder al GoogleMapComponent a través del GlobalKey
     if (_mapKey.currentState != null) {
       _mapKey.currentState!.goToMyLocation();
+    }
+  }
+
+  // NUEVO: Función para centrar en todos los reportes
+  void _centerAllReports() {
+    final bounds = _mapViewModel.obtenerBoundsFiltrados();
+    if (bounds != null) {
+      // Esta funcionalidad se puede expandir en el GoogleMapComponent si es necesario
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Mostrando ${_mapViewModel.filteredMarkers.length} reportes'),
+          backgroundColor: kPrimaryColor,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
+        ),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('No hay reportes para mostrar'),
+          backgroundColor: Colors.orange,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
     }
   }
 
@@ -150,10 +177,10 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
           builder: (context, mapVM, child) {
             return Stack(
               children: [
-                // Mapa principal
+                // Mapa principal - ACTUALIZADO PARA GOOGLE MAPS
                 _buildMapSection(mapVM),
 
-                // Filtros flotantes
+                // Filtros flotantes - DINÁMICOS
                 _buildFloatingFilters(mapVM),
 
                 // Contador flotante
@@ -239,10 +266,11 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
     final filteredMarkers = mapVM.filteredMarkers;
 
     if (kDebugMode) {
-      print('Construyendo mapa con ${filteredMarkers.length} marcadores');
+      print('Construyendo mapa de Google con ${filteredMarkers.length} marcadores');
     }
 
-    return OSMMapComponent(
+    // NUEVO COMPONENTE DE GOOGLE MAPS
+    return GoogleMapComponent(
       key: _mapKey,
       height: double.infinity,
       trackMyLocation: true,
@@ -331,6 +359,7 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
     );
   }
 
+  // FILTROS DINÁMICOS - USANDO availableFilters DEL VIEWMODEL
   Widget _buildFloatingFilters(MapViewModel mapVM) {
     return Positioned(
       top: kToolbarHeight + MediaQuery.of(context).padding.top + 16,
@@ -387,7 +416,7 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
             ),
           ),
 
-          // Lista de filtros expandible
+          // Lista de filtros expandible - FILTROS DINÁMICOS
           AnimatedContainer(
             duration: const Duration(milliseconds: 300),
             height: _isFilterExpanded ? 60 : 0,
@@ -399,13 +428,11 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
                 child: SingleChildScrollView(
                   scrollDirection: Axis.horizontal,
                   child: Row(
-                    children: [
-                      _buildFilterChip('Todos', mapVM.selectedFilter == null || mapVM.selectedFilter == 'Todos', () => mapVM.aplicarFiltro('Todos')),
-                      _buildFilterChip('Bacheo', mapVM.selectedFilter == 'Bacheo', () => mapVM.aplicarFiltro('Bacheo')),
-                      _buildFilterChip('Alumbrado', mapVM.selectedFilter == 'Alumbrado', () => mapVM.aplicarFiltro('Alumbrado')),
-                      _buildFilterChip('Basura', mapVM.selectedFilter == 'Basura', () => mapVM.aplicarFiltro('Basura')),
-                      _buildFilterChip('Drenajes', mapVM.selectedFilter == 'Drenajes', () => mapVM.aplicarFiltro('Drenajes')),
-                    ],
+                    children: mapVM.availableFilters.map((filter) {
+                      final isSelected = mapVM.selectedFilter == filter ||
+                          (filter == 'Todos' && mapVM.selectedFilter == null);
+                      return _buildFilterChip(filter, isSelected, () => mapVM.aplicarFiltro(filter));
+                    }).toList(),
                   ),
                 ),
               ),
@@ -484,7 +511,7 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
                 color: kPrimaryColor.withOpacity(0.1),
                 borderRadius: BorderRadius.circular(8),
               ),
-              child: Icon(
+              child: const Icon(
                 Icons.location_on,
                 color: kPrimaryColor,
                 size: 16,
@@ -532,19 +559,7 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
             // Botón de centrar todos los reportes
             FloatingActionButton(
               heroTag: "center_all_fab",
-              onPressed: () {
-                // TODO: Implementar centrar en todos los reportes
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: const Text('Centrando en todos los reportes...'),
-                    backgroundColor: kPrimaryColor,
-                    behavior: SnackBarBehavior.floating,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                  ),
-                );
-              },
+              onPressed: _centerAllReports,
               backgroundColor: kPrimaryColor,
               foregroundColor: Colors.white,
               elevation: 8,

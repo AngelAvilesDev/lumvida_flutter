@@ -27,12 +27,15 @@ class ReportesScreen extends StatefulWidget {
   State<ReportesScreen> createState() => _ReportesScreenState();
 }
 
-class _ReportesScreenState extends State<ReportesScreen> {
+class _ReportesScreenState extends State<ReportesScreen> with TickerProviderStateMixin {
   final TextEditingController _commentController = TextEditingController();
   final ImagePicker _imagePicker = ImagePicker();
 
-  // ViewModel manejado directamente sin Provider interno
   late ReportesViewModel _reportesViewModel;
+  late AnimationController _fadeController;
+  late AnimationController _slideController;
+  late Animation<double> _fadeAnimation;
+  late Animation<Offset> _slideAnimation;
 
   // Variables para manejar sugerencias de IA
   bool _showAISuggestion = false;
@@ -44,6 +47,23 @@ class _ReportesScreenState extends State<ReportesScreen> {
     _selectedCategory = widget.categoria;
     _reportesViewModel = ReportesViewModel();
 
+    // Configurar animaciones
+    _fadeController = AnimationController(
+      duration: const Duration(milliseconds: 800),
+      vsync: this,
+    );
+
+    _slideController = AnimationController(
+      duration: const Duration(milliseconds: 1000),
+      vsync: this,
+    );
+
+    _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(_fadeController);
+    _slideAnimation = Tween<Offset>(
+      begin: const Offset(0, 0.3),
+      end: Offset.zero,
+    ).animate(CurvedAnimation(parent: _slideController, curve: Curves.easeOutBack));
+
     // Si hay una categoría detectada por IA diferente, mostrar sugerencia
     if (widget.categoriaDetectadaPorIA != null &&
         widget.categoriaDetectadaPorIA != widget.categoria) {
@@ -52,11 +72,17 @@ class _ReportesScreenState extends State<ReportesScreen> {
 
     // Escuchar cambios del ViewModel
     _reportesViewModel.addListener(_onViewModelChanged);
+
+    // Iniciar animaciones
+    _fadeController.forward();
+    Future.delayed(const Duration(milliseconds: 300), () {
+      _slideController.forward();
+    });
   }
 
   void _onViewModelChanged() {
     if (mounted) {
-      setState(() {}); // Rebuilds when ViewModel changes
+      setState(() {});
     }
   }
 
@@ -65,10 +91,741 @@ class _ReportesScreenState extends State<ReportesScreen> {
     _commentController.dispose();
     _reportesViewModel.removeListener(_onViewModelChanged);
     _reportesViewModel.dispose();
+    _fadeController.dispose();
+    _slideController.dispose();
     super.dispose();
   }
 
-  // Función para cambiar la categoría según sugerencia de IA
+  @override
+  Widget build(BuildContext context) {
+    final category = ReportCategories.getCategoryByName(_selectedCategory);
+
+    return Scaffold(
+      body: Container(
+        decoration: backgroundDecoration,
+        child: Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [
+                Colors.white.withOpacity(0.8),
+                Colors.white.withOpacity(0.95),
+                kPrimaryColor.withOpacity(0.03),
+              ],
+            ),
+          ),
+          child: SafeArea(
+            child: Column(
+              children: [
+                // Header moderno
+                _buildModernHeader(),
+
+                // Contenido principal
+                Expanded(
+                  child: Stack(
+                    children: [
+                      FadeTransition(
+                        opacity: _fadeAnimation,
+                        child: SingleChildScrollView(
+                          padding: const EdgeInsets.all(20.0),
+                          child: SlideTransition(
+                            position: _slideAnimation,
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                // Sugerencia de IA (si aplicable)
+                                if (_showAISuggestion) _buildAISuggestionCard(),
+
+                                // Header de categoría
+                                _buildCategoryHeader(category),
+
+                                const SizedBox(height: 24),
+
+                                // Ubicación
+                                _buildLocationSection(),
+
+                                const SizedBox(height: 24),
+
+                                // Descripción del problema
+                                _buildDescriptionSection(category),
+
+                                const SizedBox(height: 24),
+
+                                // Sección de fotos
+                                _buildPhotosSection(),
+
+                                const SizedBox(height: 32),
+
+                                // Botón de continuar
+                                _buildContinueButton(),
+
+                                const SizedBox(height: 20),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+
+                      // Overlay de carga
+                      if (_reportesViewModel.isSubmitting)
+                        Container(
+                          color: Colors.black.withOpacity(0.3),
+                          child: const Center(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                CircularProgressIndicator(color: kPrimaryColor),
+                                SizedBox(height: 16),
+                                Text(
+                                  'Procesando reporte...',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+      bottomNavigationBar: const BottomNavigationWidget(currentScreen: 'inicio'),
+    );
+  }
+
+  Widget _buildModernHeader() {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.9),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          // Botón de regreso
+          Container(
+            decoration: BoxDecoration(
+              color: kPrimaryColor.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: IconButton(
+              onPressed: () => Navigator.of(context).pop(),
+              icon: const Icon(Icons.arrow_back_ios_new, color: kPrimaryColor),
+            ),
+          ),
+
+          const SizedBox(width: 16),
+
+          // Título
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Crear Reporte',
+                  style: const TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                    color: kPrimaryColor,
+                  ),
+                ),
+                Text(
+                  _selectedCategory,
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Colors.grey.shade600,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAISuggestionCard() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      margin: const EdgeInsets.only(bottom: 20),
+      decoration: BoxDecoration(
+        color: Colors.blue.shade50,
+        border: Border.all(color: Colors.blue.shade300),
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.blue.withOpacity(0.1),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.blue.shade100,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(Icons.smart_toy, color: Colors.blue.shade600, size: 20),
+              ),
+              const SizedBox(width: 12),
+              const Expanded(
+                child: Text(
+                  'Sugerencia de IA',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: Colors.blue,
+                    fontSize: 16,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text(
+            'Basándome en el análisis de tu imagen anterior, parece que el problema es de "${widget.categoriaDetectadaPorIA}" en lugar de "${widget.categoria}". ¿Te gustaría cambiar la categoría?',
+            style: const TextStyle(fontSize: 14),
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: _dismissAISuggestion,
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Colors.grey.shade600,
+                    side: BorderSide(color: Colors.grey.shade400),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  child: const Text('Mantener categoría'),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: ElevatedButton(
+                  onPressed: _acceptAISuggestion,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.blue,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  child: const Text('Cambiar categoría'),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCategoryHeader(ReportCategory category) {
+    final backgroundColor = category.backgroundColor ?? kPrimaryColor;
+    final iconColor = category.color ?? Colors.white;
+
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [backgroundColor, backgroundColor.withOpacity(0.8)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: backgroundColor.withOpacity(0.3),
+            blurRadius: 15,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.2),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Icon(
+              category.icon,
+              color: iconColor,
+              size: 32,
+            ),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Reportar ${category.name}',
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: iconColor,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  category.description ?? 'Describe el problema que encontraste',
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: iconColor.withOpacity(0.8),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLocationSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildSectionTitle(
+          '¿Dónde se ubica el problema?',
+          Icons.location_on,
+        ),
+        const SizedBox(height: 16),
+
+        Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.1),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(16),
+            child: OSMMapComponent(
+              height: 250,
+              trackMyLocation: true,
+              allowPicking: true,
+              onLocationSelected: (osm.GeoPoint location) {
+                _reportesViewModel.setSelectedLocation(location);
+              },
+            ),
+          ),
+        ),
+
+        if (_reportesViewModel.selectedLocation != null) ...[
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.9),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.grey.shade200),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.location_on, color: Colors.green.shade600, size: 16),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Ubicación: ${_reportesViewModel.addressText}',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.grey.shade700,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildDescriptionSection(ReportCategory category) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildSectionTitle(
+          'Describe el problema',
+          Icons.description,
+        ),
+        const SizedBox(height: 16),
+
+        // Opciones de reporte
+        Container(
+          decoration: BoxDecoration(
+            color: Colors.white.withOpacity(0.9),
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.05),
+                blurRadius: 10,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          child: Column(
+            children: category.options.asMap().entries.map((entry) {
+              final index = entry.key;
+              final option = entry.value;
+              final isLast = index == category.options.length - 1;
+
+              return _buildCheckOption(
+                option.description,
+                option.description == _reportesViewModel.selectedOption,
+                    () {
+                  _reportesViewModel.setSelectedOption(option.description);
+                },
+                isLast: isLast,
+              );
+            }).toList(),
+          ),
+        ),
+
+        // Campo para comentarios adicionales
+        if (_reportesViewModel.selectedOption == 'Otro (especificar)') ...[
+          const SizedBox(height: 16),
+          Container(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.05),
+                  blurRadius: 10,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: TextField(
+              controller: _commentController,
+              decoration: InputDecoration(
+                hintText: 'Describe el problema específico...',
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(16),
+                  borderSide: BorderSide.none,
+                ),
+                filled: true,
+                fillColor: Colors.white,
+                contentPadding: const EdgeInsets.all(20),
+                prefixIcon: const Icon(Icons.edit, color: kPrimaryColor),
+              ),
+              maxLines: 3,
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildPhotosSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildSectionTitle(
+          'Adjunta fotos del problema',
+          Icons.camera_alt,
+        ),
+        const SizedBox(height: 12),
+
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.orange.shade50,
+            border: Border.all(color: Colors.orange.shade300),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Row(
+            children: [
+              Icon(Icons.info_outline, color: Colors.orange.shade600, size: 20),
+              const SizedBox(width: 12),
+              const Expanded(
+                child: Text(
+                  'Las fotos son necesarias para que la IA verifique tu reporte.',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.orange,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+
+        const SizedBox(height: 16),
+
+        Row(
+          children: [
+            _buildPhotoContainer(0, _reportesViewModel.selectedPhotos),
+            const SizedBox(width: 12),
+            _buildPhotoContainer(1, _reportesViewModel.selectedPhotos),
+            const SizedBox(width: 12),
+            _buildPhotoContainer(2, _reportesViewModel.selectedPhotos),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSectionTitle(String title, IconData icon) {
+    return Row(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: kPrimaryColor.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Icon(icon, color: kPrimaryColor, size: 20),
+        ),
+        const SizedBox(width: 12),
+        Text(
+          title,
+          style: const TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+            color: kPrimaryColor,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildCheckOption(String text, bool isSelected, VoidCallback onTap, {bool isLast = false}) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.vertical(
+          top: Radius.circular(isLast ? 0 : 0),
+          bottom: Radius.circular(isLast ? 16 : 0),
+        ),
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
+          decoration: BoxDecoration(
+            border: isLast ? null : Border(
+              bottom: BorderSide(color: Colors.grey.shade200, width: 1),
+            ),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 20,
+                height: 20,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: isSelected ? kPrimaryColor : Colors.grey.shade400,
+                    width: 2,
+                  ),
+                  color: isSelected ? kPrimaryColor : Colors.transparent,
+                ),
+                child: isSelected
+                    ? const Icon(Icons.check, color: Colors.white, size: 14)
+                    : null,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  text,
+                  style: TextStyle(
+                    fontSize: 16,
+                    color: Colors.black87,
+                    fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPhotoContainer(int index, List<File> photos) {
+    final bool hasPhoto = index < photos.length;
+
+    return Expanded(
+      child: InkWell(
+        onTap: () => _showImageOptions(index),
+        child: AspectRatio(
+          aspectRatio: 1,
+          child: Container(
+            decoration: BoxDecoration(
+              color: hasPhoto ? Colors.green.shade50 : Colors.grey.shade100,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: hasPhoto ? Colors.green.shade300 : Colors.grey.shade300,
+                width: hasPhoto ? 2 : 1,
+              ),
+              image: hasPhoto
+                  ? DecorationImage(
+                image: FileImage(photos[index]),
+                fit: BoxFit.cover,
+              )
+                  : null,
+              boxShadow: hasPhoto ? [
+                BoxShadow(
+                  color: Colors.green.withOpacity(0.2),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                ),
+              ] : null,
+            ),
+            child: hasPhoto
+                ? Stack(
+              children: [
+                // Indicador de éxito
+                Positioned(
+                  top: 8,
+                  left: 8,
+                  child: Container(
+                    padding: const EdgeInsets.all(4),
+                    decoration: BoxDecoration(
+                      color: Colors.green,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Icon(
+                      Icons.check,
+                      color: Colors.white,
+                      size: 12,
+                    ),
+                  ),
+                ),
+                // Botón para eliminar
+                Positioned(
+                  top: 8,
+                  right: 8,
+                  child: GestureDetector(
+                    onTap: () => _reportesViewModel.removePhoto(index),
+                    child: Container(
+                      padding: const EdgeInsets.all(4),
+                      decoration: BoxDecoration(
+                        color: Colors.red,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Icon(
+                        Icons.close,
+                        color: Colors.white,
+                        size: 12,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            )
+                : Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  Icons.add_a_photo,
+                  color: Colors.grey.shade600,
+                  size: 32,
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  index == 0 ? 'REQUERIDO' : 'Opcional',
+                  style: TextStyle(
+                    fontSize: 10,
+                    color: index == 0 ? Colors.red : Colors.grey.shade600,
+                    fontWeight: index == 0 ? FontWeight.bold : FontWeight.normal,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildContinueButton() {
+    return Container(
+      width: double.infinity,
+      height: 56,
+      decoration: BoxDecoration(
+        gradient: _reportesViewModel.isSubmitting
+            ? null
+            : const LinearGradient(
+          colors: [kPrimaryColor, Color(0xFFD32F2F)],
+          begin: Alignment.centerLeft,
+          end: Alignment.centerRight,
+        ),
+        color: _reportesViewModel.isSubmitting ? Colors.grey.shade300 : null,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: !_reportesViewModel.isSubmitting ? [
+          BoxShadow(
+            color: kPrimaryColor.withOpacity(0.3),
+            blurRadius: 15,
+            offset: const Offset(0, 8),
+          ),
+        ] : null,
+      ),
+      child: ElevatedButton.icon(
+        onPressed: _reportesViewModel.isSubmitting ? null : _proceedToVerification,
+        style: ElevatedButton.styleFrom(
+          backgroundColor: Colors.transparent,
+          shadowColor: Colors.transparent,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+        ),
+        icon: _reportesViewModel.isSubmitting
+            ? const SizedBox(
+          width: 20,
+          height: 20,
+          child: CircularProgressIndicator(
+            color: Colors.grey,
+            strokeWidth: 2.0,
+          ),
+        )
+            : const Icon(Icons.arrow_forward, color: Colors.white),
+        label: Text(
+          _reportesViewModel.isSubmitting ? 'Procesando...' : 'Continuar con verificación',
+          style: TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
+            color: _reportesViewModel.isSubmitting ? Colors.grey : Colors.white,
+          ),
+        ),
+      ),
+    );
+  }
+
+  // Métodos de funcionalidad
+
   void _acceptAISuggestion() {
     if (!mounted) return;
 
@@ -77,7 +834,6 @@ class _ReportesScreenState extends State<ReportesScreen> {
       _showAISuggestion = false;
     });
 
-    // Limpiar selección en el ViewModel
     _reportesViewModel.setSelectedOption(null);
 
     if (mounted) {
@@ -85,6 +841,8 @@ class _ReportesScreenState extends State<ReportesScreen> {
         SnackBar(
           content: Text('Categoría cambiada a: $_selectedCategory'),
           backgroundColor: Colors.green,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           duration: const Duration(seconds: 2),
         ),
       );
@@ -98,7 +856,6 @@ class _ReportesScreenState extends State<ReportesScreen> {
     });
   }
 
-  // Función para seleccionar fotos
   Future<void> _pickImage(int index) async {
     try {
       final XFile? pickedFile = await _imagePicker.pickImage(
@@ -116,7 +873,6 @@ class _ReportesScreenState extends State<ReportesScreen> {
     }
   }
 
-  // Función para tomar foto con la cámara
   Future<void> _takePhoto(int index) async {
     try {
       final XFile? pickedFile = await _imagePicker.pickImage(
@@ -134,53 +890,120 @@ class _ReportesScreenState extends State<ReportesScreen> {
     }
   }
 
-  // Función para mostrar opciones de imagen
   void _showImageOptions(int index) {
     if (!mounted) return;
 
     showModalBottomSheet(
       context: context,
+      backgroundColor: Colors.transparent,
       builder: (BuildContext context) {
-        return SafeArea(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Text(
-                  'Seleccionar imagen',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.grey.shade700,
+        return Container(
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.only(
+              topLeft: Radius.circular(20),
+              topRight: Radius.circular(20),
+            ),
+          ),
+          child: SafeArea(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  margin: const EdgeInsets.only(top: 8),
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade300,
+                    borderRadius: BorderRadius.circular(2),
                   ),
                 ),
-              ),
-              ListTile(
-                leading: const Icon(Icons.photo_library, color: kPrimaryColor),
-                title: const Text('Seleccionar de galería'),
-                onTap: () {
-                  Navigator.pop(context);
-                  _pickImage(index);
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.camera_alt, color: kPrimaryColor),
-                title: const Text('Tomar foto'),
-                onTap: () {
-                  Navigator.pop(context);
-                  _takePhoto(index);
-                },
-              ),
-              const SizedBox(height: 16),
-            ],
+                Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    children: [
+                      Text(
+                        'Seleccionar imagen',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.grey.shade700,
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _buildImageOptionButton(
+                              icon: Icons.photo_library,
+                              title: 'Galería',
+                              onTap: () {
+                                Navigator.pop(context);
+                                _pickImage(index);
+                              },
+                            ),
+                          ),
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: _buildImageOptionButton(
+                              icon: Icons.camera_alt,
+                              title: 'Cámara',
+                              onTap: () {
+                                Navigator.pop(context);
+                                _takePhoto(index);
+                              },
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           ),
         );
       },
     );
   }
 
-  // Función para proceder con la verificación IA
+  Widget _buildImageOptionButton({
+    required IconData icon,
+    required String title,
+    required VoidCallback onTap,
+  }) {
+    return Container(
+      decoration: BoxDecoration(
+        color: kPrimaryColor.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(12),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 20),
+            child: Column(
+              children: [
+                Icon(icon, color: kPrimaryColor, size: 32),
+                const SizedBox(width: 8),
+                Text(
+                  title,
+                  style: const TextStyle(
+                    color: kPrimaryColor,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   Future<void> _proceedToVerification() async {
     if (!mounted) return;
 
@@ -238,7 +1061,6 @@ class _ReportesScreenState extends State<ReportesScreen> {
     }
   }
 
-  // Función para enviar el reporte (después de verificación IA)
   Future<void> _submitReport(String descripcion) async {
     if (!mounted) return;
 
@@ -259,7 +1081,6 @@ class _ReportesScreenState extends State<ReportesScreen> {
 
       if (mounted) {
         if (resultado['success']) {
-          // SOLO mostrar el diálogo, la navegación se hace cuando el usuario presiona "Entendido"
           _mostrarDialogoReporteExitoso(resultado['folio']);
         } else {
           _showErrorSnackBar(resultado['message'] ?? 'Error al enviar el reporte');
@@ -278,409 +1099,12 @@ class _ReportesScreenState extends State<ReportesScreen> {
         SnackBar(
           content: Text(message),
           backgroundColor: Colors.red,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           duration: const Duration(seconds: 3),
         ),
       );
     }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final category = ReportCategories.getCategoryByName(_selectedCategory);
-
-    return Scaffold(
-      appBar: AppBar(
-        title: Text('Reportar $_selectedCategory', style: const TextStyle(color: kPrimaryColor)),
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        iconTheme: const IconThemeData(color: kPrimaryColor),
-      ),
-      body: Container(
-        decoration: backgroundDecoration,
-        child: SafeArea(
-          child: Stack(
-            children: [
-              SingleChildScrollView(
-                padding: const EdgeInsets.all(20.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Sugerencia de IA (si aplicable)
-                    if (_showAISuggestion) _buildAISuggestionCard(),
-
-                    // Icono del tipo de problema
-                    Center(
-                      child: Icon(
-                        category.icon,
-                        color: kPrimaryColor,
-                        size: 60,
-                      ),
-                    ),
-
-                    const SizedBox(height: 20),
-
-                    // Título principal
-                    Text(
-                      'Reportar $_selectedCategory',
-                      style: kTitleStyle,
-                    ),
-
-                    const SizedBox(height: 30),
-
-                    // Ubicación
-                    const Text(
-                      '¿DÓNDE SE UBICA EL PROBLEMA?',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: kPrimaryColor,
-                      ),
-                    ),
-
-                    const SizedBox(height: 10),
-
-                    // OSM Map Component
-                    OSMMapComponent(
-                      height: 250,
-                      trackMyLocation: true,
-                      allowPicking: true,
-                      onLocationSelected: (osm.GeoPoint location) {
-                        _reportesViewModel.setSelectedLocation(location);
-                      },
-                    ),
-
-                    if (_reportesViewModel.selectedLocation != null)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 8.0),
-                        child: Text(
-                          'Ubicación: ${_reportesViewModel.addressText}',
-                          style: const TextStyle(fontSize: 12, color: Colors.grey),
-                        ),
-                      ),
-
-                    const SizedBox(height: 30),
-
-                    // Descripción
-                    const Text(
-                      'DESCRIBE EL PROBLEMA:',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: kPrimaryColor,
-                      ),
-                    ),
-
-                    const SizedBox(height: 10),
-
-                    // Opciones de reporte
-                    ...category.options.map((option) => _buildCheckOption(
-                      option.description,
-                      option.description == _reportesViewModel.selectedOption,
-                          () {
-                        _reportesViewModel.setSelectedOption(option.description);
-                      },
-                    )).toList(),
-
-                    // Campo para comentarios adicionales
-                    if (_reportesViewModel.selectedOption == 'Otro (especificar)') ...[
-                      const SizedBox(height: 20),
-                      TextField(
-                        controller: _commentController,
-                        decoration: InputDecoration(
-                          hintText: 'Describe el problema...',
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          filled: true,
-                          fillColor: Colors.white,
-                        ),
-                        maxLines: 3,
-                      ),
-                    ],
-
-                    const SizedBox(height: 30),
-
-                    // Sección de fotos
-                    _buildPhotosSection(),
-
-                    const SizedBox(height: 40),
-
-                    // Botón de continuar
-                    ElevatedButton.icon(
-                      onPressed: _reportesViewModel.isSubmitting
-                          ? null
-                          : _proceedToVerification,
-                      style: kPrimaryButtonStyle,
-                      label: _reportesViewModel.isSubmitting
-                          ? const Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          SizedBox(
-                            width: 20,
-                            height: 20,
-                            child: CircularProgressIndicator(
-                              color: Colors.white,
-                              strokeWidth: 2.0,
-                            ),
-                          ),
-                          SizedBox(width: 10),
-                          Text('Procesando...', style: kButtonTextStyle),
-                        ],
-                      )
-                          : const Text('Continuar', style: kButtonTextStyle),
-                    ),
-                  ],
-                ),
-              ),
-
-              // Overlay de carga
-              if (_reportesViewModel.isSubmitting)
-                Container(
-                  color: Colors.black.withOpacity(0.3),
-                  child: const Center(
-                    child: CircularProgressIndicator(color: kPrimaryColor),
-                  ),
-                ),
-            ],
-          ),
-        ),
-      ),
-      bottomNavigationBar: const BottomNavigationWidget(currentScreen: 'inicio'),
-    );
-  }
-
-  Widget _buildAISuggestionCard() {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      margin: const EdgeInsets.only(bottom: 20),
-      decoration: BoxDecoration(
-        color: Colors.blue.shade50,
-        border: Border.all(color: Colors.blue.shade300),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(Icons.smart_toy, color: Colors.blue.shade600, size: 20),
-              const SizedBox(width: 8),
-              const Text(
-                'Sugerencia de IA',
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  color: Colors.blue,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Basándome en el análisis de tu imagen anterior, parece que el problema es de "${widget.categoriaDetectadaPorIA}" en lugar de "${widget.categoria}". ¿Te gustaría cambiar la categoría?',
-            style: const TextStyle(fontSize: 14),
-          ),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(
-                child: OutlinedButton(
-                  onPressed: _dismissAISuggestion,
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: Colors.grey.shade600,
-                    side: BorderSide(color: Colors.grey.shade400),
-                  ),
-                  child: const Text('Mantener categoría'),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: ElevatedButton(
-                  onPressed: _acceptAISuggestion,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.blue,
-                    foregroundColor: Colors.white,
-                  ),
-                  child: const Text('Cambiar categoría'),
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildPhotosSection() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text(
-          'ADJUNTA FOTOS (REQUERIDO PARA VERIFICACIÓN)',
-          style: TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.bold,
-            color: kPrimaryColor,
-          ),
-        ),
-        const SizedBox(height: 10),
-        Container(
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: Colors.orange.shade50,
-            border: Border.all(color: Colors.orange.shade300),
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Row(
-            children: [
-              Icon(Icons.info_outline, color: Colors.orange.shade600, size: 20),
-              const SizedBox(width: 8),
-              const Expanded(
-                child: Text(
-                  'Las fotos son necesarias para que la IA verifique que tu reporte coincide con la categoría seleccionada.',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.orange,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 20),
-        Row(
-          children: [
-            _buildPhotoContainer(0, _reportesViewModel.selectedPhotos),
-            const SizedBox(width: 10),
-            _buildPhotoContainer(1, _reportesViewModel.selectedPhotos),
-            const SizedBox(width: 10),
-            _buildPhotoContainer(2, _reportesViewModel.selectedPhotos),
-          ],
-        ),
-      ],
-    );
-  }
-
-  Widget _buildCheckOption(String text, bool isSelected, VoidCallback onTap) {
-    return InkWell(
-      onTap: onTap,
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 10),
-        decoration: const BoxDecoration(
-          border: Border(
-            bottom: BorderSide(color: Colors.black12, width: 1),
-          ),
-        ),
-        child: Row(
-          children: [
-            Icon(
-              isSelected ? Icons.radio_button_checked : Icons.radio_button_unchecked,
-              color: isSelected ? kPrimaryColor : Colors.grey,
-              size: 20,
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Text(
-                text,
-                style: TextStyle(
-                  fontSize: 16,
-                  color: Colors.black87,
-                  fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildPhotoContainer(int index, List<File> photos) {
-    final bool hasPhoto = index < photos.length;
-
-    return Expanded(
-      child: InkWell(
-        onTap: () => _showImageOptions(index),
-        child: AspectRatio(
-          aspectRatio: 1,
-          child: Container(
-            decoration: BoxDecoration(
-              color: Colors.grey.shade200,
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(
-                color: hasPhoto ? Colors.green.shade300 : Colors.grey.shade400,
-                width: hasPhoto ? 2 : 1,
-              ),
-              image: hasPhoto
-                  ? DecorationImage(
-                image: FileImage(photos[index]),
-                fit: BoxFit.cover,
-              )
-                  : null,
-            ),
-            child: hasPhoto
-                ? Stack(
-              alignment: Alignment.topRight,
-              children: [
-                Positioned(
-                  top: 5,
-                  left: 5,
-                  child: Container(
-                    padding: const EdgeInsets.all(3),
-                    decoration: BoxDecoration(
-                      color: Colors.green,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: const Icon(
-                      Icons.check,
-                      color: Colors.white,
-                      size: 12,
-                    ),
-                  ),
-                ),
-                GestureDetector(
-                  onTap: () => _reportesViewModel.removePhoto(index),
-                  child: Container(
-                    margin: const EdgeInsets.all(5),
-                    padding: const EdgeInsets.all(3),
-                    decoration: BoxDecoration(
-                      color: Colors.red,
-                      borderRadius: BorderRadius.circular(15),
-                    ),
-                    child: const Icon(
-                      Icons.close,
-                      color: Colors.white,
-                      size: 18,
-                    ),
-                  ),
-                ),
-              ],
-            )
-                : Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(
-                  Icons.add_a_photo,
-                  color: Colors.grey.shade600,
-                  size: 30,
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  index == 0 ? 'REQUERIDO' : 'Opcional',
-                  style: TextStyle(
-                    fontSize: 10,
-                    color: index == 0 ? Colors.red : Colors.grey.shade600,
-                    fontWeight: index == 0 ? FontWeight.bold : FontWeight.normal,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
   }
 
   void _mostrarDialogoInicioSesionRequerido() {
@@ -690,7 +1114,24 @@ class _ReportesScreenState extends State<ReportesScreen> {
       context: context,
       builder: (context) {
         return AlertDialog(
-          title: const Text('Iniciar sesión requerido', style: TextStyle(color: kPrimaryColor)),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: kPrimaryColor.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(Icons.login, color: kPrimaryColor),
+              ),
+              const SizedBox(width: 12),
+              const Text(
+                'Iniciar sesión requerido',
+                style: TextStyle(color: kPrimaryColor, fontWeight: FontWeight.bold),
+              ),
+            ],
+          ),
           content: const Text('Para crear un reporte necesitas iniciar sesión.'),
           actions: [
             TextButton(
@@ -709,7 +1150,12 @@ class _ReportesScreenState extends State<ReportesScreen> {
                   );
                 }
               },
-              style: ElevatedButton.styleFrom(backgroundColor: kPrimaryColor),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: kPrimaryColor,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
               child: const Text('Iniciar sesión'),
             ),
           ],
@@ -721,14 +1167,13 @@ class _ReportesScreenState extends State<ReportesScreen> {
   void _mostrarDialogoReporteExitoso(String folio) {
     if (!mounted) return;
 
-    // Usar un Future.delayed para asegurar que el contexto esté estable
     Future.delayed(const Duration(milliseconds: 100), () {
       if (!mounted) return;
 
       showDialog(
         context: context,
         barrierDismissible: false,
-        builder: (BuildContext dialogContext) { // Usar un contexto específico del diálogo
+        builder: (BuildContext dialogContext) {
           return AlertDialog(
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
             title: Row(
@@ -791,12 +1236,13 @@ class _ReportesScreenState extends State<ReportesScreen> {
                       IconButton(
                         onPressed: () {
                           Clipboard.setData(ClipboardData(text: folio));
-                          // Usar el contexto del widget principal para el SnackBar
                           ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('Folio copiado al portapapeles'),
+                            SnackBar(
+                              content: const Text('Folio copiado al portapapeles'),
                               backgroundColor: Colors.green,
-                              duration: Duration(seconds: 2),
+                              behavior: SnackBarBehavior.floating,
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                              duration: const Duration(seconds: 2),
                             ),
                           );
                         },
@@ -818,10 +1264,7 @@ class _ReportesScreenState extends State<ReportesScreen> {
                 width: double.infinity,
                 child: ElevatedButton.icon(
                   onPressed: () {
-                    // PRIMERO: Cerrar el diálogo
                     Navigator.of(dialogContext).pop();
-
-                    // SEGUNDO: Navegar de regreso al inicio después de cerrar el diálogo
                     Future.delayed(const Duration(milliseconds: 100), () {
                       if (mounted) {
                         Navigator.of(context).popUntil((route) {

@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:image_picker/image_picker.dart';
 import '../components/CustomDialogs.dart';
 import '../utils/constants.dart';
 import '../viewmodels/AuthViewModel.dart';
+import '../viewmodels/ProfileViewModel.dart';
 import '../components/BottomNavigationWidget.dart';
 import 'LoginScreen.dart';
 
@@ -13,79 +15,123 @@ class ProfileScreen extends StatefulWidget {
   State<ProfileScreen> createState() => _ProfileScreenState();
 }
 
-class _ProfileScreenState extends State<ProfileScreen> {
-  final TextEditingController _nameController = TextEditingController();
-  final TextEditingController _phoneController = TextEditingController();
-  bool _isEditing = false;
+class _ProfileScreenState extends State<ProfileScreen> with TickerProviderStateMixin {
+  final _formKey = GlobalKey<FormState>();
+  final _nameController = TextEditingController();
+  final _phoneController = TextEditingController();
+
+  late ProfileViewModel _profileViewModel;
+  late AnimationController _fadeController;
+  late Animation<double> _fadeAnimation;
 
   @override
   void initState() {
     super.initState();
-    _loadUserData();
-  }
+    _profileViewModel = ProfileViewModel();
 
-  void _loadUserData() {
-    final authViewModel = Provider.of<AuthViewModel>(context, listen: false);
-    _nameController.text = authViewModel.nombreUsuario ?? '';
-    _phoneController.text = authViewModel.telefono ?? '';
+    _fadeController = AnimationController(
+      duration: const Duration(milliseconds: 600),
+      vsync: this,
+    );
+    _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(_fadeController);
+
+    _loadUserData();
   }
 
   @override
   void dispose() {
     _nameController.dispose();
     _phoneController.dispose();
+    _profileViewModel.dispose();
+    _fadeController.dispose();
     super.dispose();
+  }
+
+  Future<void> _loadUserData() async {
+    await _profileViewModel.loadUserData();
+    _updateControllers();
+    _fadeController.forward();
+  }
+
+  void _updateControllers() {
+    _nameController.text = _profileViewModel.nombre;
+    _phoneController.text = _profileViewModel.telefono;
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Perfil', style: TextStyle(color: kPrimaryColor)),
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        automaticallyImplyLeading: false, // Quitar botón de regreso
-        actions: [
-          Consumer<AuthViewModel>(
-            builder: (context, authViewModel, _) {
-              if (!authViewModel.isAuthenticated) return const SizedBox();
+    return ChangeNotifierProvider.value(
+      value: _profileViewModel,
+      child: Scaffold(
+        body: Container(
+          decoration: backgroundDecoration,
+          child: Container(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  Colors.white.withOpacity(0.8),
+                  Colors.white.withOpacity(0.95),
+                  kPrimaryColor.withOpacity(0.03),
+                ],
+              ),
+            ),
+            child: SafeArea(
+              child: Consumer<ProfileViewModel>(
+                builder: (context, profileVM, child) {
+                  final authViewModel = Provider.of<AuthViewModel>(context);
 
-              return IconButton(
-                icon: Icon(
-                  _isEditing ? Icons.save : Icons.edit,
-                  color: kPrimaryColor,
-                ),
-                onPressed: _isEditing ? _saveProfile : _enableEditing,
-              );
-            },
+                  if (!authViewModel.isAuthenticated) {
+                    return _buildNotLoggedInView();
+                  }
+
+                  return Column(
+                    children: [
+                      // Header
+                      _buildModernHeader(profileVM),
+
+                      // Contenido principal
+                      Expanded(
+                        child: FadeTransition(
+                          opacity: _fadeAnimation,
+                          child: _buildMainContent(profileVM, authViewModel),
+                        ),
+                      ),
+                    ],
+                  );
+                },
+              ),
+            ),
           ),
-        ],
-      ),
-      body: Container(
-        decoration: backgroundDecoration,
-        child: Consumer<AuthViewModel>(
-          builder: (context, authViewModel, _) {
-            if (!authViewModel.isAuthenticated) {
-              return _buildNotLoggedInView();
-            }
-            return _buildProfileView(authViewModel);
-          },
         ),
+        bottomNavigationBar: const BottomNavigationWidget(currentScreen: 'perfil'),
       ),
-      bottomNavigationBar: const BottomNavigationWidget(currentScreen: 'perfil'),
     );
   }
 
   Widget _buildNotLoggedInView() {
     return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24.0),
+      child: Container(
+        margin: const EdgeInsets.all(24),
+        padding: const EdgeInsets.all(24),
+        decoration: BoxDecoration(
+          color: Colors.white.withOpacity(0.9),
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.1),
+              blurRadius: 15,
+              offset: const Offset(0, 5),
+            ),
+          ],
+        ),
         child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
           children: [
             Icon(
               Icons.person_off_outlined,
-              size: 100,
+              size: 80,
               color: Colors.grey.shade400,
             ),
             const SizedBox(height: 24),
@@ -115,9 +161,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   MaterialPageRoute(builder: (context) => const LoginScreen()),
                 );
               },
-              style: kPrimaryButtonStyle,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: kPrimaryColor,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
               icon: const Icon(Icons.login),
-              label: const Text('Iniciar Sesión', style: kButtonTextStyle),
+              label: const Text('Iniciar Sesión', style: TextStyle(fontWeight: FontWeight.w600)),
             ),
           ],
         ),
@@ -125,115 +178,342 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  Widget _buildProfileView(AuthViewModel authViewModel) {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(24.0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+  Widget _buildModernHeader(ProfileViewModel profileVM) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.9),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Row(
         children: [
-          // Avatar y nombre principal
-          Center(
-            child: Column(
-              children: [
-                CircleAvatar(
-                  radius: 60,
-                  backgroundColor: kPrimaryColor.withOpacity(0.1),
-                  child: authViewModel.user?.photoURL != null
-                      ? ClipRRect(
-                    borderRadius: BorderRadius.circular(60),
-                    child: Image.network(
-                      authViewModel.user!.photoURL!,
-                      width: 120,
-                      height: 120,
-                      fit: BoxFit.cover,
-                      errorBuilder: (context, error, stackTrace) {
-                        return const Icon(
-                          Icons.person,
-                          size: 60,
-                          color: kPrimaryColor,
-                        );
-                      },
-                    ),
-                  )
-                      : const Icon(
-                    Icons.person,
-                    size: 60,
-                    color: kPrimaryColor,
-                  ),
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  authViewModel.nombreUsuario ?? 'Usuario',
-                  style: const TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
-                    color: kPrimaryColor,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  authViewModel.user?.email ?? 'Sin email',
-                  style: TextStyle(
-                    fontSize: 16,
-                    color: Colors.grey.shade600,
-                  ),
-                ),
-              ],
+          const Expanded(
+            child: Text(
+              'Perfil',
+              style: TextStyle(
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
+                color: kPrimaryColor,
+              ),
             ),
           ),
 
-          const SizedBox(height: 40),
-
-          // Información del perfil
-          _buildSectionTitle('Información Personal'),
-          const SizedBox(height: 16),
-
-          // Campo de nombre
-          _buildInfoField(
-            label: 'Nombre completo',
-            controller: _nameController,
-            icon: Icons.person_outline,
-            enabled: _isEditing,
+          // Botón de editar/guardar
+          Container(
+            decoration: BoxDecoration(
+              color: profileVM.isEditing ? Colors.green.withOpacity(0.1) : kPrimaryColor.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: IconButton(
+              icon: profileVM.isUpdating
+                  ? const SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              )
+                  : Icon(
+                profileVM.isEditing ? Icons.save : Icons.edit,
+                color: profileVM.isEditing ? Colors.green : kPrimaryColor,
+              ),
+              onPressed: profileVM.isUpdating ? null : () {
+                if (profileVM.isEditing) {
+                  _saveProfile();
+                } else {
+                  profileVM.toggleEditMode();
+                }
+              },
+            ),
           ),
-
-          const SizedBox(height: 16),
-
-          // Campo de teléfono
-          _buildInfoField(
-            label: 'Teléfono',
-            controller: _phoneController,
-            icon: Icons.phone_outlined,
-            enabled: _isEditing,
-            keyboardType: TextInputType.phone,
-          ),
-
-          const SizedBox(height: 16),
-
-          // Email (no editable)
-          _buildInfoField(
-            label: 'Correo electrónico',
-            initialValue: authViewModel.user?.email ?? '',
-            icon: Icons.email_outlined,
-            enabled: false,
-          ),
-
-          const SizedBox(height: 40),
-
-          // Estadísticas
-          _buildSectionTitle('Estadísticas'),
-          const SizedBox(height: 16),
-          _buildStatsSection(),
-
-          const SizedBox(height: 40),
-
-          // Acciones
-          _buildSectionTitle('Acciones'),
-          const SizedBox(height: 16),
-          _buildActionsSection(authViewModel),
-
-          const SizedBox(height: 20),
         ],
       ),
+    );
+  }
+
+  Widget _buildMainContent(ProfileViewModel profileVM, AuthViewModel authViewModel) {
+    if (profileVM.isLoading) {
+      return const Center(
+        child: CircularProgressIndicator(color: kPrimaryColor),
+      );
+    }
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(20),
+      child: Form(
+        key: _formKey,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Avatar y información básica
+            _buildProfileHeader(profileVM, authViewModel),
+
+            const SizedBox(height: 32),
+
+            // Mensajes de estado
+            if (profileVM.errorMessage != null) _buildErrorMessage(profileVM.errorMessage!),
+            if (profileVM.successMessage != null) _buildSuccessMessage(profileVM.successMessage!),
+
+            // Información personal
+            _buildSectionTitle('Información Personal'),
+            const SizedBox(height: 16),
+            _buildPersonalInfoSection(profileVM),
+
+            const SizedBox(height: 32),
+
+            // Estadísticas
+            _buildSectionTitle('Estadísticas'),
+            const SizedBox(height: 16),
+            _buildStatsSection(profileVM),
+
+            const SizedBox(height: 32),
+
+            // Acciones de cuenta
+            _buildSectionTitle('Configuración de Cuenta'),
+            const SizedBox(height: 16),
+            _buildAccountActionsSection(authViewModel, profileVM),
+
+            const SizedBox(height: 40),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildProfileHeader(ProfileViewModel profileVM, AuthViewModel authViewModel) {
+    return Center(
+      child: Column(
+        children: [
+          // Avatar
+          Stack(
+            children: [
+              Container(
+                width: 120,
+                height: 120,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: const LinearGradient(
+                    colors: [kPrimaryColor, Color(0xFFD32F2F)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: kPrimaryColor.withOpacity(0.3),
+                      blurRadius: 20,
+                      offset: const Offset(0, 8),
+                    ),
+                  ],
+                ),
+                child: profileVM.selectedImage != null
+                    ? ClipRRect(
+                  borderRadius: BorderRadius.circular(60),
+                  child: Image.file(
+                    profileVM.selectedImage!,
+                    fit: BoxFit.cover,
+                  ),
+                )
+                    : profileVM.photoUrl != null
+                    ? ClipRRect(
+                  borderRadius: BorderRadius.circular(60),
+                  child: Image.network(
+                    profileVM.photoUrl!,
+                    fit: BoxFit.cover,
+                    errorBuilder: (context, error, stackTrace) {
+                      return const Icon(
+                        Icons.person,
+                        size: 60,
+                        color: Colors.white,
+                      );
+                    },
+                  ),
+                )
+                    : const Icon(
+                  Icons.person,
+                  size: 60,
+                  color: Colors.white,
+                ),
+              ),
+
+              // Botón de editar foto
+              Positioned(
+                bottom: 0,
+                right: 0,
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.1),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: IconButton(
+                    icon: const Icon(Icons.camera_alt, color: kPrimaryColor, size: 20),
+                    onPressed: () => _showImageOptions(profileVM),
+                  ),
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 16),
+
+          // Nombre y email
+          Text(
+            profileVM.nombre.isNotEmpty ? profileVM.nombre : 'Usuario',
+            style: const TextStyle(
+              fontSize: 24,
+              fontWeight: FontWeight.bold,
+              color: kPrimaryColor,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            profileVM.email,
+            style: TextStyle(
+              fontSize: 16,
+              color: Colors.grey.shade600,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPersonalInfoSection(ProfileViewModel profileVM) {
+    return Column(
+      children: [
+        // Campo de nombre
+        _buildModernTextField(
+          controller: _nameController,
+          label: 'Nombre completo',
+          icon: Icons.person_outlined,
+          enabled: profileVM.isEditing,
+          validator: profileVM.validateName,
+          textCapitalization: TextCapitalization.words,
+        ),
+
+        const SizedBox(height: 16),
+
+        // Campo de teléfono
+        _buildModernTextField(
+          controller: _phoneController,
+          label: 'Teléfono (10 dígitos)',
+          icon: Icons.phone_outlined,
+          enabled: profileVM.isEditing,
+          validator: profileVM.validatePhone,
+          keyboardType: TextInputType.phone,
+          onChanged: (value) {
+            final formatted = profileVM.formatPhone(value);
+            if (formatted != value) {
+              _phoneController.text = formatted;
+              _phoneController.selection = TextSelection.fromPosition(
+                TextPosition(offset: formatted.length),
+              );
+            }
+          },
+        ),
+
+        const SizedBox(height: 16),
+
+        // Campo de email (no editable)
+        _buildModernTextField(
+          initialValue: profileVM.email,
+          label: 'Correo electrónico',
+          icon: Icons.email_outlined,
+          enabled: false,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildStatsSection(ProfileViewModel profileVM) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.9),
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: _buildStatItem(
+              icon: Icons.report_outlined,
+              title: 'Reportes',
+              value: profileVM.totalReportes.toString(),
+              color: kPrimaryColor,
+            ),
+          ),
+          Container(
+            width: 1,
+            height: 40,
+            color: Colors.grey.shade200,
+          ),
+          Expanded(
+            child: _buildStatItem(
+              icon: Icons.check_circle_outline,
+              title: 'Resueltos',
+              value: profileVM.reportesResueltos.toString(),
+              color: Colors.green,
+            ),
+          ),
+          Container(
+            width: 1,
+            height: 40,
+            color: Colors.grey.shade200,
+          ),
+          Expanded(
+            child: _buildStatItem(
+              icon: Icons.pending_outlined,
+              title: 'Pendientes',
+              value: profileVM.reportesPendientes.toString(),
+              color: Colors.orange,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAccountActionsSection(AuthViewModel authViewModel, ProfileViewModel profileVM) {
+    return Column(
+      children: [
+        // Ver mis reportes
+        _buildActionButton(
+          icon: Icons.list_alt,
+          title: 'Ver mis reportes',
+          subtitle: 'Historial completo de reportes',
+          onTap: () {
+            Navigator.pushNamed(context, '/mis_reportes');
+          },
+        ),
+
+        const SizedBox(height: 12),
+
+        // Cerrar sesión
+        _buildActionButton(
+          icon: Icons.logout,
+          title: 'Cerrar sesión',
+          subtitle: 'Salir de tu cuenta',
+          onTap: () => _showLogoutDialog(authViewModel),
+          isDestructive: true,
+        ),
+      ],
     );
   }
 
@@ -248,96 +528,71 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  Widget _buildInfoField({
-    required String label,
+  Widget _buildModernTextField({
     TextEditingController? controller,
     String? initialValue,
+    required String label,
     required IconData icon,
     required bool enabled,
+    String? Function(String?)? validator,
     TextInputType? keyboardType,
+    TextCapitalization? textCapitalization,
+    Function(String)? onChanged,
   }) {
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: enabled ? [
           BoxShadow(
-            color: Colors.grey.withOpacity(0.1),
-            spreadRadius: 1,
-            blurRadius: 3,
-            offset: const Offset(0, 1),
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 10,
+            offset: const Offset(0, 2),
           ),
-        ],
+        ] : null,
       ),
       child: TextFormField(
         controller: controller,
         initialValue: controller == null ? initialValue : null,
         enabled: enabled,
         keyboardType: keyboardType,
+        textCapitalization: textCapitalization ?? TextCapitalization.none,
+        validator: validator,
+        onChanged: onChanged,
+        style: TextStyle(
+          fontSize: 16,
+          fontWeight: FontWeight.w500,
+          color: enabled ? Colors.black87 : Colors.grey.shade600,
+        ),
         decoration: InputDecoration(
           labelText: label,
-          prefixIcon: Icon(icon, color: enabled ? kPrimaryColor : Colors.grey),
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: BorderSide.none,
+          prefixIcon: Icon(
+            icon,
+            color: enabled ? kPrimaryColor.withOpacity(0.7) : Colors.grey.shade400,
+          ),
+          labelStyle: TextStyle(
+            color: enabled ? Colors.grey.shade600 : Colors.grey.shade400,
+            fontSize: 16,
           ),
           filled: true,
           fillColor: enabled ? Colors.white : Colors.grey.shade50,
-          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(16),
+            borderSide: BorderSide.none,
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(16),
+            borderSide: BorderSide(color: Colors.grey.shade200),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(16),
+            borderSide: BorderSide(color: kPrimaryColor, width: 2),
+          ),
+          disabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(16),
+            borderSide: BorderSide(color: Colors.grey.shade200),
+          ),
+          contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
         ),
-      ),
-    );
-  }
-
-  Widget _buildStatsSection() {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.grey.withOpacity(0.1),
-            spreadRadius: 1,
-            blurRadius: 3,
-            offset: const Offset(0, 1),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: _buildStatItem(
-              icon: Icons.report_outlined,
-              title: 'Reportes',
-              value: '0', // TODO: Implementar contador real
-            ),
-          ),
-          Container(
-            width: 1,
-            height: 40,
-            color: Colors.grey.shade200,
-          ),
-          Expanded(
-            child: _buildStatItem(
-              icon: Icons.check_circle_outline,
-              title: 'Resueltos',
-              value: '0', // TODO: Implementar contador real
-            ),
-          ),
-          Container(
-            width: 1,
-            height: 40,
-            color: Colors.grey.shade200,
-          ),
-          Expanded(
-            child: _buildStatItem(
-              icon: Icons.pending_outlined,
-              title: 'Pendientes',
-              value: '0', // TODO: Implementar contador real
-            ),
-          ),
-        ],
       ),
     );
   }
@@ -346,17 +601,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
     required IconData icon,
     required String title,
     required String value,
+    required Color color,
   }) {
     return Column(
       children: [
-        Icon(icon, color: kPrimaryColor, size: 24),
+        Icon(icon, color: color, size: 24),
         const SizedBox(height: 8),
         Text(
           value,
-          style: const TextStyle(
+          style: TextStyle(
             fontSize: 20,
             fontWeight: FontWeight.bold,
-            color: kPrimaryColor,
+            color: color,
           ),
         ),
         const SizedBox(height: 4),
@@ -371,33 +627,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  Widget _buildActionsSection(AuthViewModel authViewModel) {
-    return Column(
-      children: [
-        // Botón Ver mis reportes
-        _buildActionButton(
-          icon: Icons.list_alt,
-          title: 'Ver mis reportes',
-          subtitle: 'Historial completo de reportes',
-          onTap: () {
-            Navigator.pushNamed(context, '/mis_reportes');
-          },
-        ),
-
-        const SizedBox(height: 12),
-
-        // Botón Cerrar sesión
-        _buildActionButton(
-          icon: Icons.logout,
-          title: 'Cerrar sesión',
-          subtitle: 'Salir de tu cuenta',
-          onTap: () => _showLogoutDialog(authViewModel),
-          isDestructive: true,
-        ),
-      ],
-    );
-  }
-
   Widget _buildActionButton({
     required IconData icon,
     required String title,
@@ -405,199 +634,282 @@ class _ProfileScreenState extends State<ProfileScreen> {
     required VoidCallback onTap,
     bool isDestructive = false,
   }) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(12),
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(12),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.grey.withOpacity(0.1),
-              spreadRadius: 1,
-              blurRadius: 3,
-              offset: const Offset(0, 1),
-            ),
-          ],
-        ),
-        child: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: isDestructive
-                    ? Colors.red.withOpacity(0.1)
-                    : kPrimaryColor.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Icon(
-                icon,
-                color: isDestructive ? Colors.red : kPrimaryColor,
-                size: 24,
-              ),
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                      color: isDestructive ? Colors.red : Colors.black87,
-                    ),
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.9),
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(16),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: isDestructive
+                        ? Colors.red.withOpacity(0.1)
+                        : kPrimaryColor.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(12),
                   ),
-                  const SizedBox(height: 2),
-                  Text(
-                    subtitle,
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: Colors.grey.shade600,
-                    ),
+                  child: Icon(
+                    icon,
+                    color: isDestructive ? Colors.red : kPrimaryColor,
+                    size: 24,
                   ),
-                ],
-              ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                          color: isDestructive ? Colors.red : Colors.black87,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        subtitle,
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Colors.grey.shade600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Icon(
+                  Icons.arrow_forward_ios,
+                  color: Colors.grey.shade400,
+                  size: 16,
+                ),
+              ],
             ),
-            Icon(
-              Icons.arrow_forward_ios,
-              color: Colors.grey.shade400,
-              size: 16,
-            ),
-          ],
+          ),
         ),
       ),
     );
   }
 
-  void _enableEditing() {
-    setState(() {
-      _isEditing = true;
-    });
+  Widget _buildErrorMessage(String message) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      margin: const EdgeInsets.only(bottom: 16),
+      decoration: BoxDecoration(
+        color: Colors.red.shade50,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.red.shade200),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.error_outline, color: Colors.red.shade600, size: 20),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              message,
+              style: TextStyle(
+                color: Colors.red.shade700,
+                fontSize: 14,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
-  void _saveProfile() async {
-    final authViewModel = Provider.of<AuthViewModel>(context, listen: false);
-
-    setState(() {
-      _isEditing = false;
-    });
-
-    // TODO: Implementar guardado de perfil
-    // Por ahora solo actualizar el teléfono si es diferente
-    if (_phoneController.text != authViewModel.telefono) {
-      final success = await authViewModel.updateUserPhone(_phoneController.text);
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              success
-                  ? 'Perfil actualizado correctamente'
-                  : 'Error al actualizar el perfil',
+  Widget _buildSuccessMessage(String message) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      margin: const EdgeInsets.only(bottom: 16),
+      decoration: BoxDecoration(
+        color: Colors.green.shade50,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.green.shade200),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.check_circle_outline, color: Colors.green.shade600, size: 20),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              message,
+              style: TextStyle(
+                color: Colors.green.shade700,
+                fontSize: 14,
+              ),
             ),
-            backgroundColor: success ? Colors.green : Colors.red,
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Métodos de acción
+
+  Future<void> _saveProfile() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    final success = await _profileViewModel.updateUserData(
+      nombre: _nameController.text.trim(),
+      telefono: _phoneController.text.trim(),
+    );
+
+    if (success) {
+      // Actualizar también en AuthViewModel para consistencia
+      final authViewModel = Provider.of<AuthViewModel>(context, listen: false);
+      await authViewModel.checkAuthState();
+    }
+  }
+
+  void _showImageOptions(ProfileViewModel profileVM) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (BuildContext context) {
+        return Container(
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.only(
+              topLeft: Radius.circular(20),
+              topRight: Radius.circular(20),
+            ),
+          ),
+          child: SafeArea(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  margin: const EdgeInsets.only(top: 8),
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade300,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    children: [
+                      const Text(
+                        'Cambiar foto de perfil',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: kPrimaryColor,
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _buildImageOptionButton(
+                              icon: Icons.photo_library,
+                              title: 'Galería',
+                              onTap: () {
+                                Navigator.pop(context);
+                                profileVM.selectProfileImage(source: ImageSource.gallery);
+                              },
+                            ),
+                          ),
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: _buildImageOptionButton(
+                              icon: Icons.camera_alt,
+                              title: 'Cámara',
+                              onTap: () {
+                                Navigator.pop(context);
+                                profileVM.selectProfileImage(source: ImageSource.camera);
+                              },
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           ),
         );
-      }
-    }
+      },
+    );
+  }
+
+  Widget _buildImageOptionButton({
+    required IconData icon,
+    required String title,
+    required VoidCallback onTap,
+  }) {
+    return Container(
+      decoration: BoxDecoration(
+        color: kPrimaryColor.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(12),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 20),
+            child: Column(
+              children: [
+                Icon(icon, color: kPrimaryColor, size: 32),
+                const SizedBox(height: 8),
+                Text(
+                  title,
+                  style: const TextStyle(
+                    color: kPrimaryColor,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
   }
 
   void _showLogoutDialog(AuthViewModel authViewModel) {
     CustomDialogs.showLogoutDialog(
       context: context,
       onConfirm: () async {
-        // Mostrar loading
-        CustomDialogs.showLoadingDialog(
-          context: context,
-          message: 'Cerrando sesión...',
-        );
-
         try {
           await authViewModel.signOut();
-
-          // Cerrar loading
-          if (mounted) {
-            CustomDialogs.hideLoadingDialog(context);
-
-            // Mostrar confirmación con SnackBar elegante
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: const Row(
-                  children: [
-                    Icon(Icons.check_circle, color: Colors.white),
-                    SizedBox(width: 12),
-                    Text(
-                      'Sesión cerrada correctamente',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ],
-                ),
-                backgroundColor: Colors.green,
-                behavior: SnackBarBehavior.floating,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                margin: const EdgeInsets.all(16),
-                duration: const Duration(seconds: 3),
-              ),
-            );
-          }
+          // No mostrar SnackBar aquí para evitar problemas de widget lifecycle
+          // El AuthViewModel ya maneja el cambio de estado
         } catch (e) {
-          // Cerrar loading en caso de error
+          // Solo mostrar error si el widget aún está montado
           if (mounted) {
-            CustomDialogs.hideLoadingDialog(context);
-
-            // Mostrar error
             CustomDialogs.showErrorDialog(
               context: context,
               title: 'Error al cerrar sesión',
-              content: 'No se pudo cerrar la sesión. Por favor, inténtalo de nuevo.\n\nError: $e',
+              content: 'No se pudo cerrar la sesión. Por favor, inténtalo de nuevo.',
             );
           }
         }
       },
-    );
-  }
-
-// Ejemplo de otros usos:
-
-// Para confirmar eliminación:
-  void _showDeleteConfirmation() {
-    CustomDialogs.showDeleteDialog(
-      context: context,
-      title: 'Eliminar reporte',
-      content: '¿Estás seguro de que quieres eliminar este reporte?',
-      onConfirm: () {
-        // Lógica para eliminar
-      },
-    );
-  }
-
-// Para mostrar éxito:
-  void _showSuccess() {
-    CustomDialogs.showSuccessDialog(
-      context: context,
-      title: '¡Perfil actualizado!',
-      content: 'Tu información se ha guardado correctamente.',
-      onPressed: () {
-        // Acción opcional después del éxito
-      },
-    );
-  }
-
-// Para mostrar error:
-  void _showError(String error) {
-    CustomDialogs.showErrorDialog(
-      context: context,
-      title: 'Error de validación',
-      content: 'No se pudo procesar la solicitud:\n\n$error',
     );
   }
 }

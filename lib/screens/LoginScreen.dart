@@ -15,17 +15,63 @@ class LoginScreen extends StatefulWidget {
   State<LoginScreen> createState() => _LoginScreenState();
 }
 
-class _LoginScreenState extends State<LoginScreen> {
+class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin {
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
 
   late LoginViewModel _loginViewModel;
+  late AnimationController _animationController;
+  late AnimationController _logoAnimationController;
+  late Animation<double> _fadeAnimation;
+  late Animation<double> _slideAnimation;
+  late Animation<double> _logoAnimation;
 
   @override
   void initState() {
     super.initState();
     _loginViewModel = LoginViewModel();
+
+    // Configurar animaciones
+    _animationController = AnimationController(
+      duration: const Duration(milliseconds: 1200),
+      vsync: this,
+    );
+
+    _logoAnimationController = AnimationController(
+      duration: const Duration(milliseconds: 800),
+      vsync: this,
+    );
+
+    _fadeAnimation = Tween<double>(
+      begin: 0.0,
+      end: 1.0,
+    ).animate(CurvedAnimation(
+      parent: _animationController,
+      curve: const Interval(0.3, 1.0, curve: Curves.easeOut),
+    ));
+
+    _slideAnimation = Tween<double>(
+      begin: 50.0,
+      end: 0.0,
+    ).animate(CurvedAnimation(
+      parent: _animationController,
+      curve: const Interval(0.3, 1.0, curve: Curves.easeOut),
+    ));
+
+    _logoAnimation = Tween<double>(
+      begin: 0.0,
+      end: 1.0,
+    ).animate(CurvedAnimation(
+      parent: _logoAnimationController,
+      curve: Curves.elasticOut,
+    ));
+
+    // Iniciar animaciones
+    _logoAnimationController.forward();
+    Future.delayed(const Duration(milliseconds: 300), () {
+      _animationController.forward();
+    });
   }
 
   @override
@@ -33,6 +79,8 @@ class _LoginScreenState extends State<LoginScreen> {
     _emailController.dispose();
     _passwordController.dispose();
     _loginViewModel.dispose();
+    _animationController.dispose();
+    _logoAnimationController.dispose();
     super.dispose();
   }
 
@@ -41,241 +89,463 @@ class _LoginScreenState extends State<LoginScreen> {
     final authViewModel = Provider.of<AuthViewModel>(context);
 
     return ChangeNotifierProvider.value(
-      value: _loginViewModel,
-      child: Scaffold(
+        value: _loginViewModel,
+        child: Scaffold(
         body: Container(
-          decoration: backgroundDecoration,
-          child: SafeArea(
-            child: Center(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.all(24.0),
-                child: Consumer<LoginViewModel>(
-                  builder: (context, loginVM, child) {
-                    return Form(
-                      key: _formKey,
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          // Logo
-                          Align(
-                            alignment: Alignment.center,
-                            child: Image.asset(
-                              'assets/images/Logo blanco.png',
-                              height: 120,
-                            ),
-                          ),
-                          const SizedBox(height: 30),
+        decoration: backgroundDecoration, // Usando el fondo blanco de constants.dart
+        child: Container(
+        decoration: BoxDecoration(
+        gradient: LinearGradient(
+        begin: Alignment.topCenter,
+        end: Alignment.bottomCenter,
+        colors: [
+        Colors.white.withOpacity(0.8),
+    Colors.white.withOpacity(0.9),
+    kPrimaryColor.withOpacity(0.05),
+    ],
+    ),
+    ),
+    child: SafeArea(
+    child: Center(
+    child: SingleChildScrollView(
+    padding: const EdgeInsets.symmetric(horizontal: 32.0, vertical: 20.0),
+    child: Consumer<LoginViewModel>(
+    builder: (context, loginVM, child) {
+    return Form(
+    key: _formKey,
+    child: Column(
+    mainAxisAlignment: MainAxisAlignment.center,
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+    // Logo animado
+    ScaleTransition(
+    scale: _logoAnimation,
+    child: Container(
+    height: 120,
+    margin: const EdgeInsets.only(bottom: 40),
+    child: Image.asset(
+    'assets/images/Logo blanco.png',
+    fit: BoxFit.contain,
+    ),
+    ),
+    ),
 
-                          // Título
-                          const Text(
-                            'Iniciar Sesión',
-                            style: kTitleStyle,
-                            textAlign: TextAlign.center,
-                          ),
-                          const SizedBox(height: 10),
+    // Título y subtítulo con animación
+    AnimatedBuilder(
+    animation: _animationController,
+    builder: (context, child) {
+    return Transform.translate(
+    offset: Offset(0, _slideAnimation.value),
+    child: Opacity(
+    opacity: _fadeAnimation.value,
+    child: Column(
+    children: [
+    const Text(
+    'Bienvenido',
+    style: TextStyle(
+    fontSize: 32,
+    fontWeight: FontWeight.bold,
+    color: kPrimaryColor,
+    letterSpacing: 1.2,
+    ),
+    textAlign: TextAlign.center,
+    ),
+    const SizedBox(height: 8),
+    Text(
+    'Inicia sesión para continuar',
+    style: TextStyle(
+    fontSize: 16,
+    color: Colors.grey.shade600,
+    fontWeight: FontWeight.w400,
+    ),
+    textAlign: TextAlign.center,
+    ),
+    const SizedBox(height: 40),
+    ],
+    ),
+    ),
+    );
+    },
+    ),
 
-                          const Text(
-                            'Ingresa tus datos para acceder',
-                            style: kSubtitleStyle,
-                            textAlign: TextAlign.center,
-                          ),
-                          const SizedBox(height: 40),
+    // Campos de formulario
+    AnimatedBuilder(
+    animation: _animationController,
+    builder: (context, child) {
+    return Transform.translate(
+    offset: Offset(0, _slideAnimation.value),
+    child: Opacity(
+    opacity: _fadeAnimation.value,
+    child: Column(
+    children: [
+    // Campo de email
+    _buildModernTextField(
+    controller: _emailController,
+    label: 'Correo electrónico',
+    icon: Icons.email_outlined,
+    keyboardType: TextInputType.emailAddress,
+    validator: loginVM.validateEmail,
+    onChanged: (value) {
+    if (loginVM.errorMessage != null) {
+    loginVM.clearError();
+    }
+    },
+    ),
 
-                          // Campo de correo electrónico
-                          TextFormField(
-                            controller: _emailController,
-                            keyboardType: TextInputType.emailAddress,
-                            decoration: InputDecoration(
-                              filled: true,
-                              fillColor: Colors.white,
-                              labelText: 'Correo electrónico',
-                              labelStyle: TextStyle(color: Colors.grey.shade700),
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(10),
-                                borderSide: BorderSide.none,
-                              ),
-                              prefixIcon: const Icon(Icons.email, color: kPrimaryColor),
-                            ),
-                            validator: loginVM.validateEmail,
-                            onChanged: (value) {
-                              if (loginVM.errorMessage != null) {
-                                loginVM.clearError();
-                              }
-                            },
-                          ),
-                          const SizedBox(height: 16),
+    const SizedBox(height: 20),
 
-                          // Campo de contraseña
-                          TextFormField(
-                            controller: _passwordController,
-                            obscureText: loginVM.obscurePassword,
-                            decoration: InputDecoration(
-                              filled: true,
-                              fillColor: Colors.white,
-                              labelText: 'Contraseña',
-                              labelStyle: TextStyle(color: Colors.grey.shade700),
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(10),
-                                borderSide: BorderSide.none,
-                              ),
-                              prefixIcon: const Icon(Icons.lock, color: kPrimaryColor),
-                              suffixIcon: IconButton(
-                                icon: Icon(
-                                  loginVM.obscurePassword ? Icons.visibility_off : Icons.visibility,
-                                  color: Colors.grey.shade600,
-                                ),
-                                onPressed: loginVM.togglePasswordVisibility,
-                              ),
-                            ),
-                            validator: loginVM.validatePassword,
-                            onChanged: (value) {
-                              if (loginVM.errorMessage != null) {
-                                loginVM.clearError();
-                              }
-                            },
-                          ),
+    // Campo de contraseña
+    _buildModernTextField(
+    controller: _passwordController,
+    label: 'Contraseña',
+    icon: Icons.lock_outlined,
+    isPassword: true,
+    obscureText: loginVM.obscurePassword,
+    suffixIcon: IconButton(
+    icon: Icon(
+    loginVM.obscurePassword
+    ? Icons.visibility_off_outlined
+        : Icons.visibility_outlined,
+    color: Colors.grey.shade600,
+    ),
+    onPressed: loginVM.togglePasswordVisibility,
+    ),
+    validator: loginVM.validatePassword,
+    onChanged: (value) {
+    if (loginVM.errorMessage != null) {
+    loginVM.clearError();
+    }
+    },
+    ),
 
-                          // Olvidaste tu contraseña
-                          Align(
-                            alignment: Alignment.centerRight,
-                            child: TextButton(
-                              onPressed: () => _showForgotPasswordDialog(context, loginVM),
-                              style: TextButton.styleFrom(
-                                foregroundColor: kPrimaryColor,
-                              ),
-                              child: const Text('¿Olvidaste tu contraseña?'),
-                            ),
-                          ),
+    // Olvidaste tu contraseña
+    Align(
+    alignment: Alignment.centerRight,
+    child: TextButton(
+    onPressed: () => _showForgotPasswordDialog(context),
+    style: TextButton.styleFrom(
+    foregroundColor: kPrimaryColor,
+    padding: const EdgeInsets.symmetric(vertical: 8),
+    ),
+    child: const Text(
+    '¿Olvidaste tu contraseña?',
+    style: TextStyle(
+    fontSize: 14,
+    fontWeight: FontWeight.w500,
+    ),
+    ),
+    ),
+    ),
 
-                          const SizedBox(height: 16),
+    const SizedBox(height: 16),
 
-                          // Mensaje de error
-                          if (loginVM.errorMessage != null)
-                            Container(
-                              padding: const EdgeInsets.all(10),
-                              margin: const EdgeInsets.only(bottom: 16),
-                              decoration: BoxDecoration(
-                                color: Colors.red.shade100,
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: Text(
-                                loginVM.errorMessage!,
-                                style: TextStyle(color: Colors.red.shade800),
-                                textAlign: TextAlign.center,
-                              ),
-                            ),
+    // Mensaje de error
+    if (loginVM.errorMessage != null)
+    Container(
+    padding: const EdgeInsets.all(16),
+    margin: const EdgeInsets.only(bottom: 20),
+    decoration: BoxDecoration(
+    color: Colors.red.shade50,
+    borderRadius: BorderRadius.circular(12),
+    border: Border.all(color: Colors.red.shade200),
+    ),
+    child: Row(
+    children: [
+    Icon(Icons.error_outline,
+    color: Colors.red.shade600, size: 20),
+    const SizedBox(width: 12),
+    Expanded(
+    child: Text(
+    loginVM.errorMessage!,
+    style: TextStyle(
+    color: Colors.red.shade700,
+    fontSize: 14,
+    ),
+    ),
+    ),
+    ],
+    ),
+    ),
 
-                          // Botón de inicio de sesión
-                          ElevatedButton.icon(
-                            onPressed: loginVM.isLoading
-                                ? null
-                                : () => _handleEmailPasswordLogin(context, authViewModel, loginVM),
-                            style: kPrimaryButtonStyle,
-                            icon: const Icon(Icons.email),
-                            label: loginVM.isLoading
-                                ? const SizedBox(
-                              width: 20,
-                              height: 20,
-                              child: CircularProgressIndicator(
-                                color: Colors.white,
-                                strokeWidth: 2,
-                              ),
-                            )
-                                : const Text(
-                              'Iniciar sesión con Email',
-                              style: kButtonTextStyle,
-                            ),
-                          ),
+    // Botón de login
+    _buildModernButton(
+    onPressed: loginVM.isLoading
+    ? null
+        : () => _handleEmailPasswordLogin(context, authViewModel, loginVM),
+    isLoading: loginVM.isLoading,
+    child: const Text(
+    'Iniciar Sesión',
+    style: TextStyle(
+    fontSize: 16,
+    fontWeight: FontWeight.w600,
+    color: Colors.white,
+    ),
+    ),
+    ),
 
-                          const SizedBox(height: 16),
+    const SizedBox(height: 24),
 
-                          // Separador
-                          const Row(
-                            children: [
-                              Expanded(
-                                child: Divider(color: Colors.grey, thickness: 1),
-                              ),
-                              Padding(
-                                padding: EdgeInsets.symmetric(horizontal: 16),
-                                child: Text(
-                                  'O',
-                                  style: TextStyle(color: Colors.grey),
-                                ),
-                              ),
-                              Expanded(
-                                child: Divider(color: Colors.grey, thickness: 1),
-                              ),
-                            ],
-                          ),
+    // Separador
+    Row(
+    children: [
+    Expanded(
+    child: Container(
+    height: 1,
+    color: Colors.grey.shade300,
+    ),
+    ),
+    Padding(
+    padding: const EdgeInsets.symmetric(horizontal: 16),
+    child: Text(
+    'O continúa con',
+    style: TextStyle(
+    color: Colors.grey.shade600,
+    fontSize: 14,
+    ),
+    ),
+    ),
+    Expanded(
+    child: Container(
+    height: 1,
+    color: Colors.grey.shade300,
+    ),
+    ),
+    ],
+    ),
 
-                          const SizedBox(height: 16),
+    const SizedBox(height: 24),
 
-                          // Botón de Google
-                          OutlinedButton.icon(
-                            onPressed: (loginVM.isLoading || loginVM.isProcessingGoogle)
-                                ? null
-                                : () => _handleGoogleLogin(context, authViewModel, loginVM),
-                            style: OutlinedButton.styleFrom(
-                              foregroundColor: kPrimaryColor,
-                              side: const BorderSide(color: kPrimaryColor),
-                              padding: const EdgeInsets.symmetric(vertical: 12),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(30),
-                              ),
-                            ),
-                            icon: loginVM.isProcessingGoogle
-                                ? const SizedBox(
-                              width: 20,
-                              height: 20,
-                              child: CircularProgressIndicator(
-                                color: kPrimaryColor,
-                                strokeWidth: 2,
-                              ),
-                            )
-                                : const Icon(Icons.g_mobiledata, size: 28),
-                            label: const Text(
-                              'Iniciar sesión con Google',
-                              style: kButtonTextStyle,
-                            ),
-                          ),
+    // Botón de Google
+    _buildGoogleButton(
+    onPressed: (loginVM.isLoading || loginVM.isProcessingGoogle)
+    ? null
+        : () => _handleGoogleLogin(context, authViewModel, loginVM),
+    isLoading: loginVM.isProcessingGoogle,
+    ),
 
-                          const SizedBox(height: 24),
+    const SizedBox(height: 32),
 
-                          // Registro
-                          Center(
-                            child: RichText(
-                              textAlign: TextAlign.center,
-                              text: TextSpan(
-                                text: '¿No tienes una cuenta? ',
-                                style: TextStyle(color: Colors.grey.shade700),
-                                children: [
-                                  TextSpan(
-                                    text: 'Regístrate',
-                                    style: const TextStyle(
-                                      color: kPrimaryColor,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                    recognizer: TapGestureRecognizer()
-                                      ..onTap = () {
-                                        Navigator.of(context).push(
-                                          MaterialPageRoute(
-                                            builder: (context) => const RegisterScreen(),
-                                          ),
-                                        );
-                                      },
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    );
-                  },
-                ),
-              ),
+    // Registro
+    RichText(
+    textAlign: TextAlign.center,
+    text: TextSpan(
+    text: '¿No tienes una cuenta? ',
+    style: TextStyle(
+    color: Colors.grey.shade700,
+    fontSize: 14,
+    ),
+    children: [
+    TextSpan(
+    text: 'Regístrate',
+    style: const TextStyle(
+    color: kPrimaryColor,
+    fontWeight: FontWeight.w600,
+    ),
+    recognizer: TapGestureRecognizer()
+    ..onTap = () {
+    Navigator.of(context).push(
+    PageRouteBuilder(
+    pageBuilder: (context, animation, secondaryAnimation) =>
+    const RegisterScreen(),
+    transitionDuration: const Duration(milliseconds: 300),
+    transitionsBuilder: (context, animation, secondaryAnimation, child) {
+    return SlideTransition(
+    position: Tween<Offset>(
+    begin: const Offset(1.0, 0.0),
+    end: Offset.zero,
+    ).animate(animation),
+    child: child,
+    );
+    },
+    ),
+    );
+    },
+    ),
+    ],
+    ),
+    ),
+    ],
+    ),
+    ),
+    );
+    },
+    ),
+    ],
+    ),
+    );
+    },
+    ),
+    ),
+    ),
+    ),
+    ),
+    ),
+        ),
+    );
+  }
+
+  Widget _buildModernTextField({
+    required TextEditingController controller,
+    required String label,
+    required IconData icon,
+    bool isPassword = false,
+    bool obscureText = false,
+    Widget? suffixIcon,
+    TextInputType? keyboardType,
+    String? Function(String?)? validator,
+    Function(String)? onChanged,
+  }) {
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 10,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: TextFormField(
+        controller: controller,
+        keyboardType: keyboardType,
+        obscureText: obscureText,
+        validator: validator,
+        onChanged: onChanged,
+        style: const TextStyle(
+          fontSize: 16,
+          fontWeight: FontWeight.w500,
+        ),
+        decoration: InputDecoration(
+          labelText: label,
+          prefixIcon: Icon(icon, color: kPrimaryColor.withOpacity(0.7)),
+          suffixIcon: suffixIcon,
+          labelStyle: TextStyle(
+            color: Colors.grey.shade600,
+            fontSize: 16,
+          ),
+          filled: true,
+          fillColor: Colors.white,
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(16),
+            borderSide: BorderSide.none,
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(16),
+            borderSide: BorderSide(color: Colors.grey.shade200),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(16),
+            borderSide: BorderSide(color: kPrimaryColor, width: 2),
+          ),
+          errorBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(16),
+            borderSide: BorderSide(color: Colors.red.shade300),
+          ),
+          contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildModernButton({
+    required VoidCallback? onPressed,
+    required Widget child,
+    bool isLoading = false,
+  }) {
+    return Container(
+      height: 56,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(16),
+        gradient: onPressed != null ? const LinearGradient(
+          colors: [kPrimaryColor, Color(0xFFD32F2F)],
+          begin: Alignment.centerLeft,
+          end: Alignment.centerRight,
+        ) : null,
+        color: onPressed == null ? Colors.grey.shade300 : null,
+        boxShadow: onPressed != null ? [
+          BoxShadow(
+            color: kPrimaryColor.withOpacity(0.3),
+            blurRadius: 12,
+            offset: const Offset(0, 6),
+          ),
+        ] : null,
+      ),
+      child: ElevatedButton(
+        onPressed: onPressed,
+        style: ElevatedButton.styleFrom(
+          backgroundColor: Colors.transparent,
+          shadowColor: Colors.transparent,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+        ),
+        child: isLoading
+            ? const SizedBox(
+          width: 24,
+          height: 24,
+          child: CircularProgressIndicator(
+            color: Colors.white,
+            strokeWidth: 2,
+          ),
+        )
+            : child,
+      ),
+    );
+  }
+
+  Widget _buildGoogleButton({
+    required VoidCallback? onPressed,
+    bool isLoading = false,
+  }) {
+    return Container(
+      height: 56,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(16),
+        color: Colors.white,
+        border: Border.all(color: Colors.grey.shade300),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 10,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: ElevatedButton.icon(
+        onPressed: onPressed,
+        style: ElevatedButton.styleFrom(
+          backgroundColor: Colors.white,
+          foregroundColor: Colors.grey.shade700,
+          shadowColor: Colors.transparent,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+        ),
+        icon: isLoading
+            ? const SizedBox(
+          width: 20,
+          height: 20,
+          child: CircularProgressIndicator(
+            color: kPrimaryColor,
+            strokeWidth: 2,
+          ),
+        )
+            : Container(
+          width: 24,
+          height: 24,
+          decoration: const BoxDecoration(
+            image: DecorationImage(
+              image: NetworkImage('https://developers.google.com/identity/images/g-logo.png'),
+              fit: BoxFit.contain,
             ),
+          ),
+        ),
+        label: const Text(
+          'Continuar con Google',
+          style: TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w600,
           ),
         ),
       ),
@@ -296,9 +566,7 @@ class _LoginScreenState extends State<LoginScreen> {
     );
 
     if (success && mounted) {
-      // Actualizar el AuthViewModel
       await authViewModel.checkAuthState();
-
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(builder: (context) => const InicioScreen()),
       );
@@ -314,9 +582,7 @@ class _LoginScreenState extends State<LoginScreen> {
     final success = await loginVM.signInWithGoogle();
 
     if (success && mounted) {
-      // Actualizar el AuthViewModel
       await authViewModel.checkAuthState();
-
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(builder: (context) => const InicioScreen()),
       );
@@ -325,53 +591,155 @@ class _LoginScreenState extends State<LoginScreen> {
         SnackBar(
           content: Text(loginVM.errorMessage!),
           backgroundColor: Colors.red,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         ),
       );
     }
   }
 
-  // Método para mostrar el diálogo de olvidar contraseña
-  void _showForgotPasswordDialog(BuildContext context, LoginViewModel loginVM) {
+  // Método CORREGIDO para mostrar el diálogo de olvidar contraseña
+  void _showForgotPasswordDialog(BuildContext context) {
     final formKey = GlobalKey<FormState>();
     final emailController = TextEditingController();
+    bool isLoading = false;
 
     showDialog(
       context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: const Text('Restablecer contraseña', style: TextStyle(color: kPrimaryColor)),
-          content: Form(
-            key: formKey,
-            child: TextFormField(
-              controller: emailController,
-              keyboardType: TextInputType.emailAddress,
-              decoration: InputDecoration(
-                labelText: 'Correo electrónico',
-                hintText: 'Ingrese su correo electrónico',
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                prefixIcon: const Icon(Icons.email),
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return AlertDialog(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
               ),
-              validator: loginVM.validateEmail,
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.of(context).pop();
-              },
-              child: const Text('Cancelar', style: TextStyle(color: kPrimaryColor)),
-            ),
-            Consumer<LoginViewModel>(
-              builder: (context, loginVM, child) {
-                return ElevatedButton(
-                  onPressed: loginVM.isLoading ? null : () => _handleForgotPassword(
-                      context, formKey, emailController, loginVM),
+              title: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: kPrimaryColor.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Icon(
+                      Icons.lock_reset,
+                      color: kPrimaryColor,
+                      size: 24,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  const Text(
+                    'Restablecer contraseña',
+                    style: TextStyle(
+                      color: kPrimaryColor,
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+              content: Form(
+                key: formKey,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Ingresa tu correo electrónico y te enviaremos un enlace para restablecer tu contraseña.',
+                      style: TextStyle(fontSize: 14),
+                    ),
+                    const SizedBox(height: 20),
+                    TextFormField(
+                      controller: emailController,
+                      keyboardType: TextInputType.emailAddress,
+                      decoration: InputDecoration(
+                        labelText: 'Correo electrónico',
+                        prefixIcon: const Icon(Icons.email_outlined, color: kPrimaryColor),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: const BorderSide(color: kPrimaryColor, width: 2),
+                        ),
+                      ),
+                      validator: (value) {
+                        if (value == null || value.isEmpty) {
+                          return 'Por favor ingrese su correo electrónico';
+                        }
+                        if (!RegExp(r'^[\w-.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(value)) {
+                          return 'Ingrese un correo electrónico válido';
+                        }
+                        return null;
+                      },
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: isLoading ? null : () {
+                    Navigator.of(dialogContext).pop();
+                  },
+                  child: Text(
+                    'Cancelar',
+                    style: TextStyle(
+                      color: Colors.grey.shade600,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+                ElevatedButton(
+                  onPressed: isLoading ? null : () async {
+                    if (!formKey.currentState!.validate()) return;
+
+                    setState(() {
+                      isLoading = true;
+                    });
+
+                    try {
+                      // Usar directamente FirebaseAuth en lugar del ViewModel para evitar conflictos de Provider
+                      await _loginViewModel.resetPassword(emailController.text.trim());
+
+                      if (mounted) {
+                        Navigator.of(dialogContext).pop();
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: const Text('Se ha enviado un correo para restablecer tu contraseña'),
+                            backgroundColor: Colors.green,
+                            behavior: SnackBarBehavior.floating,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          ),
+                        );
+                      }
+                    } catch (e) {
+                      if (mounted) {
+                        Navigator.of(dialogContext).pop();
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text('Error al enviar el correo: $e'),
+                            backgroundColor: Colors.red,
+                            behavior: SnackBarBehavior.floating,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          ),
+                        );
+                      }
+                    } finally {
+                      if (mounted) {
+                        setState(() {
+                          isLoading = false;
+                        });
+                      }
+                    }
+                  },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: kPrimaryColor,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
                   ),
-                  child: loginVM.isLoading
+                  child: isLoading
                       ? const SizedBox(
                     width: 20,
                     height: 20,
@@ -380,42 +748,16 @@ class _LoginScreenState extends State<LoginScreen> {
                       strokeWidth: 2,
                     ),
                   )
-                      : const Text('Enviar'),
-                );
-              },
-            ),
-          ],
+                      : const Text(
+                    'Enviar',
+                    style: TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                ),
+              ],
+            );
+          },
         );
       },
     );
-  }
-
-  // Método para manejar el proceso de olvidar contraseña
-  void _handleForgotPassword(
-      BuildContext context,
-      GlobalKey<FormState> formKey,
-      TextEditingController emailController,
-      LoginViewModel loginVM) async {
-
-    if (!formKey.currentState!.validate()) return;
-
-    final success = await loginVM.resetPassword(
-      emailController.text.trim(),
-    );
-
-    if (context.mounted) {
-      Navigator.of(context).pop();
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            success
-                ? 'Se ha enviado un correo para restablecer su contraseña'
-                : loginVM.errorMessage ?? 'Error al enviar el correo',
-          ),
-          backgroundColor: success ? Colors.green : Colors.red,
-        ),
-      );
-    }
   }
 }

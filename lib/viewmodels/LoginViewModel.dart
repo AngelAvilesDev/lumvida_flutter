@@ -1,160 +1,194 @@
+// viewmodels/LoginViewModel.dart
 import 'package:flutter/foundation.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import '../services/GoogleSignInService.dart';
+import 'package:google_sign_in/google_sign_in.dart';
+import '../utils/error_messages.dart';
 
 class LoginViewModel extends ChangeNotifier {
   final FirebaseAuth _auth = FirebaseAuth.instance;
+  final GoogleSignIn _googleSignIn = GoogleSignIn();
 
-  // Estados
   bool _isLoading = false;
   bool _isProcessingGoogle = false;
-  String? _errorMessage;
   bool _obscurePassword = true;
+  String? _errorMessage;
 
   // Getters
   bool get isLoading => _isLoading;
   bool get isProcessingGoogle => _isProcessingGoogle;
-  String? get errorMessage => _errorMessage;
   bool get obscurePassword => _obscurePassword;
+  String? get errorMessage => _errorMessage;
 
-  // Alternar visibilidad de contraseña
+  // Setters privados
+  void _setLoading(bool value) {
+    _isLoading = value;
+    notifyListeners();
+  }
+
+  void _setGoogleProcessing(bool value) {
+    _isProcessingGoogle = value;
+    notifyListeners();
+  }
+
+  void _setError(String? message) {
+    _errorMessage = message;
+    notifyListeners();
+  }
+
+  // Métodos públicos
   void togglePasswordVisibility() {
     _obscurePassword = !_obscurePassword;
     notifyListeners();
   }
 
-  // Iniciar sesión con email y contraseña
-  Future<bool> signInWithEmailAndPassword(String email, String password) async {
-    _isLoading = true;
-    _errorMessage = null;
-    notifyListeners();
+  void clearError() {
+    if (_errorMessage != null) {
+      _setError(null);
+    }
+  }
 
+  // Validadores usando AuthErrorMessages
+  String? validateEmail(String? value) {
+    return AuthErrorMessages.validateEmail(value);
+  }
+
+  String? validatePassword(String? value) {
+    // Para login, usar validación más permisiva
+    return AuthErrorMessages.validateLoginPassword(value);
+  }
+
+  // Método para iniciar sesión con email y contraseña
+  Future<bool> signInWithEmailAndPassword(String email, String password) async {
     try {
+      _setLoading(true);
+      _setError(null);
+
+      // Validar campos antes de enviar
+      final emailError = validateEmail(email);
+      if (emailError != null) {
+        _setError(emailError);
+        return false;
+      }
+
+      final passwordError = validatePassword(password);
+      if (passwordError != null) {
+        _setError(passwordError);
+        return false;
+      }
+
+      // Intentar iniciar sesión
       final userCredential = await _auth.signInWithEmailAndPassword(
         email: email,
         password: password,
       );
 
-      _isLoading = false;
-      notifyListeners();
-
-      return userCredential.user != null;
-    } on FirebaseAuthException catch (e) {
-      _isLoading = false;
-      _errorMessage = _getMessageFromErrorCode(e.code);
-      notifyListeners();
-      return false;
-    } catch (e) {
-      _isLoading = false;
-      _errorMessage = 'Error inesperado: ${e.toString()}';
-      notifyListeners();
-      return false;
-    }
-  }
-
-  // Iniciar sesión con Google
-  Future<bool> signInWithGoogle() async {
-    _isProcessingGoogle = true;
-    _errorMessage = null;
-    notifyListeners();
-
-    try {
-      final User? user = await GoogleSignInService.signInWithGoogle();
-
-      _isProcessingGoogle = false;
-      notifyListeners();
-
-      return user != null;
-    } catch (e) {
-      if (kDebugMode) {
-        print("Error en signInWithGoogle: $e");
+      if (userCredential.user != null) {
+        return true;
+      } else {
+        _setError(AuthErrorMessages.getLoginError('unknown-error'));
+        return false;
       }
-      _isProcessingGoogle = false;
-      _errorMessage = "Error técnico al iniciar sesión: ${e.toString()}";
-      notifyListeners();
-      return false;
-    }
-  }
 
-  // Restablecer contraseña
-  Future<bool> resetPassword(String email) async {
-    _isLoading = true;
-    _errorMessage = null;
-    notifyListeners();
-
-    try {
-      await _auth.sendPasswordResetEmail(email: email);
-      _isLoading = false;
-      notifyListeners();
-      return true;
     } on FirebaseAuthException catch (e) {
-      _isLoading = false;
-      _errorMessage = _getMessageFromErrorCode(e.code);
-      notifyListeners();
+      _setError(AuthErrorMessages.getLoginError(e.code));
       return false;
     } catch (e) {
-      _isLoading = false;
-      _errorMessage = 'Error inesperado: ${e.toString()}';
-      notifyListeners();
+      _setError(AuthErrorMessages.getLoginError(e.toString()));
       return false;
+    } finally {
+      _setLoading(false);
     }
   }
 
-  // Validar email
-  String? validateEmail(String? value) {
-    if (value == null || value.isEmpty) {
-      return 'Por favor ingrese su correo electrónico';
+  // Método para iniciar sesión con Google
+  Future<bool> signInWithGoogle() async {
+    try {
+      _setGoogleProcessing(true);
+      _setError(null);
+
+      // Iniciar el proceso de autenticación de Google
+      final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
+
+      if (googleUser == null) {
+        // El usuario canceló el proceso
+        _setError(AuthErrorMessages.getGoogleSignInError('cancelled'));
+        return false;
+      }
+
+      // Obtener los detalles de autenticación de Google
+      final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
+
+      // Crear una nueva credencial
+      final credential = GoogleAuthProvider.credential(
+        accessToken: googleAuth.accessToken,
+        idToken: googleAuth.idToken,
+      );
+
+      // Iniciar sesión con Firebase usando las credenciales de Google
+      final userCredential = await _auth.signInWithCredential(credential);
+
+      if (userCredential.user != null) {
+        return true;
+      } else {
+        _setError(AuthErrorMessages.getGoogleSignInError('unknown-error'));
+        return false;
+      }
+
+    } on FirebaseAuthException catch (e) {
+      _setError(AuthErrorMessages.getGoogleSignInError(e.code));
+      return false;
+    } catch (e) {
+      // Manejar errores específicos de Google Sign-In
+      String errorCode;
+      if (e.toString().contains('popup_closed_by_user')) {
+        errorCode = 'popup-closed-by-user';
+      } else if (e.toString().contains('popup_blocked')) {
+        errorCode = 'popup-blocked';
+      } else if (e.toString().contains('network')) {
+        errorCode = 'network-request-failed';
+      } else {
+        errorCode = e.toString();
+      }
+
+      _setError(AuthErrorMessages.getGoogleSignInError(errorCode));
+      return false;
+    } finally {
+      _setGoogleProcessing(false);
     }
-    if (!RegExp(r'^[\w-.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(value)) {
-      return 'Ingrese un correo electrónico válido';
+  }
+
+  // Método para restablecer contraseña
+  Future<void> resetPassword(String email) async {
+    try {
+      // Validar email antes de enviar
+      final emailError = validateEmail(email);
+      if (emailError != null) {
+        throw Exception(emailError);
+      }
+
+      await _auth.sendPasswordResetEmail(email: email);
+    } on FirebaseAuthException catch (e) {
+      throw Exception(AuthErrorMessages.getResetPasswordError(e.code));
+    } catch (e) {
+      if (e is Exception && e.toString().contains('Exception:')) {
+        rethrow;
+      }
+      throw Exception(AuthErrorMessages.getResetPasswordError(e.toString()));
     }
-    return null;
   }
 
-  // Validar contraseña
-  String? validatePassword(String? value) {
-    if (value == null || value.isEmpty) {
-      return 'Por favor ingrese su contraseña';
-    }
-    return null;
-  }
-
-  // Limpiar errores
-  void clearError() {
-    _errorMessage = null;
-    notifyListeners();
-  }
-
-  // Limpiar estados
-  void clear() {
-    _isLoading = false;
-    _isProcessingGoogle = false;
-    _errorMessage = null;
-    _obscurePassword = true;
-    notifyListeners();
-  }
-
-  // Obtener mensaje de error en español
-  String _getMessageFromErrorCode(String errorCode) {
-    switch (errorCode) {
-      case "invalid-email":
-        return "El correo electrónico no es válido";
-      case "user-disabled":
-        return "Esta cuenta de usuario ha sido deshabilitada";
-      case "user-not-found":
-        return "No existe un usuario con este correo electrónico";
-      case "wrong-password":
-        return "La contraseña es incorrecta";
-      case "invalid-credential":
-        return "Las credenciales no son válidas";
-      case "too-many-requests":
-        return "Demasiados intentos fallidos. Inténtalo más tarde";
-      case "network-request-failed":
-        return "Error de conexión. Verifica tu internet";
-      case "operation-not-allowed":
-        return "Operación no permitida";
-      default:
-        return "Ha ocurrido un error. Inténtalo de nuevo";
+  // Método para cerrar sesión
+  Future<void> signOut() async {
+    try {
+      await Future.wait([
+        _auth.signOut(),
+        _googleSignIn.signOut(),
+      ]);
+    } catch (e) {
+      // Manejar errores de cierre de sesión si es necesario
+      if (kDebugMode) {
+        print('Error al cerrar sesión: $e');
+      }
     }
   }
 }

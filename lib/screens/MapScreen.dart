@@ -1,11 +1,10 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart'; // NUEVO IMPORT
-import '../components/GoogleMapComponent.dart'; // NUEVO COMPONENTE
+import '../components/GoogleMapComponent.dart';
 import '../components/BottomNavigationWidget.dart';
+import '../components/report_info_modal.dart'; // NUEVO MODAL
 import '../utils/constants.dart';
-import '../viewmodels/AuthViewModel.dart';
 import '../viewmodels/MapViewModel.dart';
 
 class MapScreen extends StatefulWidget {
@@ -100,6 +99,16 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
     }
   }
 
+  // NUEVO: Manejar tap en marcador
+  void _onMarkerTapped(Map<String, dynamic> reportData) {
+    if (kDebugMode) {
+      print('Marcador tocado: ${reportData['folio']} - ${reportData['categoria']}');
+    }
+
+    // Mostrar modal con información del reporte
+    ReportInfoModal.show(context, reportData);
+  }
+
   @override
   Widget build(BuildContext context) {
     return ChangeNotifierProvider.value(
@@ -116,8 +125,8 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
                 colors: [
-                  Colors.black.withOpacity(0.7),
-                  Colors.black.withOpacity(0.3),
+                  Colors.black.withValues(alpha: .7),
+                  Colors.black.withValues(alpha: .3),
                   Colors.transparent,
                 ],
               ),
@@ -142,11 +151,11 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
             Container(
               margin: const EdgeInsets.only(right: 16),
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.9),
+                color: Colors.white.withValues(alpha: .9),
                 borderRadius: BorderRadius.circular(12),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.1),
+                    color: Colors.black.withValues(alpha: .1),
                     blurRadius: 8,
                     offset: const Offset(0, 2),
                   ),
@@ -156,7 +165,7 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
                 builder: (context, mapVM, child) {
                   return IconButton(
                     icon: mapVM.isLoading
-                        ? SizedBox(
+                        ? const SizedBox(
                       width: 20,
                       height: 20,
                       child: CircularProgressIndicator(
@@ -164,7 +173,7 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
                         strokeWidth: 2,
                       ),
                     )
-                        : Icon(Icons.refresh, color: kPrimaryColor),
+                        : const Icon(Icons.refresh, color: kPrimaryColor),
                     onPressed: mapVM.isLoading ? null : () => mapVM.recargar(),
                     tooltip: 'Actualizar reportes',
                   );
@@ -177,7 +186,7 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
           builder: (context, mapVM, child) {
             return Stack(
               children: [
-                // Mapa principal - ACTUALIZADO PARA GOOGLE MAPS
+                // Mapa principal - ACTUALIZADO PARA GOOGLE MAPS CON onMarkerTap
                 _buildMapSection(mapVM),
 
                 // Filtros flotantes - DINÁMICOS
@@ -221,7 +230,7 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
                   borderRadius: BorderRadius.circular(20),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withOpacity(0.1),
+                      color: Colors.black.withValues(alpha: .1),
                       blurRadius: 20,
                       offset: const Offset(0, 8),
                     ),
@@ -269,13 +278,14 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
       print('Construyendo mapa de Google con ${filteredMarkers.length} marcadores');
     }
 
-    // NUEVO COMPONENTE DE GOOGLE MAPS
+    // COMPONENTE DE GOOGLE MAPS CON CALLBACK DE TAP EN MARCADORES
     return GoogleMapComponent(
       key: _mapKey,
       height: double.infinity,
       trackMyLocation: true,
       markers: filteredMarkers,
       showLocationButton: false, // Lo manejamos nosotros
+      onMarkerTap: _onMarkerTapped, // NUEVO CALLBACK
     );
   }
 
@@ -300,7 +310,7 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
             borderRadius: BorderRadius.circular(20),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.1),
+                color: Colors.black.withValues(alpha: .1),
                 blurRadius: 20,
                 offset: const Offset(0, 8),
               ),
@@ -378,7 +388,7 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
                 borderRadius: BorderRadius.circular(25),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.15),
+                    color: Colors.black.withValues(alpha: .15),
                     blurRadius: 10,
                     offset: const Offset(0, 4),
                   ),
@@ -460,7 +470,7 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
             ),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.1),
+                color: Colors.black.withValues(alpha: .1),
                 blurRadius: 6,
                 offset: const Offset(0, 2),
               ),
@@ -496,7 +506,7 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
           borderRadius: BorderRadius.circular(20),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.15),
+              color: Colors.black.withValues(alpha: .15),
               blurRadius: 10,
               offset: const Offset(0, 4),
             ),
@@ -508,7 +518,7 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
             Container(
               padding: const EdgeInsets.all(6),
               decoration: BoxDecoration(
-                color: kPrimaryColor.withOpacity(0.1),
+                color: kPrimaryColor.withValues(alpha: .1),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: const Icon(

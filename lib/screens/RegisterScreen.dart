@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter/gestures.dart';
 import '../utils/constants.dart';
+import '../utils/error_messages.dart';
 import '../viewmodels/AuthViewModel.dart';
 import '../viewmodels/RegisterViewModel.dart';
+import '../widgets/password_strength_widget.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({Key? key}) : super(key: key);
@@ -26,6 +28,9 @@ class _RegisterScreenState extends State<RegisterScreen> with TickerProviderStat
   late Animation<double> _fadeAnimation;
   late Animation<double> _slideAnimation;
   late Animation<double> _logoAnimation;
+
+  // Variable para rastrear la contraseña actual
+  String _currentPassword = '';
 
   @override
   void initState() {
@@ -92,376 +97,392 @@ class _RegisterScreenState extends State<RegisterScreen> with TickerProviderStat
     final authViewModel = Provider.of<AuthViewModel>(context);
 
     return ChangeNotifierProvider.value(
-        value: _registerViewModel,
-        child: Scaffold(
+      value: _registerViewModel,
+      child: Scaffold(
         body: Container(
-        decoration: backgroundDecoration, // Usando el fondo blanco de constants.dart
-        child: Container(
-        decoration: BoxDecoration(
-        gradient: LinearGradient(
-        begin: Alignment.topCenter,
-        end: Alignment.bottomCenter,
-        colors: [
-        Colors.white.withOpacity(0.8),
-    Colors.white.withOpacity(0.9),
-    kPrimaryColor.withOpacity(0.05),
-    ],
-    ),
-    ),
-    child: SafeArea(
-    child: Column(
-    children: [
-    // Header con botón de regreso
-    Padding(
-    padding: const EdgeInsets.all(16.0),
-    child: Row(
-    children: [
-    Container(
-    decoration: BoxDecoration(
-    color: Colors.white,
-    borderRadius: BorderRadius.circular(12),
-    boxShadow: [
-    BoxShadow(
-    color: Colors.black.withOpacity(0.1),
-    blurRadius: 8,
-    offset: const Offset(0, 2),
-    ),
-    ],
-    ),
-    child: IconButton(
-    onPressed: () => Navigator.of(context).pop(),
-    icon: const Icon(Icons.arrow_back_ios_new, color: kPrimaryColor),
-    ),
-    ),
-    const Expanded(
-    child: Text(
-    'Crear Cuenta',
-    style: TextStyle(
-    color: kPrimaryColor,
-    fontSize: 18,
-    fontWeight: FontWeight.bold,
-    ),
-    textAlign: TextAlign.center,
-    ),
-    ),
-    const SizedBox(width: 48), // Para centrar el título
-    ],
-    ),
-    ),
+          decoration: backgroundDecoration, // Usando el fondo blanco de constants.dart
+          child: Container(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  Colors.white.withValues(alpha: .8),
+                  Colors.white.withValues(alpha: .9),
+                  kPrimaryColor.withValues(alpha: .05),
+                ],
+              ),
+            ),
+            child: SafeArea(
+              child: Column(
+                children: [
+                  // Header con botón de regreso
+                  Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Row(
+                      children: [
+                        Container(
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(12),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withValues(alpha: .1),
+                                blurRadius: 8,
+                                offset: const Offset(0, 2),
+                              ),
+                            ],
+                          ),
+                          child: IconButton(
+                            onPressed: () => Navigator.of(context).pop(),
+                            icon: const Icon(Icons.arrow_back_ios_new, color: kPrimaryColor),
+                          ),
+                        ),
+                        const Expanded(
+                          child: Text(
+                            'Crear Cuenta',
+                            style: TextStyle(
+                              color: kPrimaryColor,
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                        ),
+                        const SizedBox(width: 48), // Para centrar el título
+                      ],
+                    ),
+                  ),
 
-    // Contenido principal
-    Expanded(
-    child: SingleChildScrollView(
-    padding: const EdgeInsets.symmetric(horizontal: 32.0),
-    child: Consumer<RegisterViewModel>(
-    builder: (context, registerVM, child) {
-    return Form(
-    key: _formKey,
-    child: Column(
-    mainAxisAlignment: MainAxisAlignment.center,
-    crossAxisAlignment: CrossAxisAlignment.stretch,
-    children: [
-    // Logo animado
-    ScaleTransition(
-    scale: _logoAnimation,
-    child: Container(
-    height: 100,
-    margin: const EdgeInsets.only(bottom: 30),
-    child: Image.asset(
-    'assets/images/Logo blanco.png',
-    fit: BoxFit.contain,
-    ),
-    ),
-    ),
+                  // Contenido principal
+                  Expanded(
+                    child: SingleChildScrollView(
+                      padding: const EdgeInsets.symmetric(horizontal: 32.0),
+                      child: Consumer<RegisterViewModel>(
+                        builder: (context, registerVM, child) {
+                          return Form(
+                            key: _formKey,
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                // Logo animado
+                                ScaleTransition(
+                                  scale: _logoAnimation,
+                                  child: Container(
+                                    height: 100,
+                                    margin: const EdgeInsets.only(bottom: 30),
+                                    child: Image.asset(
+                                      'assets/images/Logo blanco.png',
+                                      fit: BoxFit.contain,
+                                    ),
+                                  ),
+                                ),
 
-    // Título y subtítulo con animación
-    AnimatedBuilder(
-    animation: _animationController,
-    builder: (context, child) {
-    return Transform.translate(
-    offset: Offset(0, _slideAnimation.value),
-    child: Opacity(
-    opacity: _fadeAnimation.value,
-    child: Column(
-    children: [
-    const Text(
-    'Únete a LumVida',
-    style: TextStyle(
-    fontSize: 28,
-    fontWeight: FontWeight.bold,
-    color: kPrimaryColor,
-    letterSpacing: 1.2,
-    ),
-    textAlign: TextAlign.center,
-    ),
-    const SizedBox(height: 8),
-    Text(
-    'Crea tu cuenta para reportar problemas urbanos',
-    style: TextStyle(
-    fontSize: 14,
-    color: Colors.grey.shade600,
-    fontWeight: FontWeight.w400,
-    ),
-    textAlign: TextAlign.center,
-    ),
-    const SizedBox(height: 30),
-    ],
-    ),
-    ),
+                                // Título y subtítulo con animación
+                                AnimatedBuilder(
+                                  animation: _animationController,
+                                  builder: (context, child) {
+                                    return Transform.translate(
+                                      offset: Offset(0, _slideAnimation.value),
+                                      child: Opacity(
+                                        opacity: _fadeAnimation.value,
+                                        child: Column(
+                                          children: [
+                                            const Text(
+                                              'Únete a LumVida',
+                                              style: TextStyle(
+                                                fontSize: 28,
+                                                fontWeight: FontWeight.bold,
+                                                color: kPrimaryColor,
+                                                letterSpacing: 1.2,
+                                              ),
+                                              textAlign: TextAlign.center,
+                                            ),
+                                            const SizedBox(height: 8),
+                                            Text(
+                                              'Crea tu cuenta para reportar problemas urbanos',
+                                              style: TextStyle(
+                                                fontSize: 14,
+                                                color: Colors.grey.shade600,
+                                                fontWeight: FontWeight.w400,
+                                              ),
+                                              textAlign: TextAlign.center,
+                                            ),
+                                            const SizedBox(height: 30),
+                                          ],
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                ),
+
+                                // Campos de formulario
+                                AnimatedBuilder(
+                                  animation: _animationController,
+                                  builder: (context, child) {
+                                    return Transform.translate(
+                                      offset: Offset(0, _slideAnimation.value),
+                                      child: Opacity(
+                                        opacity: _fadeAnimation.value,
+                                        child: Column(
+                                          children: [
+                                            // Campo de nombre
+                                            _buildModernTextField(
+                                              controller: _nameController,
+                                              label: 'Nombre completo',
+                                              icon: Icons.person_outlined,
+                                              textCapitalization: TextCapitalization.words,
+                                              validator: registerVM.validateName,
+                                              onChanged: (value) {
+                                                if (registerVM.errorMessage != null) {
+                                                  registerVM.clearError();
+                                                }
+                                              },
+                                            ),
+
+                                            const SizedBox(height: 16),
+
+                                            // Campo de email
+                                            _buildModernTextField(
+                                              controller: _emailController,
+                                              label: 'Correo electrónico',
+                                              icon: Icons.email_outlined,
+                                              keyboardType: TextInputType.emailAddress,
+                                              validator: registerVM.validateEmail,
+                                              onChanged: (value) {
+                                                if (registerVM.errorMessage != null) {
+                                                  registerVM.clearError();
+                                                }
+                                              },
+                                            ),
+
+                                            const SizedBox(height: 16),
+
+                                            // Campo de teléfono
+                                            _buildModernTextField(
+                                              controller: _phoneController,
+                                              label: 'Teléfono (10 dígitos)',
+                                              icon: Icons.phone_outlined,
+                                              keyboardType: TextInputType.phone,
+                                              validator: registerVM.validatePhone,
+                                              onChanged: (value) {
+                                                final formattedValue = registerVM.formatPhone(value);
+                                                if (formattedValue != value) {
+                                                  _phoneController.text = formattedValue;
+                                                  _phoneController.selection = TextSelection.fromPosition(
+                                                    TextPosition(offset: formattedValue.length),
+                                                  );
+                                                }
+                                                if (registerVM.errorMessage != null) {
+                                                  registerVM.clearError();
+                                                }
+                                              },
+                                            ),
+
+                                            const SizedBox(height: 16),
+
+                                            // Campo de contraseña con validación de seguridad
+                                            _buildModernTextField(
+                                              controller: _passwordController,
+                                              label: 'Contraseña',
+                                              icon: Icons.lock_outlined,
+                                              isPassword: true,
+                                              obscureText: registerVM.obscurePassword,
+                                              suffixIcon: IconButton(
+                                                icon: Icon(
+                                                  registerVM.obscurePassword
+                                                      ? Icons.visibility_off_outlined
+                                                      : Icons.visibility_outlined,
+                                                  color: Colors.grey.shade600,
+                                                ),
+                                                onPressed: registerVM.togglePasswordVisibility,
+                                              ),
+                                              validator: registerVM.validatePassword,
+                                              onChanged: (value) {
+                                                setState(() {
+                                                  _currentPassword = value;
+                                                });
+                                                if (registerVM.errorMessage != null) {
+                                                  registerVM.clearError();
+                                                }
+                                              },
+                                            ),
+
+                                            // Widget de fortaleza de contraseña
+                                            PasswordStrengthWidget(
+                                              password: _currentPassword,
+                                              showTips: true,
+                                            ),
+
+                                            const SizedBox(height: 16),
+
+                                            // Campo de confirmar contraseña
+                                            _buildModernTextField(
+                                              controller: _confirmPasswordController,
+                                              label: 'Confirmar contraseña',
+                                              icon: Icons.lock_outline,
+                                              isPassword: true,
+                                              obscureText: registerVM.obscureConfirmPassword,
+                                              suffixIcon: IconButton(
+                                                icon: Icon(
+                                                  registerVM.obscureConfirmPassword
+                                                      ? Icons.visibility_off_outlined
+                                                      : Icons.visibility_outlined,
+                                                  color: Colors.grey.shade600,
+                                                ),
+                                                onPressed: registerVM.toggleConfirmPasswordVisibility,
+                                              ),
+                                              validator: (value) => registerVM.validateConfirmPassword(value, _passwordController.text),
+                                              onChanged: (value) {
+                                                setState(() {}); // Para actualizar el widget de coincidencia
+                                                if (registerVM.errorMessage != null) {
+                                                  registerVM.clearError();
+                                                }
+                                              },
+                                            ),
+
+                                            // Widget de coincidencia de contraseñas
+                                            PasswordMatchWidget(
+                                              password: _currentPassword,
+                                              confirmPassword: _confirmPasswordController.text,
+                                            ),
+
+                                            const SizedBox(height: 24),
+
+                                            // Mensaje de error
+                                            if (registerVM.errorMessage != null)
+                                              Container(
+                                                padding: const EdgeInsets.all(16),
+                                                margin: const EdgeInsets.only(bottom: 20),
+                                                decoration: BoxDecoration(
+                                                  color: Colors.red.shade50,
+                                                  borderRadius: BorderRadius.circular(12),
+                                                  border: Border.all(color: Colors.red.shade200),
+                                                ),
+                                                child: Row(
+                                                  children: [
+                                                    Icon(Icons.error_outline,
+                                                        color: Colors.red.shade600, size: 20),
+                                                    const SizedBox(width: 12),
+                                                    Expanded(
+                                                      child: Text(
+                                                        registerVM.errorMessage!,
+                                                        style: TextStyle(
+                                                          color: Colors.red.shade700,
+                                                          fontSize: 14,
+                                                        ),
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                              ),
+
+                                            // Botón de registro
+                                            _buildModernButton(
+                                              onPressed: (registerVM.isLoading || registerVM.isProcessingGoogle)
+                                                  ? null
+                                                  : () => _handleEmailPasswordRegister(context, authViewModel, registerVM),
+                                              isLoading: registerVM.isLoading,
+                                              child: const Text(
+                                                'Crear Cuenta',
+                                                style: TextStyle(
+                                                  fontSize: 16,
+                                                  fontWeight: FontWeight.w600,
+                                                  color: Colors.white,
+                                                ),
+                                              ),
+                                            ),
+
+                                            const SizedBox(height: 20),
+
+                                            // Separador
+                                            Row(
+                                              children: [
+                                                Expanded(
+                                                  child: Container(
+                                                    height: 1,
+                                                    color: Colors.grey.shade300,
+                                                  ),
+                                                ),
+                                                Padding(
+                                                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                                                  child: Text(
+                                                    'O regístrate con',
+                                                    style: TextStyle(
+                                                      color: Colors.grey.shade600,
+                                                      fontSize: 14,
+                                                    ),
+                                                  ),
+                                                ),
+                                                Expanded(
+                                                  child: Container(
+                                                    height: 1,
+                                                    color: Colors.grey.shade300,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+
+                                            const SizedBox(height: 20),
+
+                                            // Botón de Google
+                                            _buildGoogleButton(
+                                              onPressed: (registerVM.isLoading || registerVM.isProcessingGoogle)
+                                                  ? null
+                                                  : () => _handleGoogleRegister(context, authViewModel, registerVM),
+                                              isLoading: registerVM.isProcessingGoogle,
+                                            ),
+
+                                            const SizedBox(height: 24),
+
+                                            // Ya tienes cuenta
+                                            RichText(
+                                              textAlign: TextAlign.center,
+                                              text: TextSpan(
+                                                text: '¿Ya tienes una cuenta? ',
+                                                style: TextStyle(
+                                                  color: Colors.grey.shade700,
+                                                  fontSize: 14,
+                                                ),
+                                                children: [
+                                                  TextSpan(
+                                                    text: 'Inicia sesión',
+                                                    style: const TextStyle(
+                                                      color: kPrimaryColor,
+                                                      fontWeight: FontWeight.w600,
+                                                    ),
+                                                    recognizer: TapGestureRecognizer()
+                                                      ..onTap = () {
+                                                        Navigator.of(context).pop();
+                                                      },
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
+
+                                            const SizedBox(height: 20),
+                                          ],
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                ),
+                              ],
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
     );
-    },
-    ),
-
-    // Campos de formulario
-    AnimatedBuilder(
-    animation: _animationController,
-    builder: (context, child) {
-    return Transform.translate(
-    offset: Offset(0, _slideAnimation.value),
-    child: Opacity(
-    opacity: _fadeAnimation.value,
-    child: Column(
-    children: [
-    // Campo de nombre
-    _buildModernTextField(
-    controller: _nameController,
-    label: 'Nombre completo',
-    icon: Icons.person_outlined,
-    textCapitalization: TextCapitalization.words,
-    validator: registerVM.validateName,
-    onChanged: (value) {
-    if (registerVM.errorMessage != null) {
-    registerVM.clearError();
-    }
-    },
-    ),
-
-    const SizedBox(height: 16),
-
-    // Campo de email
-    _buildModernTextField(
-    controller: _emailController,
-    label: 'Correo electrónico',
-    icon: Icons.email_outlined,
-    keyboardType: TextInputType.emailAddress,
-    validator: registerVM.validateEmail,
-    onChanged: (value) {
-    if (registerVM.errorMessage != null) {
-    registerVM.clearError();
-    }
-    },
-    ),
-
-    const SizedBox(height: 16),
-
-    // Campo de teléfono
-    _buildModernTextField(
-    controller: _phoneController,
-    label: 'Teléfono (10 dígitos)',
-    icon: Icons.phone_outlined,
-    keyboardType: TextInputType.phone,
-    validator: registerVM.validatePhone,
-    onChanged: (value) {
-    final formattedValue = registerVM.formatPhone(value);
-    if (formattedValue != value) {
-    _phoneController.text = formattedValue;
-    _phoneController.selection = TextSelection.fromPosition(
-    TextPosition(offset: formattedValue.length),
-    );
-    }
-    if (registerVM.errorMessage != null) {
-    registerVM.clearError();
-    }
-    },
-    ),
-
-    const SizedBox(height: 16),
-
-    // Campo de contraseña
-    _buildModernTextField(
-    controller: _passwordController,
-    label: 'Contraseña',
-    icon: Icons.lock_outlined,
-    isPassword: true,
-    obscureText: registerVM.obscurePassword,
-    suffixIcon: IconButton(
-    icon: Icon(
-    registerVM.obscurePassword
-    ? Icons.visibility_off_outlined
-        : Icons.visibility_outlined,
-    color: Colors.grey.shade600,
-    ),
-    onPressed: registerVM.togglePasswordVisibility,
-    ),
-    validator: registerVM.validatePassword,
-    onChanged: (value) {
-    if (registerVM.errorMessage != null) {
-    registerVM.clearError();
-    }
-    },
-    ),
-
-    const SizedBox(height: 16),
-
-    // Campo de confirmar contraseña
-    _buildModernTextField(
-    controller: _confirmPasswordController,
-    label: 'Confirmar contraseña',
-    icon: Icons.lock_outline,
-    isPassword: true,
-    obscureText: registerVM.obscureConfirmPassword,
-    suffixIcon: IconButton(
-    icon: Icon(
-    registerVM.obscureConfirmPassword
-    ? Icons.visibility_off_outlined
-        : Icons.visibility_outlined,
-    color: Colors.grey.shade600,
-    ),
-    onPressed: registerVM.toggleConfirmPasswordVisibility,
-    ),
-    validator: (value) => registerVM.validateConfirmPassword(value, _passwordController.text),
-    onChanged: (value) {
-    if (registerVM.errorMessage != null) {
-    registerVM.clearError();
-    }
-    },
-    ),
-
-    const SizedBox(height: 24),
-
-    // Mensaje de error
-    if (registerVM.errorMessage != null)
-    Container(
-    padding: const EdgeInsets.all(16),
-    margin: const EdgeInsets.only(bottom: 20),
-    decoration: BoxDecoration(
-    color: Colors.red.shade50,
-    borderRadius: BorderRadius.circular(12),
-    border: Border.all(color: Colors.red.shade200),
-    ),
-    child: Row(
-    children: [
-    Icon(Icons.error_outline,
-    color: Colors.red.shade600, size: 20),
-    const SizedBox(width: 12),
-    Expanded(
-    child: Text(
-    registerVM.errorMessage!,
-    style: TextStyle(
-    color: Colors.red.shade700,
-    fontSize: 14,
-    ),
-    ),
-    ),
-    ],
-    ),
-    ),
-
-    // Botón de registro
-    _buildModernButton(
-    onPressed: (registerVM.isLoading || registerVM.isProcessingGoogle)
-    ? null
-        : () => _handleEmailPasswordRegister(context, authViewModel, registerVM),
-    isLoading: registerVM.isLoading,
-    child: const Text(
-    'Crear Cuenta',
-    style: TextStyle(
-    fontSize: 16,
-    fontWeight: FontWeight.w600,
-    color: Colors.white,
-    ),
-    ),
-    ),
-
-    const SizedBox(height: 20),
-
-    // Separador
-    Row(
-    children: [
-    Expanded(
-    child: Container(
-    height: 1,
-    color: Colors.grey.shade300,
-    ),
-    ),
-    Padding(
-    padding: const EdgeInsets.symmetric(horizontal: 16),
-    child: Text(
-    'O regístrate con',
-    style: TextStyle(
-    color: Colors.grey.shade600,
-    fontSize: 14,
-    ),
-    ),
-    ),
-    Expanded(
-    child: Container(
-    height: 1,
-    color: Colors.grey.shade300,
-    ),
-    ),
-    ],
-    ),
-
-    const SizedBox(height: 20),
-
-    // Botón de Google
-    _buildGoogleButton(
-    onPressed: (registerVM.isLoading || registerVM.isProcessingGoogle)
-    ? null
-        : () => _handleGoogleRegister(context, authViewModel, registerVM),
-    isLoading: registerVM.isProcessingGoogle,
-    ),
-
-    const SizedBox(height: 24),
-
-    // Ya tienes cuenta
-    RichText(
-    textAlign: TextAlign.center,
-    text: TextSpan(
-    text: '¿Ya tienes una cuenta? ',
-    style: TextStyle(
-    color: Colors.grey.shade700,
-    fontSize: 14,
-    ),
-    children: [
-    TextSpan(
-    text: 'Inicia sesión',
-    style: const TextStyle(
-    color: kPrimaryColor,
-    fontWeight: FontWeight.w600,
-    ),
-    recognizer: TapGestureRecognizer()
-    ..onTap = () {
-    Navigator.of(context).pop();
-    },
-    ),
-    ],
-    ),
-    ),
-
-    const SizedBox(height: 20),
-    ],
-    ),
-    ),
-    );
-    },
-    ),
-    ],
-    ),
-    );
-    },
-    ),
-    ),
-    ),
-    ],
-    ),
-    ),
-    ),
-    ),
-    ),
-    );
-    }
+  }
 
   Widget _buildModernTextField({
     required TextEditingController controller,
@@ -480,7 +501,7 @@ class _RegisterScreenState extends State<RegisterScreen> with TickerProviderStat
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.04),
+            color: Colors.black.withValues(alpha: .04),
             blurRadius: 10,
             offset: const Offset(0, 2),
           ),
@@ -499,7 +520,7 @@ class _RegisterScreenState extends State<RegisterScreen> with TickerProviderStat
         ),
         decoration: InputDecoration(
           labelText: label,
-          prefixIcon: Icon(icon, color: kPrimaryColor.withOpacity(0.7)),
+          prefixIcon: Icon(icon, color: kPrimaryColor.withValues(alpha: .7)),
           suffixIcon: suffixIcon,
           labelStyle: TextStyle(
             color: Colors.grey.shade600,
@@ -517,7 +538,7 @@ class _RegisterScreenState extends State<RegisterScreen> with TickerProviderStat
           ),
           focusedBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(16),
-            borderSide: BorderSide(color: kPrimaryColor, width: 2),
+            borderSide: const BorderSide(color: kPrimaryColor, width: 2),
           ),
           errorBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(16),
@@ -546,7 +567,7 @@ class _RegisterScreenState extends State<RegisterScreen> with TickerProviderStat
         color: onPressed == null ? Colors.grey.shade300 : null,
         boxShadow: onPressed != null ? [
           BoxShadow(
-            color: kPrimaryColor.withOpacity(0.3),
+            color: kPrimaryColor.withValues(alpha: .3),
             blurRadius: 12,
             offset: const Offset(0, 6),
           ),
@@ -587,7 +608,7 @@ class _RegisterScreenState extends State<RegisterScreen> with TickerProviderStat
         border: Border.all(color: Colors.grey.shade300),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.04),
+            color: Colors.black.withValues(alpha: .04),
             blurRadius: 10,
             offset: const Offset(0, 2),
           ),
@@ -640,6 +661,20 @@ class _RegisterScreenState extends State<RegisterScreen> with TickerProviderStat
       RegisterViewModel registerVM) async {
 
     if (!_formKey.currentState!.validate()) return;
+
+    // Validación adicional de fortaleza de contraseña
+    final passwordStrength = registerVM.getPasswordStrength(_passwordController.text);
+    if (passwordStrength == PasswordStrength.veryWeak) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Por favor, elige una contraseña más segura'),
+          backgroundColor: Colors.orange,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        ),
+      );
+      return;
+    }
 
     final success = await registerVM.registerWithEmailAndPassword(
       email: _emailController.text.trim(),

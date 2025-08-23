@@ -1,11 +1,10 @@
 import 'dart:math' as math;
 import 'package:flutter/foundation.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart'; // CAMBIADO DE OSM
+import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:flutter/material.dart';
-import '../components/GoogleMapComponent.dart'; // NUEVO COMPONENTE
-import '../utils/constants.dart';
-import '../utils/report_categories.dart'; // CATEGORÍAS CENTRALIZADAS
+import '../components/GoogleMapComponent.dart';
+import '../utils/report_categories.dart';
 
 class MapViewModel extends ChangeNotifier {
   // Estados
@@ -13,7 +12,7 @@ class MapViewModel extends ChangeNotifier {
   String? _error;
   List<MarkerData> _reportMarkers = [];
   String? _selectedFilter;
-  List<Map<String, dynamic>> _rawReportes = [];
+  final List<Map<String, dynamic>> _rawReportes = [];
 
   // CACHE DE CATEGORÍAS PARA OPTIMIZACIÓN
   late final Map<String, ReportCategory> _categoryCache;
@@ -138,18 +137,36 @@ class MapViewModel extends ChangeNotifier {
 
         if (latitud != null && longitud != null) {
           final categoria = data['categoria']?.toString() ?? '';
-          final markerIcon = _getMarkerIconForCategory(categoria);
+          final estado = data['estado']?.toString() ?? 'pendiente';
+          final markerIcon = _getMarkerIconForCategory(categoria, estado);
 
           if (kDebugMode) {
-            print('Añadiendo marcador en: Lat $latitud, Lon $longitud - Categoría: $categoria');
+            print('Añadiendo marcador en: Lat $latitud, Lon $longitud - Categoría: $categoria - Estado: $estado');
           }
 
-          // CREAR MARCADOR PARA GOOGLE MAPS (LatLng en lugar de GeoPoint)
+          // CREAR MARCADOR PARA GOOGLE MAPS CON DATOS COMPLETOS DEL REPORTE
           markers.add(
             MarkerData(
-              position: LatLng(latitud, longitud), // CAMBIO PRINCIPAL
+              position: LatLng(latitud, longitud),
               icon: markerIcon,
               title: '${data['categoria'] ?? 'Sin categoría'} - ${data['folio'] ?? 'Sin folio'}',
+              // AGREGAR DATOS COMPLETOS DEL REPORTE
+              reportData: {
+                'id': doc.id,
+                'folio': data['folio'] ?? 'Sin folio',
+                'fecha': data['fecha'],
+                'estado': data['estado'] ?? 'pendiente',
+                'categoria': data['categoria'] ?? 'Sin categoría',
+                'comentario': data['comentario'] ?? 'Sin descripción',
+                'direccion': data['direccion'] ?? 'Sin ubicación',
+                'nombreCompleto': data['nombreCompleto'] ?? '',
+                'telefono': data['telefono'] ?? '',
+                'isAnonymous': data['isAnonymous'] ?? false,
+                'imagenes': data['imagenes'] ?? [],
+                'historialEstados': data['historialEstados'] ?? [],
+                'latitud': latitud,
+                'longitud': longitud,
+              },
             ),
           );
         } else {
@@ -195,12 +212,15 @@ class MapViewModel extends ChangeNotifier {
     notifyListeners();
   }
 
-  // OBTENER ICONO DINÁMICO - ADAPTADO PARA GOOGLE MAPS
-  Icon _getMarkerIconForCategory(String categoria) {
+  // OBTENER ICONO DINÁMICO - ACTUALIZADO PARA INCLUIR COLOR POR ESTADO
+  Icon _getMarkerIconForCategory(String categoria, String estado) {
     final category = _getCategoryForName(categoria);
+    // Usar color basado en estado en lugar de categoría
+    final estadoColor = _getColorPorEstado(estado);
+
     return Icon(
       category.getEffectiveMapIcon(),
-      color: category.getEffectiveMarkerColor(),
+      color: estadoColor,
       size: category.getEffectiveIconSize(),
     );
   }
@@ -221,6 +241,48 @@ class MapViewModel extends ChangeNotifier {
     _categoryCache[lowerCategoria] = category;
 
     return category;
+  }
+
+  // OBTENER COLOR POR ESTADO - CONSISTENTE CON MisReportesScreen
+  Color _getColorPorEstado(String estado) {
+    switch (_normalizeEstado(estado)) {
+      case 'pendiente':
+        return Colors.grey.shade600; // Gris para Pendiente
+      case 'en revisión':
+        return Colors.orange.shade600; // Naranja para En Revisión
+      case 'asignado':
+        return Colors.blue.shade600; // Azul para Asignado
+      case 'en proceso':
+        return Colors.yellow.shade700; // Amarillo para En Proceso
+      case 'resuelto':
+        return Colors.green.shade600; // Verde para Resuelto
+      default:
+        return Colors.grey.shade600; // Gris por defecto
+    }
+  }
+
+  // NORMALIZAR ESTADO PARA COMPARACIÓN
+  String _normalizeEstado(String estado) {
+    switch (estado.toLowerCase().trim()) {
+      case 'pendiente':
+      case 'nuevo':
+        return 'pendiente';
+      case 'en revision':
+      case 'en revisión':
+      case 'revision':
+        return 'en revisión';
+      case 'asignado':
+        return 'asignado';
+      case 'en proceso':
+      case 'proceso':
+        return 'en proceso';
+      case 'resuelto':
+      case 'completado':
+      case 'terminado':
+        return 'resuelto';
+      default:
+        return 'pendiente';
+    }
   }
 
   // OBTENER COLOR DE CATEGORÍA - DINÁMICO
@@ -319,24 +381,6 @@ class MapViewModel extends ChangeNotifier {
         estado.contains('finalizado') ||
         estado.contains('terminado') ||
         estado.contains('cerrado');
-  }
-
-  // OBTENER COLOR PARA ESTADO - CONSISTENTE
-  Color getEstadoColor(String estado) {
-    switch (estado.toLowerCase()) {
-      case 'pendiente':
-        return Colors.grey.shade600;
-      case 'en revision':
-        return Colors.blue.shade600;
-      case 'asignado':
-        return Colors.orange.shade600;
-      case 'en proceso':
-        return Colors.amber.shade700;
-      case 'resuelto':
-        return Colors.green.shade700;
-      default:
-        return kSecondaryColor;
-    }
   }
 
   // BUSCAR REPORTES CERCANOS - ADAPTADO PARA LATLNG

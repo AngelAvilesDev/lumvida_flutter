@@ -1,11 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:geolocator/geolocator.dart';
-import 'package:permission_handler/permission_handler.dart';
 import 'dart:async';
-import 'dart:typed_data';
 import 'dart:ui' as ui;
-import '../utils/api_config.dart'; // IMPORTAR CONFIGURACIÓN DE API
+import '../utils/api_config.dart';
 
 class GoogleMapComponent extends StatefulWidget {
   final double height;
@@ -15,6 +13,7 @@ class GoogleMapComponent extends StatefulWidget {
   final LatLng? initialPosition;
   final List<MarkerData>? markers;
   final bool showLocationButton;
+  final Function(Map<String, dynamic>)? onMarkerTap; // NUEVO CALLBACK
 
   const GoogleMapComponent({
     Key? key,
@@ -25,6 +24,7 @@ class GoogleMapComponent extends StatefulWidget {
     this.initialPosition,
     this.markers,
     this.showLocationButton = true,
+    this.onMarkerTap, // NUEVO PARÁMETRO
   }) : super(key: key);
 
   @override
@@ -48,7 +48,7 @@ class GoogleMapComponentState extends State<GoogleMapComponent> {
 
     // VERIFICAR QUE LA API KEY ESTÉ CONFIGURADA
     if (ApiConfig.googleMapsApiKey.isEmpty) {
-      debugPrint('❌ Google Maps API Key no encontrada. Revisa tu archivo .env');
+      debugPrint('⚠️ Google Maps API Key no encontrada. Revisa tu archivo .env');
     } else {
       debugPrint('✅ Google Maps API Key cargada correctamente');
     }
@@ -86,11 +86,13 @@ class GoogleMapComponentState extends State<GoogleMapComponent> {
           markerData.position.latitude,
           markerData.position.longitude,
         ),
-        infoWindow: InfoWindow(
-          title: markerData.title ?? 'Reporte',
-          snippet: 'Toca para más información',
-        ),
         icon: await _createCustomMarkerIcon(markerData.icon),
+        onTap: () {
+          // MANEJAR TAP EN MARCADOR
+          if (widget.onMarkerTap != null && markerData.reportData != null) {
+            widget.onMarkerTap!(markerData.reportData!);
+          }
+        },
       );
 
       newMarkers.add(marker);
@@ -138,7 +140,7 @@ class GoogleMapComponentState extends State<GoogleMapComponent> {
       final image = await picture.toImage(48, 48);
       final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
 
-      return BitmapDescriptor.fromBytes(bytes!.buffer.asUint8List());
+      return BitmapDescriptor.bytes(bytes!.buffer.asUint8List());
     } catch (e) {
       debugPrint('Error creando icono personalizado: $e');
       // Fallback a marcador por defecto con color
@@ -420,7 +422,7 @@ class GoogleMapComponentState extends State<GoogleMapComponent> {
                     borderRadius: BorderRadius.circular(20),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withOpacity(0.2),
+                        color: Colors.black.withValues(alpha: .2),
                         blurRadius: 6,
                         offset: const Offset(0, 2),
                       ),
@@ -461,11 +463,11 @@ class GoogleMapComponentState extends State<GoogleMapComponent> {
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                 decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.9),
+                  color: Colors.white.withValues(alpha: .9),
                   borderRadius: BorderRadius.circular(8),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withOpacity(0.1),
+                      color: Colors.black.withValues(alpha: .1),
                       blurRadius: 4,
                       offset: const Offset(0, 2),
                     ),
@@ -493,7 +495,7 @@ class GoogleMapComponentState extends State<GoogleMapComponent> {
     if (widget.allowPicking) {
       setState(() {
         _selectedLocation = location;
-        _addressText = 'Obteniendo dirección...'; // CAMBIAR mensaje temporal
+        _addressText = 'Obteniendo dirección...';
       });
 
       // Llamar al callback inmediatamente
@@ -507,25 +509,24 @@ class GoogleMapComponentState extends State<GoogleMapComponent> {
     if (widget.allowPicking) {
       setState(() {
         _selectedLocation = position.target;
-        _addressText = 'Obteniendo dirección...'; // CAMBIAR mensaje temporal
+        _addressText = 'Obteniendo dirección...';
       });
-
-      // El callback se llamará cuando el usuario termine de mover el mapa
-      // Para evitar demasiadas llamadas a la API
     }
   }
 }
 
-// CLASE DE DATOS COMPATIBLE CON LA ANTERIOR
+// CLASE DE DATOS ACTUALIZADA CON reportData
 class MarkerData {
   final LatLng position;
   final Icon? icon;
   final String? title;
+  final Map<String, dynamic>? reportData; // NUEVO CAMPO
 
   MarkerData({
     required this.position,
     this.icon,
     this.title,
+    this.reportData, // NUEVO PARÁMETRO
   });
 
   // Constructor para compatibilidad con GeoPoint de OSM
@@ -534,5 +535,6 @@ class MarkerData {
     required double longitude,
     this.icon,
     this.title,
+    this.reportData, // NUEVO PARÁMETRO
   }) : position = LatLng(latitude, longitude);
 }

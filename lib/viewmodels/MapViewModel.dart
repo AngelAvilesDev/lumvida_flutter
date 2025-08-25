@@ -1,11 +1,10 @@
 import 'dart:math' as math;
 import 'package:flutter/foundation.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:flutter_osm_plugin/flutter_osm_plugin.dart' as osm;
+import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:flutter/material.dart';
-import '../components/OSMMapComponent.dart';
-import '../utils/constants.dart';
-import '../utils/report_categories.dart'; // IMPORTAR LAS CATEGORÍAS CENTRALIZADAS
+import '../components/GoogleMapComponent.dart';
+import '../utils/report_categories.dart';
 
 class MapViewModel extends ChangeNotifier {
   // Estados
@@ -13,7 +12,7 @@ class MapViewModel extends ChangeNotifier {
   String? _error;
   List<MarkerData> _reportMarkers = [];
   String? _selectedFilter;
-  List<Map<String, dynamic>> _rawReportes = [];
+  final List<Map<String, dynamic>> _rawReportes = [];
 
   // CACHE DE CATEGORÍAS PARA OPTIMIZACIÓN
   late final Map<String, ReportCategory> _categoryCache;
@@ -69,7 +68,7 @@ class MapViewModel extends ChangeNotifier {
   List<Map<String, dynamic>> get rawReportes => _rawReportes;
   List<String> get availableFilters => _availableFilters;
 
-  // MARCADORES FILTRADOS - LÓGICA MEJORADA CON CATEGORÍAS DINÁMICAS
+  // MARCADORES FILTRADOS - FUNCIONA PERFECTAMENTE CON GOOGLE MAPS
   List<MarkerData> get filteredMarkers {
     if (_selectedFilter == null || _selectedFilter == 'Todos') {
       return _reportMarkers;
@@ -92,7 +91,7 @@ class MapViewModel extends ChangeNotifier {
     }).toList();
   }
 
-  // CARGAR UBICACIONES - LÓGICA OPTIMIZADA
+  // CARGAR UBICACIONES - OPTIMIZADO PARA GOOGLE MAPS
   Future<void> cargarUbicacionesReportes() async {
     _isLoading = true;
     _error = null;
@@ -138,20 +137,36 @@ class MapViewModel extends ChangeNotifier {
 
         if (latitud != null && longitud != null) {
           final categoria = data['categoria']?.toString() ?? '';
-          final markerIcon = _getMarkerIconForCategory(categoria);
+          final estado = data['estado']?.toString() ?? 'pendiente';
+          final markerIcon = _getMarkerIconForCategory(categoria, estado);
 
           if (kDebugMode) {
-            print('Añadiendo marcador en: Lat $latitud, Lon $longitud - Categoría: $categoria');
+            print('Añadiendo marcador en: Lat $latitud, Lon $longitud - Categoría: $categoria - Estado: $estado');
           }
 
+          // CREAR MARCADOR PARA GOOGLE MAPS CON DATOS COMPLETOS DEL REPORTE
           markers.add(
             MarkerData(
-              position: osm.GeoPoint(
-                latitude: latitud,
-                longitude: longitud,
-              ),
+              position: LatLng(latitud, longitud),
               icon: markerIcon,
               title: '${data['categoria'] ?? 'Sin categoría'} - ${data['folio'] ?? 'Sin folio'}',
+              // AGREGAR DATOS COMPLETOS DEL REPORTE
+              reportData: {
+                'id': doc.id,
+                'folio': data['folio'] ?? 'Sin folio',
+                'fecha': data['fecha'],
+                'estado': data['estado'] ?? 'pendiente',
+                'categoria': data['categoria'] ?? 'Sin categoría',
+                'comentario': data['comentario'] ?? 'Sin descripción',
+                'direccion': data['direccion'] ?? 'Sin ubicación',
+                'nombreCompleto': data['nombreCompleto'] ?? '',
+                'telefono': data['telefono'] ?? '',
+                'isAnonymous': data['isAnonymous'] ?? false,
+                'imagenes': data['imagenes'] ?? [],
+                'historialEstados': data['historialEstados'] ?? [],
+                'latitud': latitud,
+                'longitud': longitud,
+              },
             ),
           );
         } else {
@@ -178,7 +193,7 @@ class MapViewModel extends ChangeNotifier {
     }
   }
 
-  // APLICAR FILTRO - LÓGICA OPTIMIZADA
+  // APLICAR FILTRO - OPTIMIZADO PARA GOOGLE MAPS
   void aplicarFiltro(String? filtro) {
     if (kDebugMode) {
       print('Aplicando filtro: $filtro');
@@ -197,15 +212,16 @@ class MapViewModel extends ChangeNotifier {
     notifyListeners();
   }
 
-  // OBTENER MARCADOR DINÁMICO - USA CATEGORÍAS CENTRALIZADAS
-  osm.MarkerIcon _getMarkerIconForCategory(String categoria) {
+  // OBTENER ICONO DINÁMICO - ACTUALIZADO PARA INCLUIR COLOR POR ESTADO
+  Icon _getMarkerIconForCategory(String categoria, String estado) {
     final category = _getCategoryForName(categoria);
-    return osm.MarkerIcon(
-      icon: Icon(
-        category.getEffectiveMapIcon(),
-        color: category.color ?? Colors.white,
-        size: category.getEffectiveIconSize(),
-      ),
+    // Usar color basado en estado en lugar de categoría
+    final estadoColor = _getColorPorEstado(estado);
+
+    return Icon(
+      category.getEffectiveMapIcon(),
+      color: estadoColor,
+      size: category.getEffectiveIconSize(),
     );
   }
 
@@ -225,6 +241,48 @@ class MapViewModel extends ChangeNotifier {
     _categoryCache[lowerCategoria] = category;
 
     return category;
+  }
+
+  // OBTENER COLOR POR ESTADO - CONSISTENTE CON MisReportesScreen
+  Color _getColorPorEstado(String estado) {
+    switch (_normalizeEstado(estado)) {
+      case 'pendiente':
+        return Colors.grey.shade600; // Gris para Pendiente
+      case 'en revisión':
+        return Colors.orange.shade600; // Naranja para En Revisión
+      case 'asignado':
+        return Colors.blue.shade600; // Azul para Asignado
+      case 'en proceso':
+        return Colors.yellow.shade700; // Amarillo para En Proceso
+      case 'resuelto':
+        return Colors.green.shade600; // Verde para Resuelto
+      default:
+        return Colors.grey.shade600; // Gris por defecto
+    }
+  }
+
+  // NORMALIZAR ESTADO PARA COMPARACIÓN
+  String _normalizeEstado(String estado) {
+    switch (estado.toLowerCase().trim()) {
+      case 'pendiente':
+      case 'nuevo':
+        return 'pendiente';
+      case 'en revision':
+      case 'en revisión':
+      case 'revision':
+        return 'en revisión';
+      case 'asignado':
+        return 'asignado';
+      case 'en proceso':
+      case 'proceso':
+        return 'en proceso';
+      case 'resuelto':
+      case 'completado':
+      case 'terminado':
+        return 'resuelto';
+      default:
+        return 'pendiente';
+    }
   }
 
   // OBTENER COLOR DE CATEGORÍA - DINÁMICO
@@ -325,25 +383,7 @@ class MapViewModel extends ChangeNotifier {
         estado.contains('cerrado');
   }
 
-  // OBTENER COLOR PARA ESTADO - CONSISTENTE
-  Color getEstadoColor(String estado) {
-    switch (estado.toLowerCase()) {
-      case 'pendiente':
-        return Colors.grey.shade600;
-      case 'en revision':
-        return Colors.blue.shade600;
-      case 'asignado':
-        return Colors.orange.shade600;
-      case 'en proceso':
-        return Colors.amber.shade700;
-      case 'resuelto':
-        return Colors.green.shade700;
-      default:
-        return kSecondaryColor;
-    }
-  }
-
-  // BUSCAR REPORTES CERCANOS - SIN CAMBIOS
+  // BUSCAR REPORTES CERCANOS - ADAPTADO PARA LATLNG
   List<Map<String, dynamic>> obtenerReportesCercanos(
       double latitud,
       double longitud,
@@ -421,6 +461,51 @@ class MapViewModel extends ChangeNotifier {
     }
 
     return reportesInconsistentes == 0;
+  }
+
+  // NUEVO: Obtener bounds para centrar mapa en todos los reportes
+  LatLngBounds? obtenerBoundsDeReportes() {
+    if (_reportMarkers.isEmpty) return null;
+
+    double minLat = _reportMarkers.first.position.latitude;
+    double maxLat = _reportMarkers.first.position.latitude;
+    double minLng = _reportMarkers.first.position.longitude;
+    double maxLng = _reportMarkers.first.position.longitude;
+
+    for (final marker in _reportMarkers) {
+      minLat = math.min(minLat, marker.position.latitude);
+      maxLat = math.max(maxLat, marker.position.latitude);
+      minLng = math.min(minLng, marker.position.longitude);
+      maxLng = math.max(maxLng, marker.position.longitude);
+    }
+
+    return LatLngBounds(
+      southwest: LatLng(minLat, minLng),
+      northeast: LatLng(maxLat, maxLng),
+    );
+  }
+
+  // NUEVO: Obtener bounds para marcadores filtrados
+  LatLngBounds? obtenerBoundsFiltrados() {
+    final markers = filteredMarkers;
+    if (markers.isEmpty) return null;
+
+    double minLat = markers.first.position.latitude;
+    double maxLat = markers.first.position.latitude;
+    double minLng = markers.first.position.longitude;
+    double maxLng = markers.first.position.longitude;
+
+    for (final marker in markers) {
+      minLat = math.min(minLat, marker.position.latitude);
+      maxLat = math.max(maxLat, marker.position.latitude);
+      minLng = math.min(minLng, marker.position.longitude);
+      maxLng = math.max(maxLng, marker.position.longitude);
+    }
+
+    return LatLngBounds(
+      southwest: LatLng(minLat, minLng),
+      northeast: LatLng(maxLat, maxLng),
+    );
   }
 
   // MÉTODOS DE LIMPIEZA Y RECARGA - SIN CAMBIOS

@@ -1,7 +1,7 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:flutter_osm_plugin/flutter_osm_plugin.dart' as osm;
+import 'package:google_maps_flutter/google_maps_flutter.dart'; // CAMBIADO DE OSM
 import '../utils/constants.dart';
 import '../viewmodels/AuthViewModel.dart';
 import '../viewmodels/VerificacionIAViewModel.dart';
@@ -10,7 +10,7 @@ class VerificacionIAReporteScreen extends StatefulWidget {
   final String categoria;
   final String opcionSeleccionada;
   final String comentario;
-  final osm.GeoPoint ubicacion;
+  final LatLng ubicacion; // CAMBIADO DE osm.GeoPoint
   final String direccion;
   final List<File> imagenes;
   final Function onConfirm;
@@ -61,12 +61,12 @@ class _VerificacionIAReporteScreenState extends State<VerificacionIAReporteScree
       CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
     );
 
-    // Inicializar datos del reporte
+    // Inicializar datos del reporte - USANDO LatLng
     _verificacionViewModel.inicializarDatos(
       categoria: widget.categoria,
       opcionSeleccionada: widget.opcionSeleccionada,
       comentario: widget.comentario,
-      ubicacion: widget.ubicacion,
+      ubicacion: widget.ubicacion, // YA ES LatLng
       direccion: widget.direccion,
       imagenes: widget.imagenes,
     );
@@ -434,11 +434,6 @@ class _VerificacionIAReporteScreenState extends State<VerificacionIAReporteScree
         children: [
           // Resultado principal
           _buildMainResultCard(verificacionVM),
-
-          const SizedBox(height: 20),
-
-          // Detalles del análisis
-          if (verificacionVM.analysisMessage.isNotEmpty)
 
           const SizedBox(height: 20),
 

@@ -17,8 +17,14 @@
         android:maxSdkVersion="32" />
 
     <application
-        android:label="lumvida"
+        android:label="Lumvida"
         android:icon="@mipmap/ic_launcher">
+
+        <!-- API KEY DE GOOGLE MAPS - REEMPLAZAR CON TU API KEY REAL -->
+        <meta-data android:name="com.google.android.geo.API_KEY"
+            android:value="AIzaSyC0O7geoS-2wTswCPOwnDNZahAQuIZtL4M"/>
+        <!-- ⚠️ IMPORTANTE: Reemplaza el valor de arriba con tu API key real -->
+
         <activity
             android:name=".MainActivity"
             android:exported="true"
@@ -33,9 +39,9 @@
                  while the Flutter UI initializes. After that, this theme continues
                  to determine the Window background behind the Flutter UI. -->
             <meta-data
-              android:name="io.flutter.embedding.android.NormalTheme"
-              android:resource="@style/NormalTheme"
-              />
+                android:name="io.flutter.embedding.android.NormalTheme"
+                android:resource="@style/NormalTheme"
+                />
             <intent-filter>
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>

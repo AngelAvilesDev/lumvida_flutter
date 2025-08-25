@@ -23,10 +23,13 @@ class ProfileViewModel extends ChangeNotifier {
   String? _photoUrl;
   File? _selectedImage;
 
-  // Estadísticas
+  // Estadísticas actualizadas con colores correctos
   int _totalReportes = 0;
-  int _reportesResueltos = 0;
-  int _reportesPendientes = 0;
+  int _reportesResueltos = 0;     // Verde
+  int _reportesPendientes = 0;    // Gris
+  int _reportesEnRevision = 0;    // Naranja
+  int _reportesAsignados = 0;     // Azul
+  int _reportesEnProceso = 0;     // Amarillo
 
   // Getters
   bool get isLoading => _isLoading;
@@ -42,8 +45,11 @@ class ProfileViewModel extends ChangeNotifier {
   File? get selectedImage => _selectedImage;
 
   int get totalReportes => _totalReportes;
-  int get reportesResueltos => _reportesResueltos;
-  int get reportesPendientes => _reportesPendientes;
+  int get reportesResueltos => _reportesResueltos;       // Verde
+  int get reportesPendientes => _reportesPendientes;     // Gris
+  int get reportesEnRevision => _reportesEnRevision;     // Naranja
+  int get reportesAsignados => _reportesAsignados;       // Azul
+  int get reportesEnProceso => _reportesEnProceso;       // Amarillo
 
   // Alternar modo de edición
   void toggleEditMode() {
@@ -93,7 +99,7 @@ class ProfileViewModel extends ChangeNotifier {
     }
   }
 
-  // Cargar estadísticas de reportes
+  // Cargar estadísticas de reportes - CORREGIDO CON ESTADOS Y COLORES EXACTOS
   Future<void> _loadReportStatistics(String userId) async {
     try {
       final reportesSnapshot = await _firestore
@@ -102,21 +108,62 @@ class ProfileViewModel extends ChangeNotifier {
           .get();
 
       _totalReportes = reportesSnapshot.docs.length;
-      _reportesResueltos = 0;
-      _reportesPendientes = 0;
+      _reportesResueltos = 0;     // Verde
+      _reportesPendientes = 0;    // Gris
+      _reportesEnRevision = 0;    // Naranja
+      _reportesAsignados = 0;     // Azul
+      _reportesEnProceso = 0;     // Amarillo
 
       for (final doc in reportesSnapshot.docs) {
-        final estado = doc.data()['estado']?.toString().toLowerCase() ?? '';
-        if (estado == 'resuelto' || estado == 'completado') {
-          _reportesResueltos++;
-        } else {
-          _reportesPendientes++;
+        final estado = _normalizeEstado(doc.data()['estado']?.toString() ?? '');
+
+        switch (estado) {
+          case 'resuelto':
+            _reportesResueltos++;        // Verde
+            break;
+          case 'en revisión':
+            _reportesEnRevision++;       // Naranja
+            break;
+          case 'asignado':
+            _reportesAsignados++;        // Azul
+            break;
+          case 'en proceso':
+            _reportesEnProceso++;        // Amarillo
+            break;
+          case 'pendiente':
+          default:
+            _reportesPendientes++;       // Gris
+            break;
         }
       }
     } catch (e) {
       if (kDebugMode) {
         print('Error loading report statistics: $e');
       }
+    }
+  }
+
+  // NORMALIZAR ESTADO PARA COMPARACIÓN - IGUAL QUE EN MisReportesScreen
+  String _normalizeEstado(String estado) {
+    switch (estado.toLowerCase().trim()) {
+      case 'pendiente':
+      case 'nuevo':
+        return 'pendiente';
+      case 'en revision':
+      case 'en revisión':
+      case 'revision':
+        return 'en revisión';
+      case 'asignado':
+        return 'asignado';
+      case 'en proceso':
+      case 'proceso':
+        return 'en proceso';
+      case 'resuelto':
+      case 'completado':
+      case 'terminado':
+        return 'resuelto';
+      default:
+        return 'pendiente';
     }
   }
 
@@ -301,6 +348,9 @@ class ProfileViewModel extends ChangeNotifier {
     _totalReportes = 0;
     _reportesResueltos = 0;
     _reportesPendientes = 0;
+    _reportesEnRevision = 0;
+    _reportesAsignados = 0;
+    _reportesEnProceso = 0;
     _isEditing = false;
     _isLoading = false;
     _isUpdating = false;

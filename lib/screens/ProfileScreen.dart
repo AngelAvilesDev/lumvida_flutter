@@ -71,9 +71,9 @@ class _ProfileScreenState extends State<ProfileScreen> with TickerProviderStateM
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
                 colors: [
-                  Colors.white.withOpacity(0.8),
-                  Colors.white.withOpacity(0.95),
-                  kPrimaryColor.withOpacity(0.03),
+                  Colors.white.withValues(alpha: 0.8),
+                  Colors.white.withValues(alpha: .95),
+                  kPrimaryColor.withValues(alpha: .03),
                 ],
               ),
             ),
@@ -116,11 +116,11 @@ class _ProfileScreenState extends State<ProfileScreen> with TickerProviderStateM
         margin: const EdgeInsets.all(24),
         padding: const EdgeInsets.all(24),
         decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.9),
+          color: Colors.white.withValues(alpha: .9),
           borderRadius: BorderRadius.circular(20),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.1),
+              color: Colors.black.withValues(alpha: .1),
               blurRadius: 15,
               offset: const Offset(0, 5),
             ),
@@ -182,10 +182,10 @@ class _ProfileScreenState extends State<ProfileScreen> with TickerProviderStateM
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.9),
+        color: Colors.white.withValues(alpha: .9),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: .05),
             blurRadius: 10,
             offset: const Offset(0, 2),
           ),
@@ -207,7 +207,7 @@ class _ProfileScreenState extends State<ProfileScreen> with TickerProviderStateM
           // Botón de editar/guardar
           Container(
             decoration: BoxDecoration(
-              color: profileVM.isEditing ? Colors.green.withOpacity(0.1) : kPrimaryColor.withOpacity(0.1),
+              color: profileVM.isEditing ? Colors.green.withValues(alpha: .1) : kPrimaryColor.withValues(alpha: .1),
               borderRadius: BorderRadius.circular(12),
             ),
             child: IconButton(
@@ -265,7 +265,7 @@ class _ProfileScreenState extends State<ProfileScreen> with TickerProviderStateM
 
             const SizedBox(height: 32),
 
-            // Estadísticas
+            // Estadísticas - ACTUALIZADAS
             _buildSectionTitle('Estadísticas'),
             const SizedBox(height: 16),
             _buildStatsSection(profileVM),
@@ -303,7 +303,7 @@ class _ProfileScreenState extends State<ProfileScreen> with TickerProviderStateM
                   ),
                   boxShadow: [
                     BoxShadow(
-                      color: kPrimaryColor.withOpacity(0.3),
+                      color: kPrimaryColor.withValues(alpha: .3),
                       blurRadius: 20,
                       offset: const Offset(0, 8),
                     ),
@@ -349,7 +349,7 @@ class _ProfileScreenState extends State<ProfileScreen> with TickerProviderStateM
                     shape: BoxShape.circle,
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withOpacity(0.1),
+                        color: Colors.black.withValues(alpha: .1),
                         blurRadius: 8,
                         offset: const Offset(0, 2),
                       ),
@@ -435,55 +435,85 @@ class _ProfileScreenState extends State<ProfileScreen> with TickerProviderStateM
     );
   }
 
+  // ESTADÍSTICAS ACTUALIZADAS - NUEVO DISEÑO CON 4 MÉTRICAS
   Widget _buildStatsSection(ProfileViewModel profileVM) {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.9),
+        color: Colors.white.withValues(alpha: .9),
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: .05),
             blurRadius: 10,
             offset: const Offset(0, 2),
           ),
         ],
       ),
-      child: Row(
+      child: Column(
         children: [
-          Expanded(
-            child: _buildStatItem(
-              icon: Icons.report_outlined,
-              title: 'Reportes',
-              value: profileVM.totalReportes.toString(),
-              color: kPrimaryColor,
-            ),
+          // Primera fila - Total y Resueltos
+          Row(
+            children: [
+              Expanded(
+                child: _buildStatItem(
+                  icon: Icons.report_outlined,
+                  title: 'Reportes',
+                  value: profileVM.totalReportes.toString(),
+                  color: kPrimaryColor,
+                ),
+              ),
+              Container(
+                width: 1,
+                height: 40,
+                color: Colors.grey.shade200,
+              ),
+              Expanded(
+                child: _buildStatItem(
+                  icon: Icons.check_circle_outline,
+                  title: 'Resueltos',
+                  value: profileVM.reportesResueltos.toString(),
+                  color: Colors.green.shade600,
+                ),
+              ),
+            ],
           ),
+
+          const SizedBox(height: 16),
+
+          // Divider
           Container(
-            width: 1,
-            height: 40,
+            height: 1,
             color: Colors.grey.shade200,
           ),
-          Expanded(
-            child: _buildStatItem(
-              icon: Icons.check_circle_outline,
-              title: 'Resueltos',
-              value: profileVM.reportesResueltos.toString(),
-              color: Colors.green,
-            ),
-          ),
-          Container(
-            width: 1,
-            height: 40,
-            color: Colors.grey.shade200,
-          ),
-          Expanded(
-            child: _buildStatItem(
-              icon: Icons.pending_outlined,
-              title: 'Pendientes',
-              value: profileVM.reportesPendientes.toString(),
-              color: Colors.orange,
-            ),
+
+          const SizedBox(height: 16),
+
+          // Segunda fila - En Proceso y Pendientes
+          Row(
+            children: [
+              Expanded(
+                child: _buildStatItem(
+                  icon: Icons.sync,
+                  title: 'En Proceso',
+                  value: profileVM.reportesEnProceso.toString(),
+                  color: Colors.orange.shade600,
+                ),
+              ),
+              Container(
+                width: 1,
+                height: 40,
+                color: Colors.grey.shade200,
+              ),
+              Expanded(
+                child: _buildStatItem(
+                  icon: Icons.pending_outlined,
+                  title: 'Pendientes',
+                  value: profileVM.reportesPendientes.toString(),
+                  color: Colors.grey.shade600,
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -544,7 +574,7 @@ class _ProfileScreenState extends State<ProfileScreen> with TickerProviderStateM
         borderRadius: BorderRadius.circular(16),
         boxShadow: enabled ? [
           BoxShadow(
-            color: Colors.black.withOpacity(0.04),
+            color: Colors.black.withValues(alpha: .04),
             blurRadius: 10,
             offset: const Offset(0, 2),
           ),
@@ -567,7 +597,7 @@ class _ProfileScreenState extends State<ProfileScreen> with TickerProviderStateM
           labelText: label,
           prefixIcon: Icon(
             icon,
-            color: enabled ? kPrimaryColor.withOpacity(0.7) : Colors.grey.shade400,
+            color: enabled ? kPrimaryColor.withValues(alpha: .7) : Colors.grey.shade400,
           ),
           labelStyle: TextStyle(
             color: enabled ? Colors.grey.shade600 : Colors.grey.shade400,
@@ -585,7 +615,7 @@ class _ProfileScreenState extends State<ProfileScreen> with TickerProviderStateM
           ),
           focusedBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(16),
-            borderSide: BorderSide(color: kPrimaryColor, width: 2),
+            borderSide: const BorderSide(color: kPrimaryColor, width: 2),
           ),
           disabledBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(16),
@@ -636,11 +666,11 @@ class _ProfileScreenState extends State<ProfileScreen> with TickerProviderStateM
   }) {
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.9),
+        color: Colors.white.withValues(alpha: .9),
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: .05),
             blurRadius: 10,
             offset: const Offset(0, 2),
           ),
@@ -659,8 +689,8 @@ class _ProfileScreenState extends State<ProfileScreen> with TickerProviderStateM
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
                     color: isDestructive
-                        ? Colors.red.withOpacity(0.1)
-                        : kPrimaryColor.withOpacity(0.1),
+                        ? Colors.red.withValues(alpha: .1)
+                        : kPrimaryColor.withValues(alpha: .1),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Icon(
@@ -862,7 +892,7 @@ class _ProfileScreenState extends State<ProfileScreen> with TickerProviderStateM
   }) {
     return Container(
       decoration: BoxDecoration(
-        color: kPrimaryColor.withOpacity(0.1),
+        color: kPrimaryColor.withValues(alpha: .1),
         borderRadius: BorderRadius.circular(12),
       ),
       child: Material(

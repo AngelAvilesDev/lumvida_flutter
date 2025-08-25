@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+// ASEGURAMOS QUE ESTÉ EN utils/report_categories.dart
+
 class ReportOption {
   final String description;
 

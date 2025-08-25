@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart'; // PARA COPIAR FOLIO
 import 'package:provider/provider.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../utils/constants.dart';
@@ -18,11 +19,22 @@ class _MisReportesScreenState extends State<MisReportesScreen> with TickerProvid
   bool _isLoading = false;
   String? _error;
   String _filtroActual = 'Todos';
+  bool _showFilters = false; // NUEVO: CONTROLAR VISIBILIDAD DE FILTROS
 
   late AnimationController _fadeController;
+  late AnimationController _filterController; // NUEVA ANIMACIÓN PARA FILTROS
   late Animation<double> _fadeAnimation;
+  late Animation<double> _filterAnimation;
 
-  final List<String> _filtros = ['Todos', 'Pendientes', 'En Proceso', 'Resueltos'];
+  // Estados actualizados con sus colores correspondientes
+  final List<Map<String, dynamic>> _filtros = [
+    {'nombre': 'Todos', 'color': Colors.grey.shade600},
+    {'nombre': 'Pendiente', 'color': Colors.grey.shade600},
+    {'nombre': 'En Revisión', 'color': Colors.orange.shade600},
+    {'nombre': 'Asignado', 'color': Colors.blue.shade600},
+    {'nombre': 'En Proceso', 'color': Colors.yellow.shade700},
+    {'nombre': 'Resuelto', 'color': Colors.green.shade600},
+  ];
 
   @override
   void initState() {
@@ -31,7 +43,12 @@ class _MisReportesScreenState extends State<MisReportesScreen> with TickerProvid
       duration: const Duration(milliseconds: 600),
       vsync: this,
     );
+    _filterController = AnimationController(
+      duration: const Duration(milliseconds: 300),
+      vsync: this,
+    );
     _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(_fadeController);
+    _filterAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(_filterController);
 
     _cargarReportes();
   }
@@ -39,7 +56,21 @@ class _MisReportesScreenState extends State<MisReportesScreen> with TickerProvid
   @override
   void dispose() {
     _fadeController.dispose();
+    _filterController.dispose();
     super.dispose();
+  }
+
+  // TOGGLE PARA MOSTRAR/OCULTAR FILTROS
+  void _toggleFilters() {
+    setState(() {
+      _showFilters = !_showFilters;
+    });
+
+    if (_showFilters) {
+      _filterController.forward();
+    } else {
+      _filterController.reverse();
+    }
   }
 
   Future<void> _cargarReportes() async {
@@ -99,18 +130,34 @@ class _MisReportesScreenState extends State<MisReportesScreen> with TickerProvid
     }
 
     return _reportes.where((reporte) {
-      final estado = reporte['estado']?.toString().toLowerCase() ?? '';
-      switch (_filtroActual) {
-        case 'Pendientes':
-          return estado == 'pendiente' || estado == 'nuevo';
-        case 'En Proceso':
-          return estado.contains('proceso') || estado == 'asignado' || estado.contains('revision');
-        case 'Resueltos':
-          return estado == 'resuelto' || estado == 'completado';
-        default:
-          return true;
-      }
+      final estado = _normalizeEstado(reporte['estado']?.toString() ?? '');
+      final filtroNormalizado = _normalizeEstado(_filtroActual);
+      return estado == filtroNormalizado;
     }).toList();
+  }
+
+  // Normalizar estados para comparación
+  String _normalizeEstado(String estado) {
+    switch (estado.toLowerCase().trim()) {
+      case 'pendiente':
+      case 'nuevo':
+        return 'pendiente';
+      case 'en revision':
+      case 'en revisión':
+      case 'revision':
+        return 'en revisión';
+      case 'asignado':
+        return 'asignado';
+      case 'en proceso':
+      case 'proceso':
+        return 'en proceso';
+      case 'resuelto':
+      case 'completado':
+      case 'terminado':
+        return 'resuelto';
+      default:
+        return estado.toLowerCase();
+    }
   }
 
   String _formatearFecha(dynamic timestamp) {
@@ -156,8 +203,8 @@ class _MisReportesScreenState extends State<MisReportesScreen> with TickerProvid
                 // Header moderno
                 _buildModernHeader(),
 
-                // Filtros
-                if (_reportes.isNotEmpty) _buildFilterTabs(),
+                // Filtros compactos - SIMPLIFICADO
+                if (_reportes.isNotEmpty) _buildCompactFilters(),
 
                 // Contenido principal
                 Expanded(
@@ -272,6 +319,29 @@ class _MisReportesScreenState extends State<MisReportesScreen> with TickerProvid
             ),
           ),
 
+          // Botón de filtros
+          Container(
+            decoration: BoxDecoration(
+              color: _showFilters
+                  ? kPrimaryColor
+                  : kPrimaryColor.withValues(alpha: .1),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: IconButton(
+              icon: AnimatedRotation(
+                turns: _showFilters ? 0.5 : 0,
+                duration: const Duration(milliseconds: 300),
+                child: Icon(
+                  Icons.filter_list,
+                  color: _showFilters ? Colors.white : kPrimaryColor,
+                ),
+              ),
+              onPressed: _toggleFilters,
+            ),
+          ),
+
+          const SizedBox(width: 8),
+
           // Botón de refrescar
           Container(
             decoration: BoxDecoration(
@@ -288,41 +358,67 @@ class _MisReportesScreenState extends State<MisReportesScreen> with TickerProvid
     );
   }
 
-  Widget _buildFilterTabs() {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        child: Row(
-          children: _filtros.map((filtro) {
-            final isSelected = _filtroActual == filtro;
-            final count = filtro == 'Todos' ? _reportes.length : _reportesFiltrados.length;
+  // FILTROS COMPACTOS - NUEVO DISEÑO
+  Widget _buildCompactFilters() {
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 300),
+      height: _showFilters ? 70 : 0,
+      child: ClipRect(
+        child: FadeTransition(
+          opacity: _filterAnimation,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: _filtros.map((filtro) {
+                  final isSelected = _filtroActual == filtro['nombre'];
+                  final count = filtro['nombre'] == 'Todos'
+                      ? _reportes.length
+                      : _getCountForFilter(filtro['nombre']);
 
-            return Container(
-              margin: const EdgeInsets.only(right: 8),
-              child: FilterChip(
-                selected: isSelected,
-                label: Text(
-                  '$filtro ${filtro == _filtroActual ? '($count)' : ''}',
-                  style: TextStyle(
-                    color: isSelected ? Colors.white : kPrimaryColor,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                selectedColor: kPrimaryColor,
-                backgroundColor: Colors.white,
-                side: BorderSide(color: kPrimaryColor.withValues(alpha: .3)),
-                onSelected: (selected) {
-                  setState(() {
-                    _filtroActual = filtro;
-                  });
-                },
+                  return Container(
+                    margin: const EdgeInsets.only(right: 8),
+                    child: FilterChip(
+                      selected: isSelected,
+                      label: Text(
+                        '${filtro['nombre']} ($count)',
+                        style: TextStyle(
+                          color: isSelected ? Colors.white : filtro['color'],
+                          fontWeight: FontWeight.w600,
+                          fontSize: 12,
+                        ),
+                      ),
+                      selectedColor: filtro['color'],
+                      backgroundColor: Colors.white,
+                      checkmarkColor: Colors.white,
+                      side: BorderSide(
+                        color: filtro['color'].withOpacity(0.3),
+                      ),
+                      onSelected: (selected) {
+                        setState(() {
+                          _filtroActual = filtro['nombre'];
+                        });
+                      },
+                    ),
+                  );
+                }).toList(),
               ),
-            );
-          }).toList(),
+            ),
+          ),
         ),
       ),
     );
+  }
+
+  int _getCountForFilter(String filtro) {
+    if (filtro == 'Todos') return _reportes.length;
+
+    return _reportes.where((reporte) {
+      final estado = _normalizeEstado(reporte['estado']?.toString() ?? '');
+      final filtroNormalizado = _normalizeEstado(filtro);
+      return estado == filtroNormalizado;
+    }).length;
   }
 
   Widget _buildMainContent() {
@@ -402,7 +498,7 @@ class _MisReportesScreenState extends State<MisReportesScreen> with TickerProvid
               Text(
                 _filtroActual == 'Todos'
                     ? 'No tienes reportes aún'
-                    : 'No hay reportes con filtro "$_filtroActual"',
+                    : 'No hay reportes con estado "$_filtroActual"',
                 style: const TextStyle(fontSize: 16, color: Colors.black54),
               ),
               const SizedBox(height: 8),
@@ -442,7 +538,7 @@ class _MisReportesScreenState extends State<MisReportesScreen> with TickerProvid
         return Icons.lightbulb_outline;
       } else if (type.toLowerCase().contains('baches') || type.toLowerCase().contains('bacheo')) {
         return Icons.directions_car;
-      } else if (type.toLowerCase().contains('alcantarillado') || type.toLowerCase().contains('drenajes')) {
+      } else if (type.toLowerCase().contains('alcantarillado') || type.toLowerCase().contains('drenaje')) {
         return Icons.water_drop;
       }
       return Icons.report_problem_outlined;
@@ -469,6 +565,13 @@ class _MisReportesScreenState extends State<MisReportesScreen> with TickerProvid
                     offset: const Offset(0, 2),
                   ),
                 ],
+                // Borde izquierdo con color del estado
+                border: Border(
+                  left: BorderSide(
+                    color: _getColorPorEstado(reporte['estado'] ?? ''),
+                    width: 4,
+                  ),
+                ),
               ),
               child: Material(
                 color: Colors.transparent,
@@ -480,7 +583,7 @@ class _MisReportesScreenState extends State<MisReportesScreen> with TickerProvid
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        // Header del reporte
+                        // Header del reporte con botón de copiar folio
                         Row(
                           children: [
                             Container(
@@ -508,28 +611,43 @@ class _MisReportesScreenState extends State<MisReportesScreen> with TickerProvid
                                       color: kPrimaryColor,
                                     ),
                                   ),
-                                  Text(
-                                    'Folio: ${reporte['folio'] ?? 'Sin folio'}',
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      color: Colors.grey.shade600,
+                                  // FOLIO CLICKEABLE PARA COPIAR
+                                  GestureDetector(
+                                    onTap: () => _copyFolio(reporte['folio'] ?? 'Sin folio'),
+                                    child: Row(
+                                      children: [
+                                        Text(
+                                          'Folio: ${reporte['folio'] ?? 'Sin folio'}',
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            color: Colors.grey.shade600,
+                                          ),
+                                        ),
+                                        const SizedBox(width: 4),
+                                        Icon(
+                                          Icons.copy,
+                                          size: 14,
+                                          color: Colors.grey.shade500,
+                                        ),
+                                      ],
                                     ),
                                   ),
                                 ],
                               ),
                             ),
                             Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                               decoration: BoxDecoration(
                                 color: _getColorPorEstado(reporte['estado'] ?? ''),
-                                borderRadius: BorderRadius.circular(12),
+                                borderRadius: BorderRadius.circular(20),
                               ),
                               child: Text(
-                                (reporte['estado'] ?? 'PENDIENTE').toString().toUpperCase(),
+                                _getEstadoDisplayText(reporte['estado'] ?? '').toUpperCase(),
                                 style: const TextStyle(
                                   color: Colors.white,
                                   fontSize: 10,
                                   fontWeight: FontWeight.bold,
+                                  letterSpacing: 0.5,
                                 ),
                               ),
                             ),
@@ -621,6 +739,27 @@ class _MisReportesScreenState extends State<MisReportesScreen> with TickerProvid
     );
   }
 
+  // FUNCIÓN PARA COPIAR FOLIO
+  void _copyFolio(String folio) {
+    Clipboard.setData(ClipboardData(text: folio));
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.copy, color: Colors.white, size: 16),
+            const SizedBox(width: 8),
+            Text('Folio $folio copiado'),
+          ],
+        ),
+        backgroundColor: Colors.green,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        duration: const Duration(seconds: 2),
+      ),
+    );
+  }
+
   void _mostrarDetalleReporte(BuildContext context, Map<String, dynamic> reporte) {
     showDialog(
       context: context,
@@ -644,6 +783,12 @@ class _MisReportesScreenState extends State<MisReportesScreen> with TickerProvid
                   style: const TextStyle(color: kPrimaryColor, fontWeight: FontWeight.bold),
                 ),
               ),
+              // BOTÓN DE COPIAR EN EL MODAL TAMBIÉN
+              IconButton(
+                onPressed: () => _copyFolio(reporte['folio'] ?? 'Sin folio'),
+                icon: const Icon(Icons.copy, color: kPrimaryColor, size: 20),
+                tooltip: 'Copiar folio',
+              ),
             ],
           ),
           content: SingleChildScrollView(
@@ -651,6 +796,32 @@ class _MisReportesScreenState extends State<MisReportesScreen> with TickerProvid
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
+                // Estado prominente
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(12),
+                  margin: const EdgeInsets.only(bottom: 16),
+                  decoration: BoxDecoration(
+                    color: _getColorPorEstado(reporte['estado'] ?? ''),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(Icons.circle, color: Colors.white, size: 8),
+                      const SizedBox(width: 8),
+                      Text(
+                        'ESTADO: ${_getEstadoDisplayText(reporte['estado'] ?? '').toUpperCase()}',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 1,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
                 // Mostrar galería de imágenes si existen
                 if (reporte['imagenes'] != null && (reporte['imagenes'] as List).isNotEmpty) ...[
                   const Text(
@@ -676,7 +847,6 @@ class _MisReportesScreenState extends State<MisReportesScreen> with TickerProvid
                 ],
 
                 _buildDetailRow('Fecha', reporte['fecha'] ?? 'Fecha desconocida'),
-                _buildDetailRow('Estado', reporte['estado'] ?? 'Sin estado'),
                 _buildDetailRow('Categoría', reporte['tipo'] ?? 'Sin categoría'),
                 _buildDetailSection('Comentario', reporte['descripcion'] ?? 'Sin descripción'),
                 _buildDetailSection('Ubicación', reporte['ubicacion'] ?? 'Sin ubicación'),
@@ -729,25 +899,39 @@ class _MisReportesScreenState extends State<MisReportesScreen> with TickerProvid
     );
   }
 
-  Color _getColorPorEstado(String estado) {
-    switch (estado.toLowerCase()) {
+  // Obtener texto de display para el estado
+  String _getEstadoDisplayText(String estado) {
+    switch (_normalizeEstado(estado)) {
       case 'pendiente':
-      case 'nuevo':
-        return Colors.grey;
-      case 'en revision':
+        return 'Pendiente';
       case 'en revisión':
-        return Colors.orange;
+        return 'En Revisión';
       case 'asignado':
-        return Colors.blue;
+        return 'Asignado';
       case 'en proceso':
-        return Colors.yellow.shade700;
+        return 'En Proceso';
       case 'resuelto':
-      case 'completado':
-        return Colors.green;
-      case 'cancelado':
-        return Colors.red;
+        return 'Resuelto';
       default:
-        return Colors.grey;
+        return estado;
+    }
+  }
+
+  // Actualizar colores según los estados especificados
+  Color _getColorPorEstado(String estado) {
+    switch (_normalizeEstado(estado)) {
+      case 'pendiente':
+        return Colors.grey.shade600; // Gris para Pendiente
+      case 'en revisión':
+        return Colors.orange.shade600; // Naranja para En Revisión
+      case 'asignado':
+        return Colors.blue.shade600; // Azul para Asignado
+      case 'en proceso':
+        return Colors.yellow.shade700; // Amarillo para En Proceso
+      case 'resuelto':
+        return Colors.green.shade600; // Verde para Resuelto
+      default:
+        return Colors.grey.shade600; // Gris por defecto
     }
   }
 }

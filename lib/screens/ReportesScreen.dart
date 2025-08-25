@@ -2,9 +2,9 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
-import 'package:flutter_osm_plugin/flutter_osm_plugin.dart' as osm;
+import 'package:google_maps_flutter/google_maps_flutter.dart'; // CAMBIADO DE OSM
 import 'package:image_picker/image_picker.dart';
-import '../components/OSMMapComponent.dart';
+import '../components/GoogleMapComponent.dart'; // CAMBIADO DE OSMMapComponent
 import '../components/BottomNavigationWidget.dart';
 import '../utils/constants.dart';
 import '../utils/report_categories.dart';
@@ -142,7 +142,7 @@ class _ReportesScreenState extends State<ReportesScreen> with TickerProviderStat
 
                                 const SizedBox(height: 24),
 
-                                // Ubicación
+                                // Ubicación - ACTUALIZADO PARA GOOGLE MAPS
                                 _buildLocationSection(),
 
                                 const SizedBox(height: 24),
@@ -407,6 +407,7 @@ class _ReportesScreenState extends State<ReportesScreen> with TickerProviderStat
     );
   }
 
+  // SECCIÓN DE UBICACIÓN ACTUALIZADA PARA GOOGLE MAPS
   Widget _buildLocationSection() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -430,11 +431,11 @@ class _ReportesScreenState extends State<ReportesScreen> with TickerProviderStat
           ),
           child: ClipRRect(
             borderRadius: BorderRadius.circular(16),
-            child: OSMMapComponent(
+            child: GoogleMapComponent( // CAMBIADO DE OSMMapComponent
               height: 250,
               trackMyLocation: true,
               allowPicking: true,
-              onLocationSelected: (osm.GeoPoint location) {
+              onLocationSelected: (LatLng location) { // CAMBIADO DE osm.GeoPoint
                 _reportesViewModel.setSelectedLocation(location);
               },
             ),
@@ -1046,7 +1047,7 @@ class _ReportesScreenState extends State<ReportesScreen> with TickerProviderStat
             categoria: _selectedCategory,
             opcionSeleccionada: _reportesViewModel.selectedOption!,
             comentario: descripcion,
-            ubicacion: _reportesViewModel.selectedLocation!,
+            ubicacion: _reportesViewModel.selectedLocation!, // YA ES LatLng
             direccion: _reportesViewModel.addressText,
             imagenes: _reportesViewModel.selectedPhotos,
             onConfirm: () => _submitReport(descripcion),

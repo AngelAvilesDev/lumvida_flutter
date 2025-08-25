@@ -28,28 +28,43 @@ dependencies:
   cached_network_image: ^3.2.3
   intl: ^0.18.1
 
-  #mapa
-  permission_handler: ^11.4.0
+  # MAPAS - MIGRACIÓN A GOOGLE MAPS
+  google_maps_flutter: ^2.5.0        # Reemplaza flutter_osm_plugin
+  geolocator: ^10.1.0                # Para ubicación más precisa
+  permission_handler: ^11.4.0        # Mantener para permisos
+
+  # Otros servicios
   firebase_storage: ^11.2.5
   uuid: ^4.2.1
   image_picker: ^1.0.2
   path_provider: ^2.1.0
-  flutter_osm_plugin: ^1.3.7
 
-  #IA
+  # IA
   http: ^0.13.5
-  flutter_dotenv: ^5.1.0  # Movido a dependencies
+  flutter_dotenv: ^5.1.0
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^2.0.2
+  flutter_launcher_icons: ^0.13.1
 
-#Fondos y images
+# CONFIGURACIÓN DE ICONOS - CORREGIDA
+flutter_launcher_icons:  # Cambiar de flutter_icons a flutter_launcher_icons
+  android: true
+  ios: false
+  image_path: "assets/images/IconoApp.png"
+  min_sdk_android: 21
+  adaptive_icon_background: "#FFFFFF"  # Tu color primario
+  adaptive_icon_foreground: "assets/images/IconoApp.png"
+  adaptive_icon_foreground_insets: 16
+
+# Fondos y images
 flutter:
   uses-material-design: true
 
   assets:
     - assets/images/Fondo blanco.png
     - assets/images/Logo blanco.png
+    - assets/images/IconoApp.png
     - .env

@@ -3,7 +3,7 @@ import 'dart:io';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
-import 'package:flutter_osm_plugin/flutter_osm_plugin.dart' as osm;
+import 'package:google_maps_flutter/google_maps_flutter.dart'; // CAMBIADO DE OSM
 import 'package:http/http.dart' as http;
 import 'package:uuid/uuid.dart';
 
@@ -80,13 +80,13 @@ class ReporteService {
     }
   }
 
-  // Crear un nuevo reporte - MODIFICADO PARA USAR BASE64
-  Future<String?> crearReporte({
+  // MÉTODO ACTUALIZADO PARA GOOGLE MAPS
+  Future<String?> crearReporteFromLatLng({
     required String userId,
     required String categoria,
     required String descripcion,
     required String direccion,
-    required osm.GeoPoint ubicacion,
+    required LatLng ubicacion, // CAMBIADO DE osm.GeoPoint
     required String nombreCompleto,
     required String telefono,
     bool isAnonymous = false,
@@ -98,7 +98,7 @@ class ReporteService {
 
       // Obtener una dirección real si la dirección proporcionada parece ser coordenadas
       if (direccion.contains('Lat:') || direccion.contains('Lon:')) {
-        final direccionReal = await obtenerDireccion(ubicacion);
+        final direccionReal = await obtenerDireccionFromLatLng(ubicacion);
         if (direccionReal.isNotEmpty && !direccionReal.contains('Error') && !direccionReal.contains('Latitud')) {
           direccion = direccionReal;
         }
@@ -121,12 +121,9 @@ class ReporteService {
             print('Imágenes convertidas exitosamente: ${imagenesBase64.length}');
           }
         } else {
-          // Si falló la conversión, mostrar error específico
           if (kDebugMode) {
             print('Error al convertir imágenes: ${result['error']}');
           }
-
-          // Para errores de conversión, continuar sin imágenes
           imagenesBase64 = [];
         }
       }
@@ -137,15 +134,15 @@ class ReporteService {
         'categoria': categoria,
         'comentario': descripcion,
         'direccion': direccion,
-        'latitud': ubicacion.latitude,
-        'longitud': ubicacion.longitude,
+        'latitud': ubicacion.latitude, // USANDO LatLng
+        'longitud': ubicacion.longitude, // USANDO LatLng
         'estado': 'pendiente',
         'fecha': Timestamp.now(),
         'userId': userId,
         'nombreCompleto': nombreCompleto,
         'telefono': telefono,
         'isAnonymous': isAnonymous,
-        'imagenes': imagenesBase64,  // Aquí guardamos las imágenes en Base64
+        'imagenes': imagenesBase64,
         'historialEstados': [
           {
             'estado': 'Reporte recibido',
@@ -167,11 +164,45 @@ class ReporteService {
       if (kDebugMode) {
         print('Error al crear reporte: $e');
       }
-      rethrow; // Re-lanzar la excepción para que el ViewModel la maneje
+      rethrow;
     }
   }
 
-  // Convertir imágenes a Base64 - NUEVO MÉTODO
+  // MÉTODO LEGACY PARA COMPATIBILIDAD - MANTENER HASTA QUE TODO ESTÉ MIGRADO
+  Future<String?> crearReporte({
+    required String userId,
+    required String categoria,
+    required String descripcion,
+    required String direccion,
+    required dynamic ubicacion, // Acepta tanto LatLng como osm.GeoPoint
+    required String nombreCompleto,
+    required String telefono,
+    bool isAnonymous = false,
+    List<File>? imagenes,
+  }) async {
+    // Convertir a LatLng si viene como osm.GeoPoint
+    LatLng latLng;
+    if (ubicacion is LatLng) {
+      latLng = ubicacion;
+    } else {
+      // Asumir que viene como osm.GeoPoint con propiedades latitude y longitude
+      latLng = LatLng(ubicacion.latitude, ubicacion.longitude);
+    }
+
+    return crearReporteFromLatLng(
+      userId: userId,
+      categoria: categoria,
+      descripcion: descripcion,
+      direccion: direccion,
+      ubicacion: latLng,
+      nombreCompleto: nombreCompleto,
+      telefono: telefono,
+      isAnonymous: isAnonymous,
+      imagenes: imagenes,
+    );
+  }
+
+  // Convertir imágenes a Base64 - SIN CAMBIOS
   Future<Map<String, dynamic>> _convertirImagenesABase64(List<File> imagenes) async {
     List<String> base64Images = [];
     List<String> errores = [];
@@ -203,7 +234,7 @@ class ReporteService {
         // Convertir a Base64
         final base64String = base64Encode(bytes);
 
-        // Agregar prefijo del tipo de imagen para poder mostrarla después
+        // Agregar prefijo del tipo de imagen
         final base64WithPrefix = 'data:image/jpeg;base64,$base64String';
 
         base64Images.add(base64WithPrefix);
@@ -272,7 +303,7 @@ class ReporteService {
     return 'REP-$timestamp-$random';
   }
 
-  // Codificar una imagen en base64 - MÉTODO MEJORADO
+  // Codificar una imagen en base64 - SIN CAMBIOS
   Future<String> imageToBase64(File file) async {
     try {
       final bytes = await file.readAsBytes();
@@ -286,7 +317,7 @@ class ReporteService {
     }
   }
 
-  // Método para convertir Base64 de vuelta a imagen (para mostrar)
+  // Método para convertir Base64 de vuelta a imagen (sin cambios)
   static List<int> base64ToBytes(String base64String) {
     try {
       // Remover el prefijo si existe
@@ -303,37 +334,109 @@ class ReporteService {
     }
   }
 
-  // Obtener la dirección de unas coordenadas usando OpenStreetMap Nominatim (sin cambios)
-  Future<String> obtenerDireccion(osm.GeoPoint posicion) async {
+  // MÉTODO ACTUALIZADO PARA OBTENER DIRECCIÓN CON LatLng - MEJORADO
+  Future<String> obtenerDireccionFromLatLng(LatLng posicion) async {
     try {
       final url = Uri.parse(
-        'https://nominatim.openstreetmap.org/reverse?format=json&lat=${posicion.latitude}&lon=${posicion.longitude}&zoom=18&addressdetails=1',
+        'https://nominatim.openstreetmap.org/reverse?format=json&lat=${posicion.latitude}&lon=${posicion.longitude}&zoom=18&addressdetails=1&accept-language=es',
       );
 
       final response = await http.get(
         url,
-        headers: {'User-Agent': 'LumVida App'},
+        headers: {
+          'User-Agent': 'LumVida App/1.0 (tu-email@ejemplo.com)', // User-Agent más específico
+        },
       );
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
-        final String direccion = data['display_name'] ?? '';
+
+        // MEJORAR: Construir dirección más legible
+        String direccion = '';
+
+        // Intentar obtener dirección formateada
+        if (data['display_name'] != null) {
+          direccion = data['display_name'];
+        } else if (data['address'] != null) {
+          // Construir dirección desde componentes
+          final address = data['address'];
+          List<String> partesDireccion = [];
+
+          // Agregar calle y número
+          if (address['house_number'] != null && address['road'] != null) {
+            partesDireccion.add('${address['road']} ${address['house_number']}');
+          } else if (address['road'] != null) {
+            partesDireccion.add(address['road']);
+          }
+
+          // Agregar colonia/barrio
+          if (address['neighbourhood'] != null) {
+            partesDireccion.add(address['neighbourhood']);
+          } else if (address['suburb'] != null) {
+            partesDireccion.add(address['suburb']);
+          }
+
+          // Agregar ciudad
+          if (address['city'] != null) {
+            partesDireccion.add(address['city']);
+          } else if (address['town'] != null) {
+            partesDireccion.add(address['town']);
+          }
+
+          // Agregar estado
+          if (address['state'] != null) {
+            partesDireccion.add(address['state']);
+          }
+
+          // Agregar código postal
+          if (address['postcode'] != null) {
+            partesDireccion.add(address['postcode']);
+          }
+
+          // Agregar país
+          if (address['country'] != null) {
+            partesDireccion.add(address['country']);
+          }
+
+          direccion = partesDireccion.join(', ');
+        }
 
         if (direccion.isNotEmpty) {
+          if (kDebugMode) {
+            print('✅ Dirección obtenida: $direccion');
+          }
           return direccion;
+        }
+      } else {
+        if (kDebugMode) {
+          print('❌ Error en Nominatim: ${response.statusCode}');
         }
       }
 
-      return 'Latitud: ${posicion.latitude.toStringAsFixed(6)}, Longitud: ${posicion.longitude.toStringAsFixed(6)}';
+      // Fallback mejorado
+      return 'Ubicación en Chetumal (${posicion.latitude.toStringAsFixed(4)}, ${posicion.longitude.toStringAsFixed(4)})';
+
     } catch (e) {
       if (kDebugMode) {
-        print('Error al obtener dirección: $e');
+        print('❌ Error al obtener dirección: $e');
       }
-      return 'Error al obtener la dirección';
+      return 'Ubicación seleccionada';
     }
   }
 
-  // Método para validar imágenes antes de convertir
+  // MÉTODO LEGACY PARA COMPATIBILIDAD - MANTENER
+  Future<String> obtenerDireccion(dynamic posicion) async {
+    // Convertir a LatLng si viene como osm.GeoPoint
+    if (posicion is LatLng) {
+      return obtenerDireccionFromLatLng(posicion);
+    } else {
+      // Asumir que viene como osm.GeoPoint
+      final latLng = LatLng(posicion.latitude, posicion.longitude);
+      return obtenerDireccionFromLatLng(latLng);
+    }
+  }
+
+  // Método para validar imágenes antes de convertir (sin cambios)
   Future<bool> validarImagen(File file) async {
     try {
       // Verificar que existe
@@ -362,14 +465,14 @@ class ReporteService {
     }
   }
 
-  // Método para obtener información de tamaño de las imágenes Base64
+  // Método para obtener información de tamaño de las imágenes Base64 (sin cambios)
   Map<String, dynamic> obtenerInfoImagenes(List<String> imagenesBase64) {
     int totalSize = 0;
     List<Map<String, dynamic>> imagenInfo = [];
 
     for (int i = 0; i < imagenesBase64.length; i++) {
       final imagen = imagenesBase64[i];
-      final sizeInBytes = (imagen.length * 3 / 4).round(); // Aproximación del tamaño real
+      final sizeInBytes = (imagen.length * 3 / 4).round();
       totalSize += sizeInBytes;
 
       imagenInfo.add({

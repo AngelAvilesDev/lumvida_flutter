@@ -1,10 +1,10 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../components/OSMMapComponent.dart';
+import '../components/GoogleMapComponent.dart';
 import '../components/BottomNavigationWidget.dart';
+import '../components/report_info_modal.dart'; // NUEVO MODAL
 import '../utils/constants.dart';
-import '../viewmodels/AuthViewModel.dart';
 import '../viewmodels/MapViewModel.dart';
 
 class MapScreen extends StatefulWidget {
@@ -20,8 +20,8 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
   late AnimationController _fabAnimationController;
   bool _isFilterExpanded = false;
 
-  // GlobalKey para acceder al OSMMapComponent
-  final GlobalKey<OSMMapComponentState> _mapKey = GlobalKey();
+  // GlobalKey para acceder al GoogleMapComponent
+  final GlobalKey<GoogleMapComponentState> _mapKey = GlobalKey();
 
   @override
   void initState() {
@@ -67,10 +67,46 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
   }
 
   void _goToMyLocation() {
-    // Acceder al OSMMapComponent a través del GlobalKey
+    // Acceder al GoogleMapComponent a través del GlobalKey
     if (_mapKey.currentState != null) {
       _mapKey.currentState!.goToMyLocation();
     }
+  }
+
+  // NUEVO: Función para centrar en todos los reportes
+  void _centerAllReports() {
+    final bounds = _mapViewModel.obtenerBoundsFiltrados();
+    if (bounds != null) {
+      // Esta funcionalidad se puede expandir en el GoogleMapComponent si es necesario
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Mostrando ${_mapViewModel.filteredMarkers.length} reportes'),
+          backgroundColor: kPrimaryColor,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
+        ),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('No hay reportes para mostrar'),
+          backgroundColor: Colors.orange,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+  }
+
+  // NUEVO: Manejar tap en marcador
+  void _onMarkerTapped(Map<String, dynamic> reportData) {
+    if (kDebugMode) {
+      print('Marcador tocado: ${reportData['folio']} - ${reportData['categoria']}');
+    }
+
+    // Mostrar modal con información del reporte
+    ReportInfoModal.show(context, reportData);
   }
 
   @override
@@ -89,8 +125,8 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
                 colors: [
-                  Colors.black.withOpacity(0.7),
-                  Colors.black.withOpacity(0.3),
+                  Colors.black.withValues(alpha: .7),
+                  Colors.black.withValues(alpha: .3),
                   Colors.transparent,
                 ],
               ),
@@ -115,11 +151,11 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
             Container(
               margin: const EdgeInsets.only(right: 16),
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.9),
+                color: Colors.white.withValues(alpha: .9),
                 borderRadius: BorderRadius.circular(12),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.1),
+                    color: Colors.black.withValues(alpha: .1),
                     blurRadius: 8,
                     offset: const Offset(0, 2),
                   ),
@@ -129,7 +165,7 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
                 builder: (context, mapVM, child) {
                   return IconButton(
                     icon: mapVM.isLoading
-                        ? SizedBox(
+                        ? const SizedBox(
                       width: 20,
                       height: 20,
                       child: CircularProgressIndicator(
@@ -137,7 +173,7 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
                         strokeWidth: 2,
                       ),
                     )
-                        : Icon(Icons.refresh, color: kPrimaryColor),
+                        : const Icon(Icons.refresh, color: kPrimaryColor),
                     onPressed: mapVM.isLoading ? null : () => mapVM.recargar(),
                     tooltip: 'Actualizar reportes',
                   );
@@ -150,10 +186,10 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
           builder: (context, mapVM, child) {
             return Stack(
               children: [
-                // Mapa principal
+                // Mapa principal - ACTUALIZADO PARA GOOGLE MAPS CON onMarkerTap
                 _buildMapSection(mapVM),
 
-                // Filtros flotantes
+                // Filtros flotantes - DINÁMICOS
                 _buildFloatingFilters(mapVM),
 
                 // Contador flotante
@@ -194,7 +230,7 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
                   borderRadius: BorderRadius.circular(20),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withOpacity(0.1),
+                      color: Colors.black.withValues(alpha: .1),
                       blurRadius: 20,
                       offset: const Offset(0, 8),
                     ),
@@ -239,15 +275,17 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
     final filteredMarkers = mapVM.filteredMarkers;
 
     if (kDebugMode) {
-      print('Construyendo mapa con ${filteredMarkers.length} marcadores');
+      print('Construyendo mapa de Google con ${filteredMarkers.length} marcadores');
     }
 
-    return OSMMapComponent(
+    // COMPONENTE DE GOOGLE MAPS CON CALLBACK DE TAP EN MARCADORES
+    return GoogleMapComponent(
       key: _mapKey,
       height: double.infinity,
       trackMyLocation: true,
       markers: filteredMarkers,
       showLocationButton: false, // Lo manejamos nosotros
+      onMarkerTap: _onMarkerTapped, // NUEVO CALLBACK
     );
   }
 
@@ -272,7 +310,7 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
             borderRadius: BorderRadius.circular(20),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.1),
+                color: Colors.black.withValues(alpha: .1),
                 blurRadius: 20,
                 offset: const Offset(0, 8),
               ),
@@ -331,6 +369,7 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
     );
   }
 
+  // FILTROS DINÁMICOS - USANDO availableFilters DEL VIEWMODEL
   Widget _buildFloatingFilters(MapViewModel mapVM) {
     return Positioned(
       top: kToolbarHeight + MediaQuery.of(context).padding.top + 16,
@@ -349,7 +388,7 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
                 borderRadius: BorderRadius.circular(25),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.15),
+                    color: Colors.black.withValues(alpha: .15),
                     blurRadius: 10,
                     offset: const Offset(0, 4),
                   ),
@@ -387,7 +426,7 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
             ),
           ),
 
-          // Lista de filtros expandible
+          // Lista de filtros expandible - FILTROS DINÁMICOS
           AnimatedContainer(
             duration: const Duration(milliseconds: 300),
             height: _isFilterExpanded ? 60 : 0,
@@ -399,13 +438,11 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
                 child: SingleChildScrollView(
                   scrollDirection: Axis.horizontal,
                   child: Row(
-                    children: [
-                      _buildFilterChip('Todos', mapVM.selectedFilter == null || mapVM.selectedFilter == 'Todos', () => mapVM.aplicarFiltro('Todos')),
-                      _buildFilterChip('Bacheo', mapVM.selectedFilter == 'Bacheo', () => mapVM.aplicarFiltro('Bacheo')),
-                      _buildFilterChip('Alumbrado', mapVM.selectedFilter == 'Alumbrado', () => mapVM.aplicarFiltro('Alumbrado')),
-                      _buildFilterChip('Basura', mapVM.selectedFilter == 'Basura', () => mapVM.aplicarFiltro('Basura')),
-                      _buildFilterChip('Drenajes', mapVM.selectedFilter == 'Drenajes', () => mapVM.aplicarFiltro('Drenajes')),
-                    ],
+                    children: mapVM.availableFilters.map((filter) {
+                      final isSelected = mapVM.selectedFilter == filter ||
+                          (filter == 'Todos' && mapVM.selectedFilter == null);
+                      return _buildFilterChip(filter, isSelected, () => mapVM.aplicarFiltro(filter));
+                    }).toList(),
                   ),
                 ),
               ),
@@ -433,7 +470,7 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
             ),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.1),
+                color: Colors.black.withValues(alpha: .1),
                 blurRadius: 6,
                 offset: const Offset(0, 2),
               ),
@@ -469,7 +506,7 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
           borderRadius: BorderRadius.circular(20),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.15),
+              color: Colors.black.withValues(alpha: .15),
               blurRadius: 10,
               offset: const Offset(0, 4),
             ),
@@ -481,10 +518,10 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
             Container(
               padding: const EdgeInsets.all(6),
               decoration: BoxDecoration(
-                color: kPrimaryColor.withOpacity(0.1),
+                color: kPrimaryColor.withValues(alpha: .1),
                 borderRadius: BorderRadius.circular(8),
               ),
-              child: Icon(
+              child: const Icon(
                 Icons.location_on,
                 color: kPrimaryColor,
                 size: 16,
@@ -532,19 +569,7 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
             // Botón de centrar todos los reportes
             FloatingActionButton(
               heroTag: "center_all_fab",
-              onPressed: () {
-                // TODO: Implementar centrar en todos los reportes
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: const Text('Centrando en todos los reportes...'),
-                    backgroundColor: kPrimaryColor,
-                    behavior: SnackBarBehavior.floating,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                  ),
-                );
-              },
+              onPressed: _centerAllReports,
               backgroundColor: kPrimaryColor,
               foregroundColor: Colors.white,
               elevation: 8,

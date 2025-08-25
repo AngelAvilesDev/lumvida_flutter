@@ -1,6 +1,6 @@
 import 'dart:io';
 import 'package:flutter/foundation.dart';
-import 'package:flutter_osm_plugin/flutter_osm_plugin.dart' as osm;
+import 'package:google_maps_flutter/google_maps_flutter.dart';
 import '../services/ReporteService.dart';
 import '../services/OpenAIService.dart';
 
@@ -12,9 +12,9 @@ class ReportesViewModel extends ChangeNotifier {
   bool _isAnalyzing = false;
   String? _errorMessage;
   String? _selectedOption;
-  osm.GeoPoint? _selectedLocation;
+  LatLng? _selectedLocation;
   String _addressText = "Selecciona una ubicación en el mapa";
-  List<File> _selectedPhotos = [];
+  final List<File> _selectedPhotos = [];
 
   // Flag para controlar si el ViewModel ha sido disposed
   bool _disposed = false;
@@ -24,7 +24,7 @@ class ReportesViewModel extends ChangeNotifier {
   bool get isAnalyzing => _isAnalyzing;
   String? get errorMessage => _errorMessage;
   String? get selectedOption => _selectedOption;
-  osm.GeoPoint? get selectedLocation => _selectedLocation;
+  LatLng? get selectedLocation => _selectedLocation;
   String get addressText => _addressText;
   List<File> get selectedPhotos => _selectedPhotos;
 
@@ -35,11 +35,39 @@ class ReportesViewModel extends ChangeNotifier {
     notifyListeners();
   }
 
-  void setSelectedLocation(osm.GeoPoint location) {
+  void setSelectedLocation(LatLng location) {
     if (_disposed) return;
     _selectedLocation = location;
-    _addressText = 'Lat: ${location.latitude.toStringAsFixed(6)}, Lon: ${location.longitude.toStringAsFixed(6)}';
+
+    // CAMBIAR: Mostrar mensaje temporal mientras obtenemos la dirección real
+    _addressText = 'Obteniendo dirección...';
     notifyListeners();
+
+    // Obtener la dirección real inmediatamente
+    _obtenerDireccionInmediata(location);
+  }
+
+  // NUEVO MÉTODO: Obtener dirección inmediatamente cuando se selecciona ubicación
+  Future<void> _obtenerDireccionInmediata(LatLng location) async {
+    if (_disposed) return;
+
+    try {
+      final direccion = await _reporteService.obtenerDireccionFromLatLng(location);
+
+      if (!_disposed && direccion.isNotEmpty && !direccion.contains('Error')) {
+        _addressText = direccion;
+        notifyListeners();
+      } else {
+        // Solo como último recurso mostrar coordenadas
+        _addressText = 'Ubicación seleccionada (${location.latitude.toStringAsFixed(6)}, ${location.longitude.toStringAsFixed(6)})';
+        notifyListeners();
+      }
+    } catch (e) {
+      if (!_disposed) {
+        _addressText = 'Error al obtener dirección';
+        notifyListeners();
+      }
+    }
   }
 
   void updateAddressText(String address) {
@@ -159,7 +187,7 @@ class ReportesViewModel extends ChangeNotifier {
     }
   }
 
-  // Crear reporte - MEJORADO CON MEJOR MANEJO DE ERRORES
+  // Crear reporte - ACTUALIZADO PARA GOOGLE MAPS
   Future<Map<String, dynamic>> crearReporte({
     required String userId,
     required String categoria,
@@ -189,12 +217,12 @@ class ReportesViewModel extends ChangeNotifier {
     try {
       // Obtener dirección real si es necesario
       String direccion = _addressText;
-      if (direccion.contains('Lat:') || direccion.contains('Lon:')) {
-        direccion = await _reporteService.obtenerDireccion(_selectedLocation!);
+      if (direccion.contains('Lat:') || direccion.contains('Lon:') || direccion.contains('Obteniendo') || direccion.contains('Error')) {
+        direccion = await _reporteService.obtenerDireccionFromLatLng(_selectedLocation!);
       }
 
-      // Crear el reporte
-      final reporteId = await _reporteService.crearReporte(
+      // Crear el reporte - USANDO EL MÉTODO ACTUALIZADO
+      final reporteId = await _reporteService.crearReporteFromLatLng(
         userId: userId,
         categoria: categoria,
         descripcion: descripcion,
@@ -287,12 +315,12 @@ class ReportesViewModel extends ChangeNotifier {
     notifyListeners();
   }
 
-  // Obtener dirección de coordenadas
+  // Obtener dirección de coordenadas - ACTUALIZADO
   Future<void> obtenerDireccionDeUbicacion() async {
     if (_disposed || _selectedLocation == null) return;
 
     try {
-      final direccion = await _reporteService.obtenerDireccion(_selectedLocation!);
+      final direccion = await _reporteService.obtenerDireccionFromLatLng(_selectedLocation!);
       if (!_disposed && direccion.isNotEmpty && !direccion.contains('Error')) {
         _addressText = direccion;
         notifyListeners();

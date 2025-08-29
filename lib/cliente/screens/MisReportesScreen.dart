@@ -2,9 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart'; // PARA COPIAR FOLIO
 import 'package:provider/provider.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import '../utils/constants.dart';
-import '../viewmodels/AuthViewModel.dart';
-import '../components/base64_image_widget.dart';
+import '../../shared/components/base64_image_widget.dart';
+import '../../shared/utils/constants.dart';
+import '../../shared/viewmodels/AuthViewModel.dart';
 import '../components/BottomNavigationWidget.dart';
 
 class MisReportesScreen extends StatefulWidget {

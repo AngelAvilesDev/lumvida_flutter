@@ -1,7 +1,7 @@
-// components/report_info_modal.dart
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
-import '../utils/constants.dart';
+
+import '../../shared/utils/constants.dart';
 
 class ReportInfoModal extends StatelessWidget {
   final Map<String, dynamic> reportData;

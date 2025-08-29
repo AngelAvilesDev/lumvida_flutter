@@ -3,7 +3,8 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:geolocator/geolocator.dart';
 import 'dart:async';
 import 'dart:ui' as ui;
-import '../utils/api_config.dart';
+
+import '../../shared/utils/api_config.dart';
 
 class GoogleMapComponent extends StatefulWidget {
   final double height;

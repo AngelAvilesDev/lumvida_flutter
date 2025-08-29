@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../utils/constants.dart';
-import '../viewmodels/AuthViewModel.dart';
-import '../components/CustomDialogs.dart';
+import '../../shared/utils/constants.dart';
+import '../../shared/viewmodels/AuthViewModel.dart';
 import '../screens/InicioScreen.dart';
 import '../screens/MapScreen.dart';
 import '../screens/ProfileScreen.dart';

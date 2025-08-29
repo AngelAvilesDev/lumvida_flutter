@@ -1,10 +1,10 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../../shared/utils/constants.dart';
 import '../components/GoogleMapComponent.dart';
 import '../components/BottomNavigationWidget.dart';
 import '../components/report_info_modal.dart'; // NUEVO MODAL
-import '../utils/constants.dart';
 import '../viewmodels/MapViewModel.dart';
 
 class MapScreen extends StatefulWidget {

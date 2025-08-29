@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../utils/constants.dart';
+import '../../shared/screens/LoginScreen.dart';
+import '../../shared/utils/constants.dart';
+import '../../shared/viewmodels/AuthViewModel.dart';
 import '../utils/report_categories.dart';
-import '../viewmodels/AuthViewModel.dart';
 import '../components/BottomNavigationWidget.dart';
-import 'LoginScreen.dart';
 import 'MisReportesScreen.dart';
 import 'ReportesScreen.dart';
 

@@ -2,11 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter/gestures.dart';
 import 'package:provider/provider.dart';
 
+import '../../cliente/screens/InicioScreen.dart';
 import '../utils/constants.dart';
 import '../viewmodels/AuthViewModel.dart';
 import '../viewmodels/LoginViewModel.dart';
 import '../components/ForgotPasswordDialog.dart'; // NUEVO IMPORT
-import 'InicioScreen.dart';
 import 'RegisterScreen.dart';
 
 class LoginScreen extends StatefulWidget {

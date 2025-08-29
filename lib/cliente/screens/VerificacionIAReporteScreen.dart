@@ -2,8 +2,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart'; // CAMBIADO DE OSM
-import '../utils/constants.dart';
-import '../viewmodels/AuthViewModel.dart';
+import '../../shared/utils/constants.dart';
 import '../viewmodels/VerificacionIAViewModel.dart';
 
 class VerificacionIAReporteScreen extends StatefulWidget {
@@ -102,9 +101,9 @@ class _VerificacionIAReporteScreenState extends State<VerificacionIAReporteScree
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
                 colors: [
-                  Colors.white.withOpacity(0.8),
-                  Colors.white.withOpacity(0.95),
-                  kPrimaryColor.withOpacity(0.03),
+                  Colors.white.withValues(alpha: .8),
+                  Colors.white.withValues(alpha: .95),
+                  kPrimaryColor.withValues(alpha: .03),
                 ],
               ),
             ),
@@ -142,10 +141,10 @@ class _VerificacionIAReporteScreenState extends State<VerificacionIAReporteScree
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.9),
+        color: Colors.white.withValues(alpha: .9),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: .05),
             blurRadius: 10,
             offset: const Offset(0, 2),
           ),
@@ -159,7 +158,7 @@ class _VerificacionIAReporteScreenState extends State<VerificacionIAReporteScree
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: _getStatusColor(verificacionVM).withOpacity(0.1),
+                  color: _getStatusColor(verificacionVM).withValues(alpha: .1),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: AnimatedBuilder(
@@ -214,7 +213,7 @@ class _VerificacionIAReporteScreenState extends State<VerificacionIAReporteScree
               borderRadius: BorderRadius.circular(8),
               child: LinearProgressIndicator(
                 backgroundColor: Colors.grey.shade200,
-                valueColor: AlwaysStoppedAnimation<Color>(kPrimaryColor),
+                valueColor: const AlwaysStoppedAnimation<Color>(kPrimaryColor),
                 minHeight: 6,
               ),
             ),
@@ -240,11 +239,11 @@ class _VerificacionIAReporteScreenState extends State<VerificacionIAReporteScree
         margin: const EdgeInsets.all(24),
         padding: const EdgeInsets.all(32),
         decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.9),
+          color: Colors.white.withValues(alpha: .9),
           borderRadius: BorderRadius.circular(20),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.1),
+              color: Colors.black.withValues(alpha: .1),
               blurRadius: 20,
               offset: const Offset(0, 8),
             ),
@@ -264,7 +263,7 @@ class _VerificacionIAReporteScreenState extends State<VerificacionIAReporteScree
                     height: 80,
                     decoration: BoxDecoration(
                       gradient: LinearGradient(
-                        colors: [kPrimaryColor, kPrimaryColor.withOpacity(0.6)],
+                        colors: [kPrimaryColor, kPrimaryColor.withValues(alpha: .6)],
                       ),
                       borderRadius: BorderRadius.circular(40),
                     ),
@@ -357,11 +356,11 @@ class _VerificacionIAReporteScreenState extends State<VerificacionIAReporteScree
         margin: const EdgeInsets.all(24),
         padding: const EdgeInsets.all(24),
         decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.9),
+          color: Colors.white.withValues(alpha: .9),
           borderRadius: BorderRadius.circular(20),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.1),
+              color: Colors.black.withValues(alpha: .1),
               blurRadius: 20,
               offset: const Offset(0, 8),
             ),
@@ -472,7 +471,7 @@ class _VerificacionIAReporteScreenState extends State<VerificacionIAReporteScree
         border: Border.all(color: color.shade200, width: 2),
         boxShadow: [
           BoxShadow(
-            color: color.withOpacity(0.1),
+            color: color.withValues(alpha: .1),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -586,7 +585,7 @@ class _VerificacionIAReporteScreenState extends State<VerificacionIAReporteScree
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.9),
+        color: Colors.white.withValues(alpha: .9),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: Colors.grey.shade200),
       ),
@@ -672,7 +671,7 @@ class _VerificacionIAReporteScreenState extends State<VerificacionIAReporteScree
                   borderRadius: BorderRadius.circular(12),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withOpacity(0.1),
+                      color: Colors.black.withValues(alpha: .1),
                       blurRadius: 4,
                       offset: const Offset(0, 2),
                     ),
@@ -719,7 +718,7 @@ class _VerificacionIAReporteScreenState extends State<VerificacionIAReporteScree
                               vertical: 4
                           ),
                           decoration: BoxDecoration(
-                            color: Colors.black.withOpacity(0.7),
+                            color: Colors.black.withValues(alpha: .7),
                             borderRadius: BorderRadius.circular(12),
                           ),
                           child: Text(
@@ -791,10 +790,10 @@ class _VerificacionIAReporteScreenState extends State<VerificacionIAReporteScree
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.9),
+        color: Colors.white.withValues(alpha: .9),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: .05),
             blurRadius: 10,
             offset: const Offset(0, -2),
           ),

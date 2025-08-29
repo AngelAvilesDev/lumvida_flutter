@@ -3,17 +3,17 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/services.dart';
 import 'package:firebase_core/firebase_core.dart';
-import 'package:lumvida_app/screens/RegisterScreen.dart';
-import 'package:lumvida_app/screens/ProfileScreen.dart';
-import 'package:lumvida_app/screens/MapScreen.dart';
-import 'package:lumvida_app/screens/MisReportesScreen.dart';
+import 'package:lumvida_app/shared/screens/LoginScreen.dart';
+import 'package:lumvida_app/shared/screens/RegisterScreen.dart';
+import 'package:lumvida_app/shared/utils/api_config.dart';
+import 'package:lumvida_app/shared/utils/constants.dart';
+import 'package:lumvida_app/shared/viewmodels/AuthViewModel.dart';
 import 'package:provider/provider.dart';
+import 'cliente/screens/InicioScreen.dart';
+import 'cliente/screens/MapScreen.dart';
+import 'cliente/screens/MisReportesScreen.dart';
+import 'cliente/screens/ProfileScreen.dart';
 import 'firebase_options.dart';
-import 'viewmodels/AuthViewModel.dart';
-import 'screens/InicioScreen.dart';
-import 'screens/LoginScreen.dart';
-import 'utils/constants.dart';
-import 'utils/api_config.dart'; // IMPORTAR LA CONFIGURACIÓN DE API
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 void main() async {

@@ -4,13 +4,13 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart'; // CAMBIADO DE OSM
 import 'package:image_picker/image_picker.dart';
+import '../../shared/screens/LoginScreen.dart';
+import '../../shared/utils/constants.dart';
+import '../../shared/viewmodels/AuthViewModel.dart';
 import '../components/GoogleMapComponent.dart'; // CAMBIADO DE OSMMapComponent
 import '../components/BottomNavigationWidget.dart';
-import '../utils/constants.dart';
 import '../utils/report_categories.dart';
-import '../viewmodels/AuthViewModel.dart';
 import '../viewmodels/ReportesViewModel.dart';
-import 'LoginScreen.dart';
 import 'VerificacionIAReporteScreen.dart';
 
 class ReportesScreen extends StatefulWidget {
@@ -109,9 +109,9 @@ class _ReportesScreenState extends State<ReportesScreen> with TickerProviderStat
               begin: Alignment.topCenter,
               end: Alignment.bottomCenter,
               colors: [
-                Colors.white.withOpacity(0.8),
-                Colors.white.withOpacity(0.95),
-                kPrimaryColor.withOpacity(0.03),
+                Colors.white.withValues(alpha: .8),
+                Colors.white.withValues(alpha: .95),
+                kPrimaryColor.withValues(alpha: .03),
               ],
             ),
           ),
@@ -170,7 +170,7 @@ class _ReportesScreenState extends State<ReportesScreen> with TickerProviderStat
                       // Overlay de carga
                       if (_reportesViewModel.isSubmitting)
                         Container(
-                          color: Colors.black.withOpacity(0.3),
+                          color: Colors.black.withValues(alpha: .3),
                           child: const Center(
                             child: Column(
                               mainAxisAlignment: MainAxisAlignment.center,
@@ -205,10 +205,10 @@ class _ReportesScreenState extends State<ReportesScreen> with TickerProviderStat
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.9),
+        color: Colors.white.withValues(alpha: .9),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: .05),
             blurRadius: 10,
             offset: const Offset(0, 2),
           ),
@@ -219,7 +219,7 @@ class _ReportesScreenState extends State<ReportesScreen> with TickerProviderStat
           // Botón de regreso
           Container(
             decoration: BoxDecoration(
-              color: kPrimaryColor.withOpacity(0.1),
+              color: kPrimaryColor.withValues(alpha: .1),
               borderRadius: BorderRadius.circular(12),
             ),
             child: IconButton(
@@ -235,9 +235,9 @@ class _ReportesScreenState extends State<ReportesScreen> with TickerProviderStat
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
+                const Text(
                   'Crear Reporte',
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 24,
                     fontWeight: FontWeight.bold,
                     color: kPrimaryColor,
@@ -269,7 +269,7 @@ class _ReportesScreenState extends State<ReportesScreen> with TickerProviderStat
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.blue.withOpacity(0.1),
+            color: Colors.blue.withValues(alpha: .1),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -351,14 +351,14 @@ class _ReportesScreenState extends State<ReportesScreen> with TickerProviderStat
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         gradient: LinearGradient(
-          colors: [backgroundColor, backgroundColor.withOpacity(0.8)],
+          colors: [backgroundColor, backgroundColor.withValues(alpha: .8)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: backgroundColor.withOpacity(0.3),
+            color: backgroundColor.withValues(alpha: .3),
             blurRadius: 15,
             offset: const Offset(0, 8),
           ),
@@ -369,7 +369,7 @@ class _ReportesScreenState extends State<ReportesScreen> with TickerProviderStat
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.2),
+              color: Colors.white.withValues(alpha: .2),
               borderRadius: BorderRadius.circular(16),
             ),
             child: Icon(
@@ -396,7 +396,7 @@ class _ReportesScreenState extends State<ReportesScreen> with TickerProviderStat
                   category.description ?? 'Describe el problema que encontraste',
                   style: TextStyle(
                     fontSize: 14,
-                    color: iconColor.withOpacity(0.8),
+                    color: iconColor.withValues(alpha: .8),
                   ),
                 ),
               ],
@@ -423,7 +423,7 @@ class _ReportesScreenState extends State<ReportesScreen> with TickerProviderStat
             borderRadius: BorderRadius.circular(16),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.1),
+                color: Colors.black.withValues(alpha: .1),
                 blurRadius: 10,
                 offset: const Offset(0, 4),
               ),
@@ -447,7 +447,7 @@ class _ReportesScreenState extends State<ReportesScreen> with TickerProviderStat
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.9),
+              color: Colors.white.withValues(alpha: .9),
               borderRadius: BorderRadius.circular(12),
               border: Border.all(color: Colors.grey.shade200),
             ),
@@ -485,11 +485,11 @@ class _ReportesScreenState extends State<ReportesScreen> with TickerProviderStat
         // Opciones de reporte
         Container(
           decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.9),
+            color: Colors.white.withValues(alpha: .9),
             borderRadius: BorderRadius.circular(16),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.05),
+                color: Colors.black.withValues(alpha: .05),
                 blurRadius: 10,
                 offset: const Offset(0, 2),
               ),
@@ -521,7 +521,7 @@ class _ReportesScreenState extends State<ReportesScreen> with TickerProviderStat
               borderRadius: BorderRadius.circular(16),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.05),
+                  color: Colors.black.withValues(alpha: .05),
                   blurRadius: 10,
                   offset: const Offset(0, 2),
                 ),
@@ -604,7 +604,7 @@ class _ReportesScreenState extends State<ReportesScreen> with TickerProviderStat
         Container(
           padding: const EdgeInsets.all(8),
           decoration: BoxDecoration(
-            color: kPrimaryColor.withOpacity(0.1),
+            color: kPrimaryColor.withValues(alpha: .1),
             borderRadius: BorderRadius.circular(8),
           ),
           child: Icon(icon, color: kPrimaryColor, size: 20),
@@ -698,7 +698,7 @@ class _ReportesScreenState extends State<ReportesScreen> with TickerProviderStat
                   : null,
               boxShadow: hasPhoto ? [
                 BoxShadow(
-                  color: Colors.green.withOpacity(0.2),
+                  color: Colors.green.withValues(alpha: .2),
                   blurRadius: 8,
                   offset: const Offset(0, 2),
                 ),
@@ -788,7 +788,7 @@ class _ReportesScreenState extends State<ReportesScreen> with TickerProviderStat
         borderRadius: BorderRadius.circular(16),
         boxShadow: !_reportesViewModel.isSubmitting ? [
           BoxShadow(
-            color: kPrimaryColor.withOpacity(0.3),
+            color: kPrimaryColor.withValues(alpha: .3),
             blurRadius: 15,
             offset: const Offset(0, 8),
           ),
@@ -976,7 +976,7 @@ class _ReportesScreenState extends State<ReportesScreen> with TickerProviderStat
   }) {
     return Container(
       decoration: BoxDecoration(
-        color: kPrimaryColor.withOpacity(0.1),
+        color: kPrimaryColor.withValues(alpha: .1),
         borderRadius: BorderRadius.circular(12),
       ),
       child: Material(
@@ -1121,7 +1121,7 @@ class _ReportesScreenState extends State<ReportesScreen> with TickerProviderStat
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: kPrimaryColor.withOpacity(0.1),
+                  color: kPrimaryColor.withValues(alpha: .1),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: const Icon(Icons.login, color: kPrimaryColor),

@@ -15,6 +15,7 @@ dependencies:
   firebase_core: 2.15.1
   firebase_auth: 4.9.0
   cloud_firestore: 4.9.1
+  firebase_storage: ^11.2.5
 
   # Gestión de estado
   provider: 6.0.5
@@ -33,8 +34,10 @@ dependencies:
   geolocator: ^10.1.0                # Para ubicación más precisa
   permission_handler: ^11.4.0        # Mantener para permisos
 
-  # Otros servicios
-  firebase_storage: ^11.2.5
+  # Navegación y URLs
+  url_launcher: ^6.2.5               # ← AGREGADO PARA BRIGADISTAS
+
+  # Multimedia
   uuid: ^4.2.1
   image_picker: ^1.0.2
   path_provider: ^2.1.0
@@ -50,16 +53,16 @@ dev_dependencies:
   flutter_launcher_icons: ^0.13.1
 
 # CONFIGURACIÓN DE ICONOS - CORREGIDA
-flutter_launcher_icons:  # Cambiar de flutter_icons a flutter_launcher_icons
+flutter_launcher_icons:
   android: true
   ios: false
   image_path: "assets/images/IconoApp.png"
   min_sdk_android: 21
-  adaptive_icon_background: "#FFFFFF"  # Tu color primario
+  adaptive_icon_background: "#FFFFFF"
   adaptive_icon_foreground: "assets/images/IconoApp.png"
   adaptive_icon_foreground_insets: 16
 
-# Fondos y images
+# Fondos y imagenes
 flutter:
   uses-material-design: true
 

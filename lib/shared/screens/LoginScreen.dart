@@ -1,12 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/gestures.dart';
 import 'package:provider/provider.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../../cliente/screens/InicioScreen.dart';
+import '../../brigadistas/screens/BrigadistaInicioScreen.dart';
 import '../utils/constants.dart';
 import '../viewmodels/AuthViewModel.dart';
 import '../viewmodels/LoginViewModel.dart';
-import '../components/ForgotPasswordDialog.dart'; // NUEVO IMPORT
+import '../components/ForgotPasswordDialog.dart';
 import 'RegisterScreen.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -219,7 +222,7 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
                                           },
                                         ),
 
-                                        // Olvidaste tu contraseña - SIMPLIFICADO
+                                        // Olvidaste tu contraseña
                                         Align(
                                           alignment: Alignment.centerRight,
                                           child: TextButton(
@@ -568,9 +571,9 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
 
     if (success && mounted) {
       await authViewModel.checkAuthState();
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (context) => const InicioScreen()),
-      );
+
+      // Verificar si es brigadista y navegar según el rol
+      await _navegarSegunRol(context);
     }
   }
 
@@ -584,9 +587,9 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
 
     if (success && mounted) {
       await authViewModel.checkAuthState();
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (context) => const InicioScreen()),
-      );
+
+      // Verificar si es brigadista y navegar según el rol
+      await _navegarSegunRol(context);
     } else if (mounted && loginVM.errorMessage != null) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -596,6 +599,191 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         ),
       );
+    }
+  }
+// MÉTODO ACTUALIZADO: Limpia todo el stack de navegación
+  Future<void> _navegarSegunRol(BuildContext context) async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) {
+        print('❌ No hay usuario autenticado');
+        return;
+      }
+
+      print('═══════════════════════════════════════');
+      print('🔍 VERIFICANDO ROL DEL USUARIO');
+      print('═══════════════════════════════════════');
+      print('📧 Email: ${user.email}');
+      print('🆔 UID del Authentication: ${user.uid}');
+      print('🔐 Provider: ${user.providerData.first.providerId}');
+
+      // Mostrar indicador de carga
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Row(
+              children: [
+                SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: Colors.white,
+                  ),
+                ),
+                SizedBox(width: 12),
+                Text('Verificando credenciales...'),
+              ],
+            ),
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+
+      // Buscar documento del usuario en Firestore
+      print('📂 Buscando documento en ruta: usuarios/${user.uid}');
+
+      final userDoc = await FirebaseFirestore.instance
+          .collection('usuarios')
+          .doc(user.uid)
+          .get();
+
+      print('📄 Documento existe: ${userDoc.exists}');
+
+      if (!mounted) return;
+
+      if (userDoc.exists) {
+        final userData = userDoc.data();
+
+        print('✅ Documento encontrado');
+        print('📊 DATOS COMPLETOS DEL DOCUMENTO:');
+        print('   ${userData.toString()}');
+        print('');
+        print('🔑 Campos disponibles:');
+        userData?.forEach((key, value) {
+          print('   - $key: $value (tipo: ${value.runtimeType})');
+        });
+        print('');
+
+        // Buscar el campo role (puede estar como "role" o "rol")
+        final role = userData?['role'];
+        final rol = userData?['rol'];
+
+        print('🎯 Valor de campo "role": $role (tipo: ${role.runtimeType})');
+        print('🎯 Valor de campo "rol": $rol (tipo: ${rol.runtimeType})');
+
+        // Limpiar espacios y convertir a minúsculas para comparación
+        final roleNormalizado = (role?.toString().trim().toLowerCase() ?? '');
+        final rolNormalizado = (rol?.toString().trim().toLowerCase() ?? '');
+
+        print('🧹 role normalizado: "$roleNormalizado"');
+        print('🧹 rol normalizado: "$rolNormalizado"');
+        print('');
+
+        // Verificar si es brigadista
+        final esBrigadista = roleNormalizado == 'brigadista' || rolNormalizado == 'brigadista';
+
+        print('🤔 ¿Es brigadista?: $esBrigadista');
+        print('   roleNormalizado == "brigadista": ${roleNormalizado == "brigadista"}');
+        print('   rolNormalizado == "brigadista": ${rolNormalizado == "brigadista"}');
+        print('');
+
+        if (esBrigadista) {
+          // Es brigadista - ir a pantalla de brigadista
+          print('✅ ========================================');
+          print('✅ USUARIO ES BRIGADISTA');
+          print('✅ ========================================');
+          print('   🚒 Brigada: ${userData?['nombreBrigada'] ?? 'Sin brigada'}');
+          print('   🆔 BrigadaID: ${userData?['brigadaId'] ?? 'Sin ID'}');
+          print('   🔄 Navegando a BrigadistaInicioScreen...');
+
+          // CAMBIADO: pushAndRemoveUntil para limpiar el stack completo
+          Navigator.of(context).pushAndRemoveUntil(
+            MaterialPageRoute(
+              builder: (context) => const BrigadistaInicioScreen(),
+            ),
+                (route) => false, // Elimina todas las rutas anteriores
+          );
+        } else {
+          // Es cliente normal - ir a pantalla de cliente
+          print('✅ ========================================');
+          print('✅ USUARIO ES CLIENTE');
+          print('✅ ========================================');
+          print('   🔄 Navegando a InicioScreen...');
+
+          // CAMBIADO: pushAndRemoveUntil para limpiar el stack completo
+          Navigator.of(context).pushAndRemoveUntil(
+            MaterialPageRoute(
+              builder: (context) => const InicioScreen(),
+            ),
+                (route) => false, // Elimina todas las rutas anteriores
+          );
+        }
+      } else {
+        // El documento no existe
+        print('⚠️ ========================================');
+        print('⚠️ DOCUMENTO NO EXISTE EN FIRESTORE');
+        print('⚠️ ========================================');
+        print('❌ No se encontró documento con UID: ${user.uid}');
+        print('');
+        print('💡 POSIBLES CAUSAS:');
+        print('   1. El usuario no tiene documento en Firestore');
+        print('   2. El UID no coincide');
+        print('   3. El documento está en otra colección');
+        print('');
+        print('🔍 Intentando buscar por email...');
+
+        // Intentar buscar por email
+        final querySnapshot = await FirebaseFirestore.instance
+            .collection('usuarios')
+            .where('email', isEqualTo: user.email)
+            .limit(1)
+            .get();
+
+        if (querySnapshot.docs.isNotEmpty) {
+          final doc = querySnapshot.docs.first;
+          print('✅ Encontrado documento con email!');
+          print('   ID del documento: ${doc.id}');
+          print('   UID del usuario: ${user.uid}');
+          print('   ⚠️ LOS IDs NO COINCIDEN - Este es el problema!');
+          print('');
+          print('💡 SOLUCIÓN: El documento debe tener como ID el UID del usuario');
+        } else {
+          print('❌ No se encontró ningún documento con email: ${user.email}');
+        }
+
+        print('✅ Redirigiendo a pantalla de CLIENTE por defecto');
+
+        // CAMBIADO: pushAndRemoveUntil para limpiar el stack completo
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(
+            builder: (context) => const InicioScreen(),
+          ),
+              (route) => false, // Elimina todas las rutas anteriores
+        );
+      }
+
+      print('═══════════════════════════════════════\n');
+
+    } catch (e, stackTrace) {
+      print('❌ ========================================');
+      print('❌ ERROR AL VERIFICAR ROL');
+      print('❌ ========================================');
+      print('Error: $e');
+      print('Tipo de error: ${e.runtimeType}');
+      print('Stack trace:');
+      print(stackTrace);
+
+      // En caso de error, ir a pantalla de cliente por defecto
+      if (mounted) {
+        // CAMBIADO: pushAndRemoveUntil para limpiar el stack completo
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(
+            builder: (context) => const InicioScreen(),
+          ),
+              (route) => false, // Elimina todas las rutas anteriores
+        );
+      }
     }
   }
 }

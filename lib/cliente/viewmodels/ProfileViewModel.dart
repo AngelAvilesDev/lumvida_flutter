@@ -3,6 +3,9 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
+import 'package:http/http.dart' as http;
+import 'package:path_provider/path_provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class ProfileViewModel extends ChangeNotifier {
   final FirebaseAuth _auth = FirebaseAuth.instance;
@@ -21,6 +24,7 @@ class ProfileViewModel extends ChangeNotifier {
   String _telefono = '';
   String _email = '';
   String? _photoUrl;
+  String? _localPhotoPath; // Ruta local persistente ex: /data/user/0/.../profile.jpg
   File? _selectedImage;
 
   // Estadísticas actualizadas con colores correctos
@@ -42,6 +46,7 @@ class ProfileViewModel extends ChangeNotifier {
   String get telefono => _telefono;
   String get email => _email;
   String? get photoUrl => _photoUrl;
+  String? get localPhotoPath => _localPhotoPath;
   File? get selectedImage => _selectedImage;
 
   int get totalReportes => _totalReportes;
@@ -58,7 +63,7 @@ class ProfileViewModel extends ChangeNotifier {
     notifyListeners();
   }
 
-  // Inicializar con datos en caché para carga instantánea
+  // Inicializar con datos en caché para carga instantánea - RESTAURADO
   void setInitialData({
     required String nombre,
     required String telefono,
@@ -72,13 +77,57 @@ class ProfileViewModel extends ChangeNotifier {
     // No notificamos aquí porque se llamará antes de que la vista se construya o justo en initState
   }
 
-  // Cargar datos del usuario (Refresh en segundo plano si ya hay datos)
+  // Verificar si hay imagen local guardada
+  Future<void> _checkLocalProfileImage() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final path = prefs.getString('local_profile_image_path');
+      if (path != null && await File(path).exists()) {
+        _localPhotoPath = path;
+        notifyListeners();
+      }
+    } catch (e) {
+      if (kDebugMode) print('Error checking local image: $e');
+    }
+  }
+
+  // Descargar y guardar imagen localmente
+  Future<void> _downloadAndSaveProfileImage(String url) async {
+    try {
+      // Si ya tenemos una ruta local y parece válida, podríamos verificar si la URL cambió,
+      // pero por simplicidad asumimos que si tenemos URL de red, intentamos actualizar el local.
+      
+      final directory = await getApplicationDocumentsDirectory();
+      final filePath = '${directory.path}/profile_image.jpg';
+      
+      // Descargar bytes
+      final response = await http.get(Uri.parse(url));
+      if (response.statusCode == 200) {
+        final file = File(filePath);
+        await file.writeAsBytes(response.bodyBytes);
+        
+        _localPhotoPath = filePath;
+        
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString('local_profile_image_path', filePath);
+        
+        notifyListeners(); // Actualizar UI con la nueva imagen local
+      }
+    } catch (e) {
+      if (kDebugMode) print('Error saving local image: $e');
+    }
+  }
+
+  // Cargar datos del usuario
   Future<void> loadUserData() async {
     final user = _auth.currentUser;
     if (user == null) return;
 
-    // Solo mostramos loading si no tenemos datos previos (primera carga sin caché)
-    if (_nombre.isEmpty) {
+    // Cargar imagen local PRIMERO para respuesta inmediata
+    _checkLocalProfileImage();
+
+    // Solo mostramos loading si no tenemos datos previos NI imagen local
+    if (_nombre.isEmpty && _localPhotoPath == null) {
       _isLoading = true;
       _errorMessage = null;
       notifyListeners();
@@ -87,34 +136,31 @@ class ProfileViewModel extends ChangeNotifier {
     try {
       // Cargar datos básicos (siempre actualizamos email/foto de auth)
       _email = user.email ?? '';
-      // Si la foto no viene de auth, mantenemos la que teníamos o null
-      if (user.photoURL != null) _photoUrl = user.photoURL;
-
-      // Cargar datos de Firestore
+      if (user.photoURL != null) {
+        _photoUrl = user.photoURL;
+        // Intentar guardar localmente para la próxima vez
+        _downloadAndSaveProfileImage(_photoUrl!); 
+      }
+      
+      // ... resto del método igual ...
       final userDoc = await _firestore.collection('usuarios').doc(user.uid).get();
-
       if (userDoc.exists) {
         final data = userDoc.data()!;
         _nombre = data['nombre'] ?? user.displayName ?? '';
         _telefono = data['telefono'] ?? '';
       } else if (_nombre.isEmpty) {
-        // Fallback solo si no tenemos nombre
         _nombre = user.displayName ?? '';
         _telefono = '';
       }
 
-      // Cargar estadísticas de reportes (esto puede tardar, pero ya mostramos la UI)
       await _loadReportStatistics(user.uid);
 
       _isLoading = false;
       notifyListeners();
     } catch (e) {
       _isLoading = false;
-      // Solo mostramos error si falló la carga crítica y no hay datos
-      if (_nombre.isEmpty) {
+       if (_nombre.isEmpty && _localPhotoPath == null) {
         _errorMessage = 'Error al cargar datos del usuario: $e';
-      } else if (kDebugMode) {
-        print('Error silencioso al recargar datos: $e');
       }
       notifyListeners();
     }

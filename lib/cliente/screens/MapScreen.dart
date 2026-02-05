@@ -147,56 +147,62 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
               ],
             ),
           ),
-          actions: [
-            Container(
-              margin: const EdgeInsets.only(right: 16),
-              decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: .9),
-                borderRadius: BorderRadius.circular(12),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: .1),
-                    blurRadius: 8,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
-              ),
-              child: Consumer<MapViewModel>(
-                builder: (context, mapVM, child) {
-                  return IconButton(
-                    icon: mapVM.isLoading
-                        ? const SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(
-                        color: kPrimaryColor,
-                        strokeWidth: 2,
-                      ),
-                    )
-                        : const Icon(Icons.refresh, color: kPrimaryColor),
-                    onPressed: mapVM.isLoading ? null : () => mapVM.recargar(),
-                    tooltip: 'Actualizar reportes',
-                  );
-                },
-              ),
-            ),
-          ],
+          actions: const [], // Removed refresh button from here
         ),
         body: Consumer<MapViewModel>(
           builder: (context, mapVM, child) {
             return Stack(
               children: [
-                // Mapa principal - ACTUALIZADO PARA GOOGLE MAPS CON onMarkerTap
+                // Mapa principal
                 _buildMapSection(mapVM),
 
-                // Filtros flotantes - DINÁMICOS
+                // Filtros flotantes
                 _buildFloatingFilters(mapVM),
 
-                // Contador flotante
+                // Contador flotante (moved up slightly to make room for loading if needed)
                 _buildFloatingCounter(mapVM),
+                
+                // Loading Indicator - MOVED TO BOTTOM CENTER to avoid filter overlap
+                if (mapVM.isLoading)
+                   Positioned(
+                    bottom: 160, // Above FABs and counter
+                    left: 0,
+                    right: 0,
+                    child: Center(
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(20),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.1),
+                              blurRadius: 10,
+                              offset: const Offset(0, 4),
+                            ),
+                          ],
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2, color: kPrimaryColor),
+                            ),
+                            const SizedBox(width: 8),
+                            const Text(
+                              'Actualizando mapa...',
+                              style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: kPrimaryColor),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
 
                 // FABs flotantes
-                _buildFloatingActionButtons(),
+                _buildFloatingActionButtons(mapVM),
               ],
             );
           },
@@ -207,85 +213,19 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
   }
 
   Widget _buildMapSection(MapViewModel mapVM) {
-    if (mapVM.isLoading) {
-      return Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              Color(0xFFE3F2FD),
-              Color(0xFFBBDEFB),
-            ],
-          ),
-        ),
-        child: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Container(
-                padding: const EdgeInsets.all(24),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(20),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: .1),
-                      blurRadius: 20,
-                      offset: const Offset(0, 8),
-                    ),
-                  ],
-                ),
-                child: Column(
-                  children: [
-                    const CircularProgressIndicator(
-                      color: kPrimaryColor,
-                      strokeWidth: 3,
-                    ),
-                    const SizedBox(height: 16),
-                    Text(
-                      'Cargando reportes...',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.grey.shade700,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Localizando problemas en tu zona',
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: Colors.grey.shade500,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-
     if (mapVM.error != null) {
       return _buildErrorSection(mapVM);
     }
 
     final filteredMarkers = mapVM.filteredMarkers;
 
-    if (kDebugMode) {
-      print('Construyendo mapa de Google con ${filteredMarkers.length} marcadores');
-    }
-
-    // COMPONENTE DE GOOGLE MAPS CON CALLBACK DE TAP EN MARCADORES
     return GoogleMapComponent(
       key: _mapKey,
       height: double.infinity,
       trackMyLocation: true,
       markers: filteredMarkers,
-      showLocationButton: false, // Lo manejamos nosotros
-      onMarkerTap: _onMarkerTapped, // NUEVO CALLBACK
+      showLocationButton: false, 
+      onMarkerTap: _onMarkerTapped,
     );
   }
 
@@ -542,7 +482,7 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
     );
   }
 
-  Widget _buildFloatingActionButtons() {
+  Widget _buildFloatingActionButtons(MapViewModel mapVM) {
     return Positioned(
       bottom: 100,
       right: 16,
@@ -556,13 +496,29 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
+            // Botón de Recargar - NUEVO
+            FloatingActionButton(
+              heroTag: "refresh_fab",
+              onPressed: mapVM.isLoading ? null : () => mapVM.recargar(),
+              backgroundColor: Colors.white,
+              foregroundColor: kPrimaryColor,
+              elevation: 4,
+              child: mapVM.isLoading 
+                  ? const SizedBox(
+                      width: 24, 
+                      height: 24, 
+                      child: CircularProgressIndicator(strokeWidth: 2, color: kPrimaryColor)
+                    )
+                  : const Icon(Icons.refresh, size: 24),
+            ),
+            const SizedBox(height: 12),
             // Botón de ubicación
             FloatingActionButton(
               heroTag: "location_fab",
               onPressed: _goToMyLocation,
               backgroundColor: Colors.white,
               foregroundColor: kPrimaryColor,
-              elevation: 8,
+              elevation: 4,
               child: const Icon(Icons.my_location, size: 24),
             ),
             const SizedBox(height: 12),
@@ -572,7 +528,7 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
               onPressed: _centerAllReports,
               backgroundColor: kPrimaryColor,
               foregroundColor: Colors.white,
-              elevation: 8,
+              elevation: 4,
               child: const Icon(Icons.center_focus_strong, size: 24),
             ),
           ],

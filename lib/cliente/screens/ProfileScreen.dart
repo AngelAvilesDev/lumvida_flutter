@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'dart:io';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:provider/provider.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../shared/components/CustomDialogs.dart';
@@ -341,21 +343,62 @@ class _ProfileScreenState extends State<ProfileScreen> with TickerProviderStateM
                     fit: BoxFit.cover,
                   ),
                 )
+                    : profileVM.localPhotoPath != null
+                        ? ClipRRect(
+                            borderRadius: BorderRadius.circular(60),
+                            child: Image.file(
+                              File(profileVM.localPhotoPath!),
+                              fit: BoxFit.cover,
+                              errorBuilder: (context, error, stackTrace) {
+                                // Fallback a foto de red si falla el archivo local
+                                if (profileVM.photoUrl != null) {
+                                  return CachedNetworkImage(
+                                    imageUrl: profileVM.photoUrl!,
+                                    fit: BoxFit.cover,
+                                    placeholder: (context, url) => const Icon(Icons.person, size: 60, color: Colors.white),
+                                    errorWidget: (context, url, error) => const Icon(Icons.person, size: 60, color: Colors.white),
+                                  );
+                                }
+                                return const Icon(Icons.person, size: 60, color: Colors.white);
+                              },
+                            ),
+                          )
                     : profileVM.photoUrl != null
                     ? ClipRRect(
-                  borderRadius: BorderRadius.circular(60),
-                  child: Image.network(
-                    profileVM.photoUrl!,
-                    fit: BoxFit.cover,
-                    errorBuilder: (context, error, stackTrace) {
-                      return const Icon(
-                        Icons.person,
-                        size: 60,
-                        color: Colors.white,
-                      );
-                    },
-                  ),
-                )
+                        borderRadius: BorderRadius.circular(60),
+                        child: CachedNetworkImage(
+                          imageUrl: profileVM.photoUrl!,
+                          fit: BoxFit.cover,
+                          fadeInDuration: const Duration(milliseconds: 500),
+                          fadeOutDuration: const Duration(milliseconds: 300),
+                          placeholder: (context, url) => Container(
+                            color: Colors.transparent, // Transparent to show gradient behind if needed, or grey to show loading area
+                            // Actually, parent has gradient. If we use transparent, we see gradient.
+                            // But usually we want to show 'loading'.
+                            // User complained about "sudden pop". 
+                            // Best approach: Show the generic "User Icon" while loading, so it looks like "Default -> Image".
+                            child: Stack(
+                              alignment: Alignment.center,
+                              children: [
+                                const Icon(
+                                  Icons.person,
+                                  size: 60,
+                                  color: Colors.white54,
+                                ),
+                                CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white.withOpacity(0.5)),
+                                ),
+                              ],
+                            ),
+                          ),
+                          errorWidget: (context, url, error) => const Icon(
+                            Icons.person,
+                            size: 60,
+                            color: Colors.white,
+                          ),
+                        ),
+                      )
                     : const Icon(
                   Icons.person,
                   size: 60,

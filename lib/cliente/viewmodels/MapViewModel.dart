@@ -154,6 +154,26 @@ class MapViewModel extends ChangeNotifier {
   }
 
   // Descargar y guardar
+  // Helper para sanitizar datos antes de guardar en caché (recursivo)
+  dynamic _sanitizeDataForCache(dynamic data) {
+    if (data is Timestamp) {
+      return data.millisecondsSinceEpoch;
+    } else if (data is GeoPoint) {
+      return {'latitude': data.latitude, 'longitude': data.longitude};
+    } else if (data is Map) {
+      final Map<String, dynamic> cleanMap = {};
+      data.forEach((key, value) {
+        if (key is String) {
+          cleanMap[key] = _sanitizeDataForCache(value);
+        }
+      });
+      return cleanMap;
+    } else if (data is List) {
+      return data.map((item) => _sanitizeDataForCache(item)).toList();
+    }
+    return data;
+  }
+
   Future<void> _fetchAndSaveReports({bool isBackgroundUpdate = false}) async {
     try {
       if (!isBackgroundUpdate) {
@@ -171,14 +191,13 @@ class MapViewModel extends ChangeNotifier {
       
       for (var doc in reportesSnapshot.docs) {
         final data = doc.data();
-        // Convertir Timestamp a String para JSON si es necesario, o mantener dynamic
-        // Para simplificar caché, guardamos data tal cual, la serialización se maneja aparte
+        
+        // Sanitizar datos recursivamente para asegurar que no queden Timestamps
+        final sanitizedData = _sanitizeDataForCache(data);
+
         fetchedData.add({
           'id': doc.id,
-          ...data,
-          // Guardamos timestamps como millis para serialización fácil
-          'fecha_millis': data['fecha'] is Timestamp ? (data['fecha'] as Timestamp).millisecondsSinceEpoch : null,
-          'createdAt_millis': data['createdAt'] is Timestamp ? (data['createdAt'] as Timestamp).millisecondsSinceEpoch : null,
+          ...(sanitizedData as Map<String, dynamic>),
         });
       }
 

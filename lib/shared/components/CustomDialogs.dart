@@ -163,11 +163,14 @@ class CustomDialogs {
                             ),
                             padding: const EdgeInsets.symmetric(vertical: 14),
                           ),
-                          child: Text(
-                            confirmText,
-                            style: const TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w600,
+                          child: FittedBox(
+                            fit: BoxFit.scaleDown,
+                            child: Text(
+                              confirmText,
+                              style: const TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                              ),
                             ),
                           ),
                         ),

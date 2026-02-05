@@ -58,19 +58,37 @@ class ProfileViewModel extends ChangeNotifier {
     notifyListeners();
   }
 
-  // Cargar datos del usuario
+  // Inicializar con datos en caché para carga instantánea
+  void setInitialData({
+    required String nombre,
+    required String telefono,
+    required String email,
+    String? photoUrl,
+  }) {
+    _nombre = nombre;
+    _telefono = telefono;
+    _email = email;
+    _photoUrl = photoUrl;
+    // No notificamos aquí porque se llamará antes de que la vista se construya o justo en initState
+  }
+
+  // Cargar datos del usuario (Refresh en segundo plano si ya hay datos)
   Future<void> loadUserData() async {
     final user = _auth.currentUser;
     if (user == null) return;
 
-    _isLoading = true;
-    _errorMessage = null;
-    notifyListeners();
+    // Solo mostramos loading si no tenemos datos previos (primera carga sin caché)
+    if (_nombre.isEmpty) {
+      _isLoading = true;
+      _errorMessage = null;
+      notifyListeners();
+    }
 
     try {
-      // Cargar datos básicos
+      // Cargar datos básicos (siempre actualizamos email/foto de auth)
       _email = user.email ?? '';
-      _photoUrl = user.photoURL;
+      // Si la foto no viene de auth, mantenemos la que teníamos o null
+      if (user.photoURL != null) _photoUrl = user.photoURL;
 
       // Cargar datos de Firestore
       final userDoc = await _firestore.collection('usuarios').doc(user.uid).get();
@@ -79,23 +97,26 @@ class ProfileViewModel extends ChangeNotifier {
         final data = userDoc.data()!;
         _nombre = data['nombre'] ?? user.displayName ?? '';
         _telefono = data['telefono'] ?? '';
-      } else {
+      } else if (_nombre.isEmpty) {
+        // Fallback solo si no tenemos nombre
         _nombre = user.displayName ?? '';
         _telefono = '';
       }
 
-      // Cargar estadísticas de reportes
+      // Cargar estadísticas de reportes (esto puede tardar, pero ya mostramos la UI)
       await _loadReportStatistics(user.uid);
 
       _isLoading = false;
       notifyListeners();
     } catch (e) {
       _isLoading = false;
-      _errorMessage = 'Error al cargar datos del usuario: $e';
-      notifyListeners();
-      if (kDebugMode) {
-        print('Error loading user data: $e');
+      // Solo mostramos error si falló la carga crítica y no hay datos
+      if (_nombre.isEmpty) {
+        _errorMessage = 'Error al cargar datos del usuario: $e';
+      } else if (kDebugMode) {
+        print('Error silencioso al recargar datos: $e');
       }
+      notifyListeners();
     }
   }
 

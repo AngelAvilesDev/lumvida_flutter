@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
@@ -14,28 +15,82 @@ class AuthViewModel extends ChangeNotifier {
   bool _isLoading = false;
   String? _errorMessage;
   String? _nombreUsuario;
-  String? _telefono;  // Añadimos la propiedad telefono
+  String? _telefono;
+  String? _photoUrl;
+  String? _role;
+  bool _isCheckingAuth = true;
 
   bool get isAuthenticated => _user != null;
   User? get user => _user;
   bool get isLoading => _isLoading;
+  bool get isCheckingAuth => _isCheckingAuth;
   String? get errorMessage => _errorMessage;
   String? get nombreUsuario => _nombreUsuario;
-  String? get telefono => _telefono;  // Añadimos el getter para telefono
+  String? get telefono => _telefono;
+  String? get photoUrl => _photoUrl;
+  String? get role => _role;
+
+  bool get esBrigadista {
+    final r = _role?.trim().toLowerCase() ?? '';
+    return r == 'brigadista';
+  }
 
   AuthViewModel() {
+    _loadCache();
+    _checkInitialAuth();
+  }
+
+  // Cargar datos cacheados al iniciar
+  Future<void> _loadCache() async {
+    final prefs = await SharedPreferences.getInstance();
+    _nombreUsuario = prefs.getString('user_name');
+    _telefono = prefs.getString('user_phone');
+    _role = prefs.getString('user_role');
+    _photoUrl = prefs.getString('user_photo'); // Recuperar foto del cache
+    
+    if (_nombreUsuario != null) {
+      notifyListeners(); // Mostrar datos cacheados inmediatamente
+    }
+  }
+
+  Future<void> _saveCache(Map<String, dynamic> data) async {
+    final prefs = await SharedPreferences.getInstance();
+    if (data['nombre'] != null) await prefs.setString('user_name', data['nombre']);
+    if (data['telefono'] != null) await prefs.setString('user_phone', data['telefono']);
+    
+    final role = data['role']?.toString() ?? data['rol']?.toString();
+    if (role != null) await prefs.setString('user_role', role);
+    
+    if (data['photoUrl'] != null) await prefs.setString('user_photo', data['photoUrl']);
+  }
+
+  void _checkInitialAuth() {
     // Escuchar cambios de autenticación
-    _auth.authStateChanges().listen((User? user) {
+    _auth.authStateChanges().listen((User? user) async {
       _user = user;
-      // Actualizar el nombre de usuario si el usuario está autenticado
+      
       if (user != null) {
-        _cargarDatosUsuario(user.uid);
+        await _cargarDatosUsuario(user.uid);
       } else {
-        _nombreUsuario = null;
-        _telefono = null;  // Limpiamos el teléfono cuando no hay usuario
+        _limpiarDatosUsuario();
       }
+      
+      _isCheckingAuth = false;
       notifyListeners();
     });
+  }
+
+  Future<void> _limpiarDatosUsuario() async {
+    _nombreUsuario = null;
+    _telefono = null;
+    _role = null;
+    _photoUrl = null;
+    
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('user_name');
+    await prefs.remove('user_phone');
+    await prefs.remove('user_role');
+    await prefs.remove('user_photo');
   }
 
   Future<void> _cargarDatosUsuario(String uid) async {
@@ -44,8 +99,15 @@ class AuthViewModel extends ChangeNotifier {
       if (doc.exists && doc.data() != null) {
         final datos = doc.data()!;
         _nombreUsuario = datos['nombre'];
-        _telefono = datos['telefono']; // Cargamos el teléfono
-        notifyListeners();
+        _telefono = datos['telefono'];
+        _photoUrl = datos['photoUrl']; // Cargar URL de foto
+        // Manejar role/rol por compatibilidad
+        _role = datos['role']?.toString() ?? datos['rol']?.toString();
+        
+        // Guardar en caché para la próxima vez
+        _saveCache(datos);
+        
+        notifyListeners(); 
       }
     } catch (e) {
       if (kDebugMode) {

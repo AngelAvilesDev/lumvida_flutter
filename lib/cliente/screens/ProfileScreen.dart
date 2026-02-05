@@ -35,7 +35,10 @@ class _ProfileScreenState extends State<ProfileScreen> with TickerProviderStateM
     );
     _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(_fadeController);
 
-    _loadUserData();
+    // Cargar datos inmediatamente después del primer frame para tener acceso al context/provider
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadUserData();
+    });
   }
 
   @override
@@ -48,9 +51,30 @@ class _ProfileScreenState extends State<ProfileScreen> with TickerProviderStateM
   }
 
   Future<void> _loadUserData() async {
+    // 1. Obtener datos cacheados de AuthViewModel para mostrarlos YA
+    final authVM = Provider.of<AuthViewModel>(context, listen: false);
+    if (authVM.user != null) {
+      _profileViewModel.setInitialData(
+        nombre: authVM.nombreUsuario ?? authVM.user!.displayName ?? '',
+        telefono: authVM.telefono ?? '',
+        email: authVM.user!.email ?? '',
+        photoUrl: authVM.photoUrl ?? authVM.user!.photoURL,
+      );
+      
+      // Actualizar controladores UI
+      _updateControllers();
+      
+      // Mostrar contenido inmediatamente
+      _fadeController.forward();
+    }
+
+    // 2. Iniciar carga en segundo plano para actualizar estadísticas y validar datos
     await _profileViewModel.loadUserData();
-    _updateControllers();
-    _fadeController.forward();
+    
+    // 3. Actualizar UI nuevamente si hubo cambios (como estadísticas)
+    if (mounted) {
+      _updateControllers();
+    }
   }
 
   void _updateControllers() {

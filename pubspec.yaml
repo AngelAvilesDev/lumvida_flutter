@@ -45,6 +45,7 @@ dependencies:
   # IA
   http: ^0.13.5
   flutter_dotenv: ^5.1.0
+  shared_preferences: ^2.5.3
 
 dev_dependencies:
   flutter_test:
@@ -69,5 +70,4 @@ flutter:
   assets:
     - assets/images/Fondo blanco.png
     - assets/images/Logo blanco.png
-    - assets/images/IconoApp.png
     - .env

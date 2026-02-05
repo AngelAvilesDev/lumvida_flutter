@@ -39,8 +39,8 @@ class ReportesViewModel extends ChangeNotifier {
     if (_disposed) return;
     _selectedLocation = location;
 
-    // CAMBIAR: Mostrar mensaje temporal mientras obtenemos la dirección real
-    _addressText = 'Obteniendo dirección...';
+    // CAMBIAR: Mensaje discreto
+    _addressText = 'Procesando ubicación...';
     notifyListeners();
 
     // Obtener la dirección real inmediatamente

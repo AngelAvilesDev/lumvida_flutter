@@ -386,106 +386,45 @@ class GoogleMapComponentState extends State<GoogleMapComponent> {
               ),
             ),
 
-          // Botón de mi ubicación personalizado
+          // Botón de mi ubicación personalizado (Tipo 'Obtener Ubicación')
           if (widget.showLocationButton && _isMapReady)
             Positioned(
               bottom: 16,
               right: 16,
-              child: FloatingActionButton(
-                mini: true,
-                heroTag: "google_location_button_${widget.key.toString()}",
-                backgroundColor: Colors.white,
-                onPressed: _isLocatingUser ? null : goToMyLocation,
-                child: _isLocatingUser
-                    ? const SizedBox(
-                  width: 20,
-                  height: 20,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    valueColor: AlwaysStoppedAnimation<Color>(Colors.blue),
+              left: 16, // Ocupar ancho para que sea visible y fácil de tocar
+              child: SizedBox(
+                height: 50,
+                width: double.infinity, // Asegurar ancho completo
+                child: ElevatedButton.icon(
+                  icon: _isLocatingUser
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
+                      : const Icon(Icons.my_location, color: Colors.white),
+                  label: Text(
+                    _isLocatingUser ? 'Localizando...' : 'Obtener mi ubicación',
+                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                   ),
-                )
-                    : const Icon(Icons.my_location, color: Colors.blue),
-              ),
-            ),
-
-          // Indicador de carga de ubicación
-          if (_isLocatingUser)
-            Positioned(
-              top: 50,
-              left: 0,
-              right: 0,
-              child: Center(
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  decoration: BoxDecoration(
-                    color: Colors.blue,
-                    borderRadius: BorderRadius.circular(20),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: .2),
-                        blurRadius: 6,
-                        offset: const Offset(0, 2),
-                      ),
-                    ],
-                  ),
-                  child: const Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      SizedBox(
-                        width: 16,
-                        height: 16,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                        ),
-                      ),
-                      SizedBox(width: 8),
-                      Text(
-                        'Obteniendo ubicación...',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-
-          // Información de dirección para picking
-          if (widget.allowPicking && _addressText.isNotEmpty)
-            Positioned(
-              top: 10,
-              left: 10,
-              right: 10,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: .9),
-                  borderRadius: BorderRadius.circular(8),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: .1),
-                      blurRadius: 4,
-                      offset: const Offset(0, 2),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.blue.shade700,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
                     ),
-                  ],
-                ),
-                child: Text(
-                  _addressText,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 12,
+                    elevation: 4,
                   ),
-                  textAlign: TextAlign.center,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
+                  onPressed: _isLocatingUser ? null : goToMyLocation,
                 ),
               ),
             ),
+
+          // Información de dirección eliminada para limpiar la UI
+
         ],
       ),
     );

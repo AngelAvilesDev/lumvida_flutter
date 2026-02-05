@@ -129,115 +129,40 @@ class AuthGate extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return StreamBuilder<User?>(
-      stream: FirebaseAuth.instance.authStateChanges(),
-      builder: (context, snapshot) {
-        // Mientras se carga
-        if (snapshot.connectionState == ConnectionState.waiting) {
+    // Escuchar cambios en el ViewModel
+    return Consumer<AuthViewModel>(
+      builder: (context, authViewModel, child) {
+        
+        // 1. Estado de carga inicial (verificando sesión)
+        if (authViewModel.isCheckingAuth) {
           return const Scaffold(
             backgroundColor: Colors.white,
             body: Center(
-              child: CircularProgressIndicator(
-                color: kPrimaryColor,
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                   CircularProgressIndicator(color: kPrimaryColor),
+                   SizedBox(height: 16),
+                   Text('Iniciando...', style: TextStyle(color: Colors.grey)),
+                ],
               ),
             ),
           );
         }
 
-        // No hay usuario - ir al login
-        if (!snapshot.hasData) {
+        // 2. No autenticado - ir al login
+        if (!authViewModel.isAuthenticated) {
           return const LoginScreen();
         }
 
-        // Hay usuario - verificar su rol
-        return FutureBuilder<Widget>(
-          future: _getHomeScreen(snapshot.data!),
-          builder: (context, homeSnapshot) {
-            if (homeSnapshot.connectionState == ConnectionState.waiting) {
-              return Scaffold(
-                backgroundColor: Colors.white,
-                body: Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Icon(
-                        Icons.local_fire_department,
-                        size: 80,
-                        color: kPrimaryColor,
-                      ),
-                      const SizedBox(height: 24),
-                      const Text(
-                        'LumVida',
-                        style: TextStyle(
-                          fontSize: 32,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.black87,
-                        ),
-                      ),
-                      const SizedBox(height: 40),
-                      const CircularProgressIndicator(
-                        color: kPrimaryColor,
-                      ),
-                      const SizedBox(height: 16),
-                      Text(
-                        'Verificando sesión...',
-                        style: TextStyle(
-                          fontSize: 16,
-                          color: Colors.grey[600],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              );
-            }
-
-            // Retornar la pantalla correspondiente
-            return homeSnapshot.data ?? const InicioScreen();
-          },
-        );
-      },
-    );
-  }
-
-  Future<Widget> _getHomeScreen(User user) async {
-    try {
-      final userDoc = await FirebaseFirestore.instance
-          .collection('usuarios')
-          .doc(user.uid)
-          .get();
-
-      if (userDoc.exists) {
-        final userData = userDoc.data();
-        final role = userData?['role']?.toString().trim().toLowerCase() ?? '';
-        final rol = userData?['rol']?.toString().trim().toLowerCase() ?? '';
-
-        final esBrigadista = role == 'brigadista' || rol == 'brigadista';
-
-        if (kDebugMode) {
-          print('🔍 Usuario: ${user.email}');
-          print('🎯 Role: $role');
-          print('🎯 Es brigadista: $esBrigadista');
-        }
-
-        if (esBrigadista) {
+        // 3. Autenticado - verificar rol
+        // Ya tenemos el rol cargado en el ViewModel, así que es instantáneo
+        if (authViewModel.esBrigadista) {
           return const BrigadistaInicioScreen();
         } else {
           return const InicioScreen();
         }
-      } else {
-        if (kDebugMode) {
-          print('⚠️ No se encontró documento para el usuario: ${user.uid}');
-        }
-        // Si no hay documento, ir a cliente por defecto
-        return const InicioScreen();
-      }
-    } catch (e) {
-      if (kDebugMode) {
-        print('❌ Error al verificar rol: $e');
-      }
-      // En caso de error, ir a cliente por defecto
-      return const InicioScreen();
-    }
+      },
+    );
   }
 }

@@ -1,8 +1,11 @@
 import 'dart:math' as math;
+import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:flutter/material.dart';
+import 'package:path_provider/path_provider.dart';
 import '../components/GoogleMapComponent.dart';
 import '../utils/report_categories.dart';
 
@@ -91,107 +94,206 @@ class MapViewModel extends ChangeNotifier {
     }).toList();
   }
 
-  // CARGAR UBICACIONES - OPTIMIZADO PARA GOOGLE MAPS
-  Future<void> cargarUbicacionesReportes() async {
+  // CARGAR UBICACIONES - CON CACHÉ LOCAL
+  Future<void> cargarUbicacionesReportes({bool forceRefresh = false}) async {
     _isLoading = true;
     _error = null;
     notifyListeners();
 
     try {
-      final reportesSnapshot = await FirebaseFirestore.instance
-          .collection('reportes')
-          .get();
-
-      if (kDebugMode) {
-        print('Número de reportes encontrados: ${reportesSnapshot.docs.length}');
-      }
-
-      final markers = <MarkerData>[];
-      _rawReportes.clear();
-
-      for (var doc in reportesSnapshot.docs) {
-        final data = doc.data();
-        _rawReportes.add({
-          'id': doc.id,
-          ...data,
-        });
-
-        if (kDebugMode) {
-          print('Datos del reporte: ${data['categoria']} - ${data['folio']}');
-        }
-
-        // Obtener coordenadas
-        double? latitud;
-        double? longitud;
-
-        if (data['latitud'] != null && data['longitud'] != null) {
-          latitud = (data['latitud'] as num).toDouble();
-          longitud = (data['longitud'] as num).toDouble();
-        } else if (data['ubicacion'] != null &&
-            data['ubicacion'] is Map &&
-            data['ubicacion']['latitud'] != null &&
-            data['ubicacion']['longitud'] != null) {
-          latitud = (data['ubicacion']['latitud'] as num).toDouble();
-          longitud = (data['ubicacion']['longitud'] as num).toDouble();
-        }
-
-        if (latitud != null && longitud != null) {
-          final categoria = data['categoria']?.toString() ?? '';
-          final estado = data['estado']?.toString() ?? 'pendiente';
-          final markerIcon = _getMarkerIconForCategory(categoria, estado);
-
-          if (kDebugMode) {
-            print('Añadiendo marcador en: Lat $latitud, Lon $longitud - Categoría: $categoria - Estado: $estado');
-          }
-
-          // CREAR MARCADOR PARA GOOGLE MAPS CON DATOS COMPLETOS DEL REPORTE
-          markers.add(
-            MarkerData(
-              position: LatLng(latitud, longitud),
-              icon: markerIcon,
-              title: '${data['categoria'] ?? 'Sin categoría'} - ${data['folio'] ?? 'Sin folio'}',
-              // AGREGAR DATOS COMPLETOS DEL REPORTE
-              reportData: {
-                'id': doc.id,
-                'folio': data['folio'] ?? 'Sin folio',
-                'fecha': data['fecha'],
-                'estado': data['estado'] ?? 'pendiente',
-                'categoria': data['categoria'] ?? 'Sin categoría',
-                'comentario': data['comentario'] ?? 'Sin descripción',
-                'direccion': data['direccion'] ?? 'Sin ubicación',
-                'nombreCompleto': data['nombreCompleto'] ?? '',
-                'telefono': data['telefono'] ?? '',
-                'isAnonymous': data['isAnonymous'] ?? false,
-                'imagenes': data['imagenes'] ?? [],
-                'historialEstados': data['historialEstados'] ?? [],
-                'latitud': latitud,
-                'longitud': longitud,
-              },
-            ),
-          );
-        } else {
-          if (kDebugMode) {
-            print('Reporte sin coordenadas válidas: ${doc.id}');
-          }
+      // 1. Intentar cargar desde caché primero (si no es forzado)
+      if (!forceRefresh) {
+        final cachedReports = await _loadReportsFromCache();
+        if (cachedReports.isNotEmpty) {
+          if (kDebugMode) print('📦 Cargados ${cachedReports.length} reportes desde caché local');
+          _procesarReportes(cachedReports, fromCache: true);
+          
+          // Ya mostramos datos, quitamos loading
+          _isLoading = false;
+          notifyListeners();
+          
+          // 2. Verificar en segundo plano si hay nuevos
+          _checkForUpdatesBackground();
+          return;
         }
       }
 
-      if (kDebugMode) {
-        print('Total de marcadores creados: ${markers.length}');
-      }
-
-      _reportMarkers = markers;
-      _isLoading = false;
-      notifyListeners();
+      // Si no hay caché o es forzado, descargar normal
+      await _fetchAndSaveReports();
+      
     } catch (e) {
-      if (kDebugMode) {
-        print('Error cargando ubicaciones: $e');
-      }
+      if (kDebugMode) print('Error cargando ubicaciones: $e');
       _isLoading = false;
       _error = 'Error al cargar ubicaciones: $e';
       notifyListeners();
     }
   }
+
+  // Verificar actualizaciones en background (sin mostrar loading)
+  Future<void> _checkForUpdatesBackground() async {
+    try {
+      // Obtener conteo o timestamp ligero para comparar
+      // Por simplicidad y ahorro de lectura, podemos verificar el conteo total
+      final aggregateQuery = await FirebaseFirestore.instance
+          .collection('reportes')
+          .count()
+          .get();
+      
+      final serverCount = aggregateQuery.count ?? 0;
+      final localCount = _rawReportes.length;
+
+      if (serverCount != localCount) {
+        if (kDebugMode) print('🔄 Detectados cambios en servidor ($serverCount vs $localCount local). Actualizando...');
+        await _fetchAndSaveReports(isBackgroundUpdate: true);
+      } else {
+        if (kDebugMode) print('✅ El caché está actualizado.');
+      }
+    } catch (e) {
+      if (kDebugMode) print('Error verificando actualizaciones: $e');
+    }
+  }
+
+  // Descargar y guardar
+  Future<void> _fetchAndSaveReports({bool isBackgroundUpdate = false}) async {
+    try {
+      if (!isBackgroundUpdate) {
+        _isLoading = true;
+        notifyListeners();
+      }
+
+      final reportesSnapshot = await FirebaseFirestore.instance
+          .collection('reportes')
+          .get();
+
+      if (kDebugMode) print('🌐 Descargados ${reportesSnapshot.docs.length} reportes de Firebase');
+
+      final List<Map<String, dynamic>> fetchedData = [];
+      
+      for (var doc in reportesSnapshot.docs) {
+        final data = doc.data();
+        // Convertir Timestamp a String para JSON si es necesario, o mantener dynamic
+        // Para simplificar caché, guardamos data tal cual, la serialización se maneja aparte
+        fetchedData.add({
+          'id': doc.id,
+          ...data,
+          // Guardamos timestamps como millis para serialización fácil
+          'fecha_millis': data['fecha'] is Timestamp ? (data['fecha'] as Timestamp).millisecondsSinceEpoch : null,
+          'createdAt_millis': data['createdAt'] is Timestamp ? (data['createdAt'] as Timestamp).millisecondsSinceEpoch : null,
+        });
+      }
+
+      // Procesar en memoria
+      _procesarReportes(fetchedData);
+      
+      // Guardar en caché
+      await _saveReportsToCache(fetchedData);
+
+      _isLoading = false;
+      notifyListeners();
+      
+      if (isBackgroundUpdate) {
+         // Notificar discretamente si es necesario, o el notifyListeners ya lo hizo
+      }
+
+    } catch (e) {
+      if (!isBackgroundUpdate) throw e; // Solo lanzar si es foreground
+    }
+  }
+
+  // Procesar datos crudos a marcadores
+  void _procesarReportes(List<Map<String, dynamic>> rawData, {bool fromCache = false}) {
+    final markers = <MarkerData>[];
+    _rawReportes.clear();
+    
+    // Si viene de caché, necesitamos reconstruir Timestamp objects si la app los usa
+    // Pero para marcadores solo necesitamos coordenadas y strings
+    
+    for (var data in rawData) {
+      // Restaurar Timestamps si es necesario para detalles del reporte
+      // Esto es opcional dependiendo de cómo se usen en el modal
+      final processedData = Map<String, dynamic>.from(data);
+      if (fromCache) {
+          if (processedData['fecha_millis'] != null) {
+              processedData['fecha'] = Timestamp.fromMillisecondsSinceEpoch(processedData['fecha_millis']);
+          }
+      }
+        
+      _rawReportes.add(processedData);
+
+      // Obtener coordenadas
+      double? latitud;
+      double? longitud;
+
+      if (data['latitud'] != null && data['longitud'] != null) {
+        latitud = (data['latitud'] as num).toDouble();
+        longitud = (data['longitud'] as num).toDouble();
+      } else if (data['ubicacion'] != null &&
+          data['ubicacion'] is Map &&
+          data['ubicacion']['latitud'] != null &&
+          data['ubicacion']['longitud'] != null) {
+        latitud = (data['ubicacion']['latitud'] as num).toDouble();
+        longitud = (data['ubicacion']['longitud'] as num).toDouble();
+      }
+
+      if (latitud != null && longitud != null) {
+        final categoria = data['categoria']?.toString() ?? '';
+        final estado = data['estado']?.toString() ?? 'pendiente';
+        
+        // Optimización: No regenerar iconos si no cambiaron (complicado de checar, mejor generar)
+        final markerIcon = _getMarkerIconForCategory(categoria, estado);
+
+        markers.add(
+          MarkerData(
+            position: LatLng(latitud, longitud),
+            icon: markerIcon,
+            title: '${data['categoria'] ?? 'Sin categoría'} - ${data['folio'] ?? 'Sin folio'}',
+            reportData: processedData,
+          ),
+        );
+      }
+    }
+
+    _reportMarkers = markers;
+  }
+
+  // ---- MANEJO DE ARCHIVOS LOCALES ----
+  
+  Future<String> get _localPath async {
+    final directory = await getApplicationDocumentsDirectory();
+    return directory.path;
+  }
+
+  Future<File> get _localFile async {
+    final path = await _localPath;
+    return File('$path/reportes_cache.json');
+  }
+
+  Future<List<Map<String, dynamic>>> _loadReportsFromCache() async {
+    try {
+      final file = await _localFile;
+      if (await file.exists()) {
+        final contents = await file.readAsString();
+        final List<dynamic> jsonList = jsonDecode(contents);
+        return jsonList.cast<Map<String, dynamic>>();
+      }
+    } catch (e) {
+      if (kDebugMode) print('Error leyendo caché: $e');
+    }
+    return [];
+  }
+
+  Future<void> _saveReportsToCache(List<Map<String, dynamic>> reports) async {
+    try {
+      final file = await _localFile;
+      // Convertir timestamps o objetos complejos si quedan
+      final jsonString = jsonEncode(reports); // reports ya debería estar limpio
+      await file.writeAsString(jsonString);
+      if (kDebugMode) print('💾 Caché guardado exitosamente');
+    } catch (e) {
+      if (kDebugMode) print('Error guardando caché: $e');
+    }
+  }
+
 
   // APLICAR FILTRO - OPTIMIZADO PARA GOOGLE MAPS
   void aplicarFiltro(String? filtro) {

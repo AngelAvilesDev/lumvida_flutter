@@ -610,12 +610,16 @@ class _ReportesScreenState extends State<ReportesScreen> with TickerProviderStat
           child: Icon(icon, color: kPrimaryColor, size: 20),
         ),
         const SizedBox(width: 12),
-        Text(
-          title,
-          style: const TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
-            color: kPrimaryColor,
+        Expanded(
+          child: Text(
+            title,
+            style: const TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: kPrimaryColor,
+            ),
+            overflow: TextOverflow.ellipsis,
+            maxLines: 2,
           ),
         ),
       ],

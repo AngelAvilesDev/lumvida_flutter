@@ -235,10 +235,12 @@ class ReportCategories {
   }
 
   // Calcular proporción del grid
+  // Calcular proporción del grid - MEJORADO PARA TEXTO LARGO
   static double getChildAspectRatio(int totalCategories) {
-    if (totalCategories <= 4) return 1.2; // Ligeramente más anchos
-    if (totalCategories <= 6) return 1.1; // Casi cuadrados
-    return 1.0; // Cuadrados perfectos
+    // Hacemos las tarjetas más altas (menor ratio) para que quepa el texto
+    if (totalCategories <= 4) return 0.95; // Más altas
+    if (totalCategories <= 6) return 0.9; // Aún más altas si hay muchas
+    return 0.85; 
   }
 
   // MÉTODOS PARA CONFIGURACIÓN FUTURA (preparado para persistencia)

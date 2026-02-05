@@ -113,8 +113,8 @@ class BottomNavigationWidget extends StatelessWidget {
   }
 
   void _navigateToScreen(BuildContext context, String screenName) {
-    // No navegar si ya estamos en la pantalla actual
-    if (currentScreen == screenName) return;
+    // Permitir recargar o ir a inicio siempre
+    //if (currentScreen == screenName) return;
 
     switch (screenName) {
       case 'inicio':

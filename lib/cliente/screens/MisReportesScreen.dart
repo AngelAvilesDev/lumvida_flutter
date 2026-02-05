@@ -267,91 +267,88 @@ class _MisReportesScreenState extends State<MisReportesScreen> with TickerProvid
 
   Widget _buildModernHeader() {
     return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: .9),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: .05),
-            blurRadius: 10,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Row(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
+      child: Column(
         children: [
-          // Botón de regreso
-          Container(
-            decoration: BoxDecoration(
-              color: kPrimaryColor.withValues(alpha: .1),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: IconButton(
-              onPressed: () => Navigator.of(context).pop(),
-              icon: const Icon(Icons.arrow_back_ios_new, color: kPrimaryColor),
-            ),
-          ),
-
-          const SizedBox(width: 16),
-
-          // Título y estadísticas
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Mis Reportes',
-                  style: TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
-                    color: kPrimaryColor,
-                  ),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              // Botón de regreso
+              Container(
+                decoration: BoxDecoration(
+                  color: Color(0xFFFFF0F3), // Fondo rosado suave
+                  borderRadius: BorderRadius.circular(16),
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  '${_reportesFiltrados.length} reportes encontrados',
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: Colors.grey.shade600,
-                  ),
-                ),
-              ],
-            ),
-          ),
-
-          // Botón de filtros
-          Container(
-            decoration: BoxDecoration(
-              color: _showFilters
-                  ? kPrimaryColor
-                  : kPrimaryColor.withValues(alpha: .1),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: IconButton(
-              icon: AnimatedRotation(
-                turns: _showFilters ? 0.5 : 0,
-                duration: const Duration(milliseconds: 300),
-                child: Icon(
-                  Icons.filter_list,
-                  color: _showFilters ? Colors.white : kPrimaryColor,
+                child: IconButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  icon: const Icon(Icons.arrow_back_ios_new, color: Color(0xFF880E4F), size: 20), // Color vino
                 ),
               ),
-              onPressed: _toggleFilters,
-            ),
+
+              Row(
+                children: [
+                  // Botón de filtros
+                  Container(
+                    decoration: BoxDecoration(
+                      color: _showFilters ? Color(0xFF880E4F) : Color(0xFFFFF0F3),
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: IconButton(
+                      icon: Icon(
+                        Icons.filter_list,
+                        color: _showFilters ? Colors.white : Color(0xFF880E4F),
+                      ),
+                      onPressed: _toggleFilters,
+                    ),
+                  ),
+
+                  const SizedBox(width: 12),
+
+                  // Botón de refrescar
+                  Container(
+                    decoration: BoxDecoration(
+                      color: Color(0xFFFFF0F3),
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: IconButton(
+                      icon: const Icon(Icons.refresh, color: Color(0xFF880E4F)),
+                      onPressed: _cargarReportes,
+                    ),
+                  ),
+                ],
+              ),
+            ],
           ),
-
-          const SizedBox(width: 8),
-
-          // Botón de refrescar
-          Container(
-            decoration: BoxDecoration(
-              color: kPrimaryColor.withValues(alpha: .1),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: IconButton(
-              icon: const Icon(Icons.refresh, color: kPrimaryColor),
-              onPressed: _cargarReportes,
-            ),
+          
+          const SizedBox(height: 24),
+          
+          // Título Grande izquierda
+          Row(
+            children: [
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Mis\nReportes',
+                    style: TextStyle(
+                      fontSize: 32, 
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF880E4F), // Color vino fuerte
+                      height: 1.1,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    '${_reportesFiltrados.length} reportes encontrados',
+                    style: TextStyle(
+                      fontSize: 16,
+                      color: Colors.blueGrey.shade400,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ),
+            ],
           ),
         ],
       ),
@@ -554,80 +551,84 @@ class _MisReportesScreenState extends State<MisReportesScreen> with TickerProvid
           child: Opacity(
             opacity: value,
             child: Container(
-              margin: const EdgeInsets.only(bottom: 16),
+              margin: const EdgeInsets.only(bottom: 20),
               decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: .9),
-                borderRadius: BorderRadius.circular(16),
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(24),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withValues(alpha: .05),
-                    blurRadius: 10,
-                    offset: const Offset(0, 2),
+                    color: Colors.black.withOpacity(0.03),
+                    blurRadius: 20,
+                    offset: const Offset(0, 4),
                   ),
                 ],
-                // Borde izquierdo con color del estado
-                border: Border(
-                  left: BorderSide(
-                    color: _getColorPorEstado(reporte['estado'] ?? ''),
-                    width: 4,
-                  ),
-                ),
               ),
               child: Material(
                 color: Colors.transparent,
                 child: InkWell(
                   onTap: () => _mostrarDetalleReporte(context, reporte),
-                  borderRadius: BorderRadius.circular(16),
+                  borderRadius: BorderRadius.circular(24),
                   child: Padding(
-                    padding: const EdgeInsets.all(16),
+                    padding: const EdgeInsets.all(20),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        // Header del reporte con botón de copiar folio
+                        // Header del card: Icono + Título + Status Badge
                         Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
+                            // Icono con fondo rosado suave
                             Container(
                               padding: const EdgeInsets.all(12),
                               decoration: BoxDecoration(
-                                color: kPrimaryColor.withValues(alpha: .1),
-                                borderRadius: BorderRadius.circular(12),
+                                color: Color(0xFFFFF0F3), // Mismo tono que los botones de arriba
+                                borderRadius: BorderRadius.circular(16),
                               ),
                               child: Icon(
                                 getIconForType(reporte['tipo'] ?? ''),
-                                color: kPrimaryColor,
-                                size: 24,
+                                color: Color(0xFF880E4F), // Color vino
+                                size: 28,
                               ),
                             ),
-                            const SizedBox(width: 12),
+                            
+                            const SizedBox(width: 16),
+                            
+                            // Título y Folio
                             Expanded(
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Text(
                                     reporte['tipo'] ?? 'Sin categoría',
-                                    style: const TextStyle(
-                                      fontSize: 16,
+                                    style: TextStyle(
+                                      fontSize: 18,
                                       fontWeight: FontWeight.bold,
-                                      color: kPrimaryColor,
+                                      color: Color(0xFF880E4F), // Color vino
                                     ),
                                   ),
-                                  // FOLIO CLICKEABLE PARA COPIAR
+                                  
+                                  const SizedBox(height: 4),
+                                  
                                   GestureDetector(
                                     onTap: () => _copyFolio(reporte['folio'] ?? 'Sin folio'),
                                     child: Row(
                                       children: [
-                                        Text(
-                                          'Folio: ${reporte['folio'] ?? 'Sin folio'}',
-                                          style: TextStyle(
-                                            fontSize: 12,
-                                            color: Colors.grey.shade600,
+                                        Flexible(
+                                          child: Text(
+                                            'Folio: ${reporte['folio'] ?? ''}',
+                                            style: TextStyle(
+                                              fontSize: 13,
+                                              color: Colors.grey.shade400,
+                                              fontWeight: FontWeight.w500,
+                                            ),
+                                            overflow: TextOverflow.ellipsis,
                                           ),
                                         ),
                                         const SizedBox(width: 4),
                                         Icon(
                                           Icons.copy,
                                           size: 14,
-                                          color: Colors.grey.shade500,
+                                          color: Colors.grey.shade400,
                                         ),
                                       ],
                                     ),
@@ -635,10 +636,12 @@ class _MisReportesScreenState extends State<MisReportesScreen> with TickerProvid
                                 ],
                               ),
                             ),
+                            
+                            // Badge de Estado (Píldora)
                             Container(
                               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                               decoration: BoxDecoration(
-                                color: _getColorPorEstado(reporte['estado'] ?? ''),
+                                color: Colors.grey.shade700, // Gris oscuro como en la imagen
                                 borderRadius: BorderRadius.circular(20),
                               ),
                               child: Text(
@@ -654,30 +657,31 @@ class _MisReportesScreenState extends State<MisReportesScreen> with TickerProvid
                           ],
                         ),
 
-                        const SizedBox(height: 12),
+                        const SizedBox(height: 20),
 
-                        // Descripción
+                        // Descripción o Título del problema (Negrita Negro)
                         Text(
                           reporte['descripcion'] ?? 'Sin descripción',
                           style: const TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w500,
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black87,
                           ),
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
                         ),
 
-                        const SizedBox(height: 8),
+                        const SizedBox(height: 16),
 
-                        // Ubicación y fecha
+                        // Detalles: Ubicación
                         Row(
                           children: [
-                            Icon(Icons.location_on, size: 16, color: Colors.grey.shade500),
-                            const SizedBox(width: 4),
+                            Icon(Icons.location_on, size: 18, color: Color(0xFFFF80AB)), // Rosado
+                            const SizedBox(width: 8),
                             Expanded(
                               child: Text(
                                 reporte['ubicacion'] ?? 'Sin ubicación',
-                                style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
+                                style: TextStyle(color: Colors.blueGrey.shade400, fontSize: 13),
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                               ),
@@ -685,45 +689,73 @@ class _MisReportesScreenState extends State<MisReportesScreen> with TickerProvid
                           ],
                         ),
 
-                        const SizedBox(height: 4),
-
+                        const SizedBox(height: 8),
+                        
+                        // Detalles: Fecha
                         Row(
                           children: [
-                            Icon(Icons.calendar_today, size: 16, color: Colors.grey.shade500),
-                            const SizedBox(width: 4),
+                            Icon(Icons.calendar_today_outlined, size: 18, color: Color(0xFFFF80AB)),
+                            const SizedBox(width: 8),
                             Text(
-                              'Reportado el ${reporte['fecha'] ?? 'Fecha desconocida'}',
-                              style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
+                              'Reportado el ${reporte['fecha'] ?? ''}',
+                              style: TextStyle(color: Colors.blueGrey.shade400, fontSize: 13),
                             ),
                           ],
                         ),
 
-                        // Imágenes preview
+                        const SizedBox(height: 8),
+
+                        // Detalles: Imágenes
+                         Row(
+                          children: [
+                            Icon(Icons.image_outlined, size: 18, color: Color(0xFFFF80AB)),
+                            const SizedBox(width: 8),
+                            Text(
+                              '${(reporte['imagenes'] as List?)?.length ?? 0} imagen(es)',
+                              style: TextStyle(color: Colors.blueGrey.shade400, fontSize: 13),
+                            ),
+                          ],
+                        ),
+                        
+                        // Preview de imagen grande abajo si existe
                         if (reporte['imagenes'] != null && (reporte['imagenes'] as List).isNotEmpty) ...[
-                          const SizedBox(height: 12),
-                          Row(
-                            children: [
-                              Icon(Icons.image, size: 16, color: Colors.grey.shade500),
-                              const SizedBox(width: 4),
-                              Text(
-                                '${(reporte['imagenes'] as List).length} imagen(es)',
-                                style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
+                          const SizedBox(height: 16),
+                          Container(
+                            height: 120, // Altura fija para la imagen preview
+                            width: 120,
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(16),
+                              color: Colors.grey.shade100,
+                            ),
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(16),
+                              child: Stack(
+                                fit: StackFit.expand,
+                                children: [
+                                  Base64ImageWidget(
+                                    base64String: (reporte['imagenes'] as List)[0],
+                                    fit: BoxFit.cover,
+                                  ),
+                                  // Si hay más imágenes, mostrar overlay con contador
+                                  if ((reporte['imagenes'] as List).length > 1)
+                                    Container(
+                                      color: Colors.black.withOpacity(0.4),
+                                      alignment: Alignment.bottomRight,
+                                      padding: EdgeInsets.all(8),
+                                      child: Container(
+                                        padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                        decoration: BoxDecoration(
+                                            color: Colors.black.withOpacity(0.6),
+                                            borderRadius: BorderRadius.circular(4)
+                                        ),
+                                        child: Text(
+                                          '+${(reporte['imagenes'] as List).length - 1}',
+                                          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12),
+                                        ),
+                                      ),
+                                    ),
+                                ],
                               ),
-                            ],
-                          ),
-                          const SizedBox(height: 8),
-                          SizedBox(
-                            height: 60,
-                            child: ReportImageGallery(
-                              base64Images: List<String>.from(reporte['imagenes']),
-                              imageSize: 60,
-                              onImageTap: (index, base64) {
-                                FullScreenImageModal.show(
-                                  context,
-                                  base64,
-                                  title: 'Imagen ${index + 1} - ${reporte['folio']}',
-                                );
-                              },
                             ),
                           ),
                         ],
@@ -761,138 +793,343 @@ class _MisReportesScreenState extends State<MisReportesScreen> with TickerProvid
   }
 
   void _mostrarDetalleReporte(BuildContext context, Map<String, dynamic> reporte) {
-    showDialog(
+    showModalBottomSheet(
       context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-          title: Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: kPrimaryColor.withValues(alpha: .1),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: const Icon(Icons.info_outline, color: kPrimaryColor),
+      isScrollControlled: true, // Corregido: isScrollable -> isScrollControlled
+      backgroundColor: Colors.transparent,
+      builder: (context) => _buildReportDetailSheet(reporte),
+    );
+  }
+
+  Widget _buildReportDetailSheet(Map<String, dynamic> reporte) {
+    return Container(
+      height: MediaQuery.of(context).size.height * 0.85,
+      decoration: const BoxDecoration(
+        color: Color(0xFFFFF5F5), // Fondo rosado muy pálido
+        borderRadius: BorderRadius.only(
+          topLeft: Radius.circular(24),
+          topRight: Radius.circular(24),
+        ),
+      ),
+      child: Column(
+        children: [
+          // Drag handle
+          Center(
+            child: Container(
+              margin: const EdgeInsets.only(top: 12, bottom: 8),
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.grey.shade300,
+                borderRadius: BorderRadius.circular(2),
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  'Reporte #${reporte['folio'] ?? 'Sin folio'}',
-                  style: const TextStyle(color: kPrimaryColor, fontWeight: FontWeight.bold),
-                ),
-              ),
-              // BOTÓN DE COPIAR EN EL MODAL TAMBIÉN
-              IconButton(
-                onPressed: () => _copyFolio(reporte['folio'] ?? 'Sin folio'),
-                icon: const Icon(Icons.copy, color: kPrimaryColor, size: 20),
-                tooltip: 'Copiar folio',
-              ),
-            ],
+            ),
           ),
-          content: SingleChildScrollView(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
+
+          // Header con botón cerrar
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                // Estado prominente
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(12),
-                  margin: const EdgeInsets.only(bottom: 16),
-                  decoration: BoxDecoration(
-                    color: _getColorPorEstado(reporte['estado'] ?? ''),
-                    borderRadius: BorderRadius.circular(12),
+                const Text(
+                  'REPORTE',
+                  style: TextStyle(
+                    color: Colors.grey,
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 1.0,
                   ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
+                ),
+                IconButton(
+                  onPressed: () => Navigator.pop(context),
+                  icon: Container(
+                    padding: const EdgeInsets.all(4),
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade100,
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(Icons.close, size: 20, color: Colors.grey),
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          Expanded(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // FOLIO GRANDE ROJO
+                  Row(
                     children: [
-                      const Icon(Icons.circle, color: Colors.white, size: 8),
+                      Flexible(
+                        child: Text(
+                          '#${reporte['folio'] ?? 'SIN-FOLIO'}',
+                          style: const TextStyle(
+                            fontSize: 28,
+                            fontWeight: FontWeight.w900,
+                            color: Color(0xFFC62828), // Rojo intenso
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
                       const SizedBox(width: 8),
-                      Text(
-                        'ESTADO: ${_getEstadoDisplayText(reporte['estado'] ?? '').toUpperCase()}',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
-                          letterSpacing: 1,
+                      GestureDetector(
+                        onTap: () => _copyFolio(reporte['folio'] ?? ''),
+                        child: const Icon(Icons.copy, color: Color(0xFFC62828), size: 20),
+                      ),
+                    ],
+                  ),
+                  
+                  const SizedBox(height: 4),
+                  Text(
+                    reporte['id'] ?? '',
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: Colors.red.shade200,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+
+                  const SizedBox(height: 20),
+
+                  // Pill de Estado
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                    decoration: BoxDecoration(
+                      color: Colors.blueGrey.shade50,
+                      borderRadius: BorderRadius.circular(30),
+                      border: Border.all(color: Colors.blueGrey.shade100),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(
+                          width: 8,
+                          height: 8,
+                          decoration: BoxDecoration(
+                            color: Colors.blueGrey.shade400,
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          'ESTADO: ${_getEstadoDisplayText(reporte['estado'] ?? '').toUpperCase()}',
+                          style: TextStyle(
+                            color: Colors.blueGrey.shade700,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 12,
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  const SizedBox(height: 32),
+
+                  // Sección Imágenes
+                  if (reporte['imagenes'] != null && (reporte['imagenes'] as List).isNotEmpty) ...[
+                    const Row(
+                      children: [
+                        Icon(Icons.image_outlined, size: 20),
+                        SizedBox(width: 8),
+                        Text(
+                          'Imágenes del reporte',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(16),
+                      child: Stack(
+                        alignment: Alignment.bottomRight,
+                        children: [
+                          Base64ImageWidget(
+                            base64String: (reporte['imagenes'] as List)[0],
+                            width: double.infinity,
+                            height: 200,
+                            fit: BoxFit.cover,
+                          ),
+                          Container(
+                            margin: const EdgeInsets.all(12),
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: Colors.black.withOpacity(0.7),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Text(
+                              '1/${(reporte['imagenes'] as List).length}',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                  ],
+
+                  // Tarjetas Fecha y Categoría
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Container(
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'FECHA',
+                                style: TextStyle(
+                                  color: Colors.grey.shade500,
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                reporte['fecha'] ?? '',
+                                style: const TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: Container(
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'CATEGORÍA',
+                                style: TextStyle(
+                                  color: Colors.grey.shade500,
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                reporte['tipo'] ?? '',
+                                style: const TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                                maxLines: 2, // Por si es largo como "Drenajes Obstruidos"
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ],
+                          ),
                         ),
                       ),
                     ],
                   ),
-                ),
 
-                // Mostrar galería de imágenes si existen
-                if (reporte['imagenes'] != null && (reporte['imagenes'] as List).isNotEmpty) ...[
-                  const Text(
-                    'Imágenes del reporte:',
-                    style: TextStyle(fontWeight: FontWeight.bold),
+                  const SizedBox(height: 24),
+
+                  // Comentario
+                  const Row(
+                    children: [
+                      Icon(Icons.comment_outlined, size: 20),
+                      SizedBox(width: 8),
+                      Text(
+                        'Comentario',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 8),
-                  SizedBox(
-                    height: 120,
-                    child: ReportImageGallery(
-                      base64Images: List<String>.from(reporte['imagenes']),
-                      imageSize: 120,
-                      onImageTap: (index, base64) {
-                        FullScreenImageModal.show(
-                          context,
-                          base64,
-                          title: 'Imagen ${index + 1} - ${reporte['folio']}',
-                        );
-                      },
+                  const SizedBox(height: 12),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(20),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: Text(
+                      reporte['descripcion'] ?? 'Sin comentarios adicionales.',
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: Colors.blueGrey.shade700,
+                        height: 1.5,
+                      ),
                     ),
                   ),
-                  const SizedBox(height: 16),
+
+                  const SizedBox(height: 24),
+
+                  // Ubicación
+                  const Row(
+                    children: [
+                      Icon(Icons.location_on_outlined, size: 20),
+                      SizedBox(width: 8),
+                      Text(
+                        'Ubicación',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(20),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Icon(Icons.map, color: Colors.red.shade400, size: 20),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Text(
+                            reporte['ubicacion'] ?? 'Ubicación no disponible',
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: Colors.blueGrey.shade700,
+                              height: 1.4,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  
+                  const SizedBox(height: 40),
                 ],
-
-                _buildDetailRow('Fecha', reporte['fecha'] ?? 'Fecha desconocida'),
-                _buildDetailRow('Categoría', reporte['tipo'] ?? 'Sin categoría'),
-                _buildDetailSection('Comentario', reporte['descripcion'] ?? 'Sin descripción'),
-                _buildDetailSection('Ubicación', reporte['ubicacion'] ?? 'Sin ubicación'),
-              ],
+              ),
             ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('Cerrar', style: TextStyle(color: kPrimaryColor)),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  Widget _buildDetailRow(String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8.0),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text('$label: ', style: const TextStyle(fontWeight: FontWeight.bold)),
-          Expanded(child: Text(value)),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildDetailSection(String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 16.0, top: 8.0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(label, style: const TextStyle(fontWeight: FontWeight.bold)),
-          const SizedBox(height: 4),
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: Colors.grey.shade100,
-              borderRadius: BorderRadius.circular(4),
-            ),
-            child: Text(value),
           ),
         ],
       ),

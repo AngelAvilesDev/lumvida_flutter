@@ -224,15 +224,20 @@ class MapViewModel extends ChangeNotifier {
       double? latitud;
       double? longitud;
 
-      if (data['latitud'] != null && data['longitud'] != null) {
-        latitud = (data['latitud'] as num).toDouble();
-        longitud = (data['longitud'] as num).toDouble();
-      } else if (data['ubicacion'] != null &&
-          data['ubicacion'] is Map &&
-          data['ubicacion']['latitud'] != null &&
-          data['ubicacion']['longitud'] != null) {
-        latitud = (data['ubicacion']['latitud'] as num).toDouble();
-        longitud = (data['ubicacion']['longitud'] as num).toDouble();
+      try {
+        if (data['latitud'] != null && data['longitud'] != null) {
+          latitud = double.tryParse(data['latitud'].toString());
+          longitud = double.tryParse(data['longitud'].toString());
+        } else if (data['ubicacion'] != null &&
+            data['ubicacion'] is Map &&
+            data['ubicacion']['latitud'] != null &&
+            data['ubicacion']['longitud'] != null) {
+          latitud = double.tryParse(data['ubicacion']['latitud'].toString());
+          longitud = double.tryParse(data['ubicacion']['longitud'].toString());
+        }
+      } catch (e) {
+        if (kDebugMode) print('Error parsing coordinates for report ${data['id']}: $e');
+        continue; // Skip this report
       }
 
       if (latitud != null && longitud != null) {

@@ -258,7 +258,7 @@ class ProfileViewModel extends ChangeNotifier {
     try {
       final XFile? pickedFile = await _imagePicker.pickImage(
         source: source,
-        imageQuality: 70,
+        imageQuality: 50,
         maxWidth: 800,
         maxHeight: 800,
       );

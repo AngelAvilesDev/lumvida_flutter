@@ -640,13 +640,32 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
         );
       }
 
-      // Buscar documento del usuario en Firestore
-      print('📂 Buscando documento en ruta: usuarios/${user.uid}');
+      // Buscar documento del usuario en Firestore con reintentos
+      DocumentSnapshot<Map<String, dynamic>>? userDoc;
+      int retries = 0;
+      const maxRetries = 3;
 
-      final userDoc = await FirebaseFirestore.instance
-          .collection('usuarios')
-          .doc(user.uid)
-          .get();
+      while (retries < maxRetries) {
+        print('📂 Buscando documento en ruta: usuarios/${user.uid} (Intento ${retries + 1}/$maxRetries)');
+        
+        userDoc = await FirebaseFirestore.instance
+            .collection('usuarios')
+            .doc(user.uid)
+            .get();
+
+        if (userDoc.exists) {
+          break;
+        }
+
+        print('⏳ Documento no encontrado aún, esperando...');
+        await Future.delayed(const Duration(seconds: 1));
+        retries++;
+      }
+      
+      // Si después de reintentos sigue siendo null o no existe
+      if (userDoc == null) {
+         userDoc = await FirebaseFirestore.instance.collection('usuarios').doc(user.uid).get();
+      }
 
       print('📄 Documento existe: ${userDoc.exists}');
 

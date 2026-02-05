@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart'; // PARA COPIAR FOLIO
 import 'package:provider/provider.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -93,22 +94,27 @@ class _MisReportesScreenState extends State<MisReportesScreen> with TickerProvid
           .get();
 
       final reportes = reportesSnapshot.docs.map((doc) {
-        final data = doc.data();
-        return {
-          'id': doc.id,
-          'folio': data['folio'] ?? 'Sin folio',
-          'fecha': _formatearFecha(data['fecha']),
-          'estado': data['estado'] ?? 'pendiente',
-          'tipo': data['categoria'] ?? 'Sin categoría',
-          'descripcion': data['comentario'] ?? 'Sin descripción',
-          'ubicacion': data['direccion'] ?? 'Sin ubicación',
-          'nombreCompleto': data['nombreCompleto'] ?? '',
-          'telefono': data['telefono'] ?? '',
-          'isAnonymous': data['isAnonymous'] ?? false,
-          'imagenes': data['imagenes'] ?? [],
-          'historialEstados': data['historialEstados'] ?? [],
-        };
-      }).toList();
+        try {
+          final data = doc.data();
+          return {
+            'id': doc.id,
+            'folio': data['folio'] ?? 'Sin folio',
+            'fecha': _formatearFecha(data['fecha']),
+            'estado': data['estado'] ?? 'pendiente',
+            'tipo': data['categoria'] ?? 'Sin categoría',
+            'descripcion': data['comentario'] ?? 'Sin descripción',
+            'ubicacion': data['direccion'] ?? 'Sin ubicación',
+            'nombreCompleto': data['nombreCompleto'] ?? '',
+            'telefono': data['telefono'] ?? '',
+            'isAnonymous': data['isAnonymous'] ?? false,
+            'imagenes': data['imagenes'] ?? [],
+            'historialEstados': data['historialEstados'] ?? [],
+          };
+        } catch (e) {
+          if (kDebugMode) print("Error parsing report ${doc.id}: $e");
+          return null; // Retornamos null para filtrar después
+        }
+      }).where((element) => element != null).cast<Map<String, dynamic>>().toList();
 
       setState(() {
         _reportes = reportes;

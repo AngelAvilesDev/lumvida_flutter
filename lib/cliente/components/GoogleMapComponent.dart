@@ -104,13 +104,24 @@ class GoogleMapComponentState extends State<GoogleMapComponent> {
     });
   }
 
-  // CONVERTIR ICONO PERSONALIZADO A BITMAP
+  // CACHE DE ICONOS ESTÁTICO PARA MEJORAR RENDIMIENTO
+  static final Map<String, BitmapDescriptor> _markerIconCache = {};
+
+  // CONVERTIR ICONO PERSONALIZADO A BITMAP CON CACHÉ
   Future<BitmapDescriptor> _createCustomMarkerIcon(Icon? customIcon) async {
     if (customIcon == null) {
       return BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed);
     }
 
     try {
+      // Generar una clave única para el caché
+      final String cacheKey = '${customIcon.icon?.codePoint}_${customIcon.color?.value ?? 0}_${customIcon.icon?.fontFamily}';
+
+      // Verificar si ya existe en caché
+      if (_markerIconCache.containsKey(cacheKey)) {
+        return _markerIconCache[cacheKey]!;
+      }
+
       // Crear un widget de icono personalizado
       final icon = Icon(
         customIcon.icon,
@@ -141,7 +152,12 @@ class GoogleMapComponentState extends State<GoogleMapComponent> {
       final image = await picture.toImage(48, 48);
       final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
 
-      return BitmapDescriptor.bytes(bytes!.buffer.asUint8List());
+      final bitmapDescriptor = BitmapDescriptor.bytes(bytes!.buffer.asUint8List());
+      
+      // Guardar en caché
+      _markerIconCache[cacheKey] = bitmapDescriptor;
+
+      return bitmapDescriptor;
     } catch (e) {
       debugPrint('Error creando icono personalizado: $e');
       // Fallback a marcador por defecto con color

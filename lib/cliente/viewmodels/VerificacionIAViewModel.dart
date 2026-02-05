@@ -154,20 +154,32 @@ class VerificacionIAViewModel extends ChangeNotifier {
       }
 
       // Actualizar estados con los resultados
+      // Actualizar estados con los resultados
       _isAnalyzing = false;
-      _isCategoryMatch = imageAnalysis['isMatch'] ?? false;
       _detectedCategory = imageAnalysis['detectedCategory'] ?? _categoria;
       _analysisMessage = imageAnalysis['message'] ?? 'No se pudo analizar la imagen';
       _isLocationVerified = locationVerification['isLocationVerified'] ?? false;
       _locationVerificationMessage = locationVerification['message'] ?? 'No se pudieron verificar los metadatos de ubicación.';
 
-      // LÓGICA CRÍTICA: Solo permitir envío si la categoría coincide EXACTAMENTE
+      // LÓGICA DE FUZZY MATCH
+      // Si la IA dice que no coincide, pero la categoría detectada es la misma (ignorando mayúsculas/tildes y espacios)
+      bool stringMatch = _normalizeString(_detectedCategory) == _normalizeString(_categoria);
+      
+      _isCategoryMatch = (imageAnalysis['isMatch'] ?? false) || stringMatch;
+
+      // LÓGICA CRÍTICA: Solo permitir envío si la categoría coincide EXACTAMENTE o por similitud de texto
       _canSubmitReport = _isCategoryMatch;
 
       notifyListeners();
     } catch (e) {
       _finalizarAnalisisConError('Error al analizar las imágenes: $e');
     }
+  }
+
+  String _normalizeString(String input) {
+    return input.trim().toLowerCase()
+        .replaceAll('á', 'a').replaceAll('é', 'e').replaceAll('í', 'i').replaceAll('ó', 'o').replaceAll('ú', 'u')
+        .replaceAll('ñ', 'n');
   }
 
   // Convertir imágenes a Base64 - SIN CAMBIOS

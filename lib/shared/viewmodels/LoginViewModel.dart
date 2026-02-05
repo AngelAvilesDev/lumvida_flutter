@@ -2,6 +2,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../utils/error_messages.dart';
 
 class LoginViewModel extends ChangeNotifier {
@@ -128,6 +129,38 @@ class LoginViewModel extends ChangeNotifier {
       final userCredential = await _auth.signInWithCredential(credential);
 
       if (userCredential.user != null) {
+        final user = userCredential.user!;
+        
+        // Verificar si el usuario ya existe en Firestore
+        // NOTA: Esto es crítico para que LoginScreen.dart no falle al verificar rol
+        if (kDebugMode) print("GOOGLE LOGIN VM: Checking user ${user.uid} in Firestore...");
+        
+        final userDoc = await FirebaseFirestore.instance.collection('usuarios').doc(user.uid).get();
+
+        if (!userDoc.exists) {
+          if (kDebugMode) print("GOOGLE LOGIN VM: Creating new user document...");
+          
+          await FirebaseFirestore.instance.collection("usuarios").doc(user.uid).set({
+            "uid": user.uid,
+            "email": user.email,
+            "nombre": user.displayName ?? "Usuario",
+            "telefono": "", 
+            "photoUrl": user.photoURL,
+            "provider": "GOOGLE",
+            "createdAt": Timestamp.now(),
+            "updatedAt": Timestamp.now(),
+            "lastLogin": Timestamp.now(),
+            "role": "ciudadano" 
+          });
+          
+          if (kDebugMode) print("GOOGLE LOGIN VM: User document created.");
+        } else {
+          if (kDebugMode) print("GOOGLE LOGIN VM: Updating lastLogin...");
+          await FirebaseFirestore.instance.collection("usuarios").doc(user.uid).update({
+            "lastLogin": Timestamp.now(),
+          });
+        }
+        
         return true;
       } else {
         _setError(AuthErrorMessages.getGoogleSignInError('unknown-error'));

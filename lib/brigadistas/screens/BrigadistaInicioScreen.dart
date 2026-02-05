@@ -1389,9 +1389,9 @@ class _DetalleReporteSheetState extends State<DetalleReporteSheet> {
   Future<void> _seleccionarImagenes() async {
     try {
       final List<XFile> imagenes = await _picker.pickMultiImage(
-        maxWidth: 600,
-        maxHeight: 600,
-        imageQuality: 40,
+        maxWidth: 1024,
+        maxHeight: 1024,
+        imageQuality: 50,
       );
 
       if (imagenes.isEmpty) return;

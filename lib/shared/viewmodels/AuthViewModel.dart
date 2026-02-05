@@ -203,6 +203,33 @@ class AuthViewModel extends ChangeNotifier {
       final User? user = await GoogleSignInService.signInWithGoogle();
 
       if (user != null) {
+        // Verificar si el usuario ya existe en Firestore
+        if (kDebugMode) print("GOOGLE AUTH: Checking if user ${user.uid} exists in Firestore...");
+        final userDoc = await _firestore.collection('usuarios').doc(user.uid).get();
+
+        if (!userDoc.exists) {
+          if (kDebugMode) print("GOOGLE AUTH: User does not exist. Creating new document...");
+          // Si no existe, crearlo (como en el registro por correo)
+          await _firestore.collection("usuarios").doc(user.uid).set({
+            "uid": user.uid,
+            "email": user.email,
+            "nombre": user.displayName ?? "Usuario",
+            "telefono": "", // Google no siempre retorna teléfono
+            "photoUrl": user.photoURL,
+            "provider": "GOOGLE",
+            "createdAt": Timestamp.now(),
+            "updatedAt": Timestamp.now(),
+            "lastLogin": Timestamp.now(),
+            "role": "ciudadano" // Rol por defecto
+          });
+          if (kDebugMode) print("GOOGLE AUTH: User document created successfully.");
+        } else {
+          if (kDebugMode) print("GOOGLE AUTH: User exists. Updating lastLogin...");
+          await _firestore.collection("usuarios").doc(user.uid).update({
+            "lastLogin": Timestamp.now(),
+          });
+        }
+        
         _user = user;
         await _cargarDatosUsuario(user.uid);
         _isLoading = false;

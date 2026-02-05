@@ -511,7 +511,9 @@ class _VerificacionIAReporteScreenState extends State<VerificacionIAReporteScree
                     Text(
                       isSuccess
                           ? '✅ La IA confirma que la imagen muestra un problema de ${verificacionVM.categoria}.'
-                          : '❌ La IA detectó un problema de ${verificacionVM.detectedCategory}, pero reportaste ${verificacionVM.categoria}.',
+                          : (verificacionVM.detectedCategory == verificacionVM.categoria)
+                              ? '❌ La IA no pudo confirmar con certeza que la imagen corresponda a esta categoría.'
+                              : '❌ La IA detectó un problema de "${verificacionVM.detectedCategory}", pero reportaste "${verificacionVM.categoria}".',
                       style: TextStyle(
                         fontSize: 14,
                         color: color.shade600,

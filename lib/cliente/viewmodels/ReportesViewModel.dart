@@ -35,6 +35,13 @@ class ReportesViewModel extends ChangeNotifier {
     notifyListeners();
   }
 
+  // NUEVO: Método para controlar estado de envío manualmente (para feedback inmediato)
+  void setSubmitting(bool value) {
+    if (_disposed) return;
+    _isSubmitting = value;
+    notifyListeners();
+  }
+
   void setSelectedLocation(LatLng location) {
     if (_disposed) return;
     _selectedLocation = location;

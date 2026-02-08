@@ -143,7 +143,7 @@ class AuthErrorMessages {
   // Métodos específicos para diferentes tipos de errores
   static String getLoginError(String errorCode) {
     return getErrorMessage(errorCode,
-        defaultMessage: 'Error al iniciar sesión. Verifica tus credenciales.');
+        defaultMessage: 'Datos no válidos, verifica tus credenciales.');
   }
 
   static String getRegisterError(String errorCode) {

@@ -398,8 +398,8 @@ IMPORTANTE: Solo responde "SI COINCIDE" si estás completamente seguro. En caso 
         'success': true,
         'isLocationVerified': isVerified,
         'message': isVerified
-            ? 'Los metadatos de ubicación en la imagen coinciden aproximadamente con la ubicación reportada.'
-            : 'No se encontraron metadatos de ubicación válidos en la imagen, o la ubicación no coincide con la reportada.',
+            ? 'La ubicación de la foto coincide con tu reporte.'
+            : 'No se pudo confirmar la ubicación en la foto, o es distinta a la reportada.',
       };
     } catch (e) {
       if (kDebugMode) {
@@ -427,8 +427,8 @@ IMPORTANTE: Solo responde "SI COINCIDE" si estás completamente seguro. En caso 
         'success': true,
         'isLocationVerified': isVerified,
         'message': isVerified
-            ? 'Los metadatos de ubicación en la imagen coinciden aproximadamente con la ubicación reportada.'
-            : 'No se encontraron metadatos de ubicación válidos en la imagen, o la ubicación no coincide con la reportada.',
+            ? 'La ubicación de la foto coincide con tu reporte.'
+            : 'No se pudo confirmar la ubicación en la foto, o es distinta a la reportada.',
       };
     } catch (e) {
       if (kDebugMode) {

@@ -307,13 +307,13 @@ class VerificacionIAViewModel extends ChangeNotifier {
   // Obtener mensaje de estado - SIN CAMBIOS
   String obtenerMensajeEstado() {
     if (_isAnalyzing) {
-      return 'Analizando imágenes con IA...';
+      return 'Lumi está revisando tu reporte...';
     } else if (_analysisFailed) {
-      return 'Error en el análisis. Inténtalo nuevamente.';
+      return 'Algo salió mal. Inténtalo nuevamente.';
     } else if (!_isCategoryMatch) {
-      return 'La imagen no coincide con la categoría reportada.';
+      return 'La foto no parece coincidir con el reporte.';
     } else if (_canSubmitReport) {
-      return 'Verificación completada. Puedes enviar el reporte.';
+      return 'Todo listo. Puedes enviar el reporte.';
     } else {
       return 'Verificando reporte...';
     }

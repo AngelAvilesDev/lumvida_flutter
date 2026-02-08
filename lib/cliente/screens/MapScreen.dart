@@ -77,7 +77,9 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
   void _centerAllReports() {
     final bounds = _mapViewModel.obtenerBoundsFiltrados();
     if (bounds != null) {
-      // Esta funcionalidad se puede expandir en el GoogleMapComponent si es necesario
+      // Usar fitBounds para ajustar la vista
+      _mapKey.currentState?.fitBounds(bounds, padding: 80.0);
+      
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Mostrando ${_mapViewModel.filteredMarkers.length} reportes'),
@@ -86,6 +88,7 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(10),
           ),
+          duration: const Duration(seconds: 2),
         ),
       );
     } else {
@@ -159,7 +162,7 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
                 // Filtros flotantes
                 _buildFloatingFilters(mapVM),
 
-                // Contador flotante (moved up slightly to make room for loading if needed)
+                // Contador flotante (restaurado)
                 _buildFloatingCounter(mapVM),
                 
                 // Loading Indicator - MOVED TO BOTTOM CENTER to avoid filter overlap
@@ -381,7 +384,24 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
                     children: mapVM.availableFilters.map((filter) {
                       final isSelected = mapVM.selectedFilter == filter ||
                           (filter == 'Todos' && mapVM.selectedFilter == null);
-                      return _buildFilterChip(filter, isSelected, () => mapVM.aplicarFiltro(filter));
+                      return _buildFilterChip(
+                        filter, 
+                        isSelected, 
+                        // Modified onTap to include auto-focus
+                        () {
+                          mapVM.aplicarFiltro(filter);
+                          
+                          // AUTO-FOCUS: Ajustar mapa a los nuevos marcadores
+                          Future.delayed(const Duration(milliseconds: 300), () {
+                            if (mounted) {
+                              final bounds = mapVM.obtenerBoundsFiltrados();
+                              if (bounds != null) {
+                                _mapKey.currentState?.fitBounds(bounds, padding: 80.0);
+                              }
+                            }
+                          });
+                        }
+                      );
                     }).toList(),
                   ),
                 ),
@@ -428,6 +448,7 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
       ),
     );
   }
+
 
   Widget _buildFloatingCounter(MapViewModel mapVM) {
     if (mapVM.isLoading) return const SizedBox.shrink();
@@ -496,7 +517,7 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // Botón de Recargar - NUEVO
+            // Botón de Recargar
             FloatingActionButton(
               heroTag: "refresh_fab",
               onPressed: mapVM.isLoading ? null : () => mapVM.recargar(),
@@ -520,16 +541,6 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
               foregroundColor: kPrimaryColor,
               elevation: 4,
               child: const Icon(Icons.my_location, size: 24),
-            ),
-            const SizedBox(height: 12),
-            // Botón de centrar todos los reportes
-            FloatingActionButton(
-              heroTag: "center_all_fab",
-              onPressed: _centerAllReports,
-              backgroundColor: kPrimaryColor,
-              foregroundColor: Colors.white,
-              elevation: 4,
-              child: const Icon(Icons.center_focus_strong, size: 24),
             ),
           ],
         ),

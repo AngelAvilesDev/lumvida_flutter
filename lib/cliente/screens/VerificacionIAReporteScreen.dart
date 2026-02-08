@@ -224,13 +224,14 @@ class _VerificacionIAReporteScreenState extends State<VerificacionIAReporteScree
   }
 
   Widget _buildMainContent(VerificacionIAViewModel verificacionVM) {
-    if (verificacionVM.isAnalyzing) {
-      return _buildLoadingContent();
-    } else if (verificacionVM.analysisFailed) {
-      return _buildErrorContent(verificacionVM);
-    } else {
-      return _buildAnalysisResults(verificacionVM);
-    }
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 500),
+      child: verificacionVM.isAnalyzing
+          ? _buildLoadingContent()
+          : verificacionVM.analysisFailed
+              ? _buildErrorContent(verificacionVM)
+              : _buildAnalysisResults(verificacionVM),
+    );
   }
 
   Widget _buildLoadingContent() {
@@ -280,7 +281,7 @@ class _VerificacionIAReporteScreenState extends State<VerificacionIAReporteScree
             const SizedBox(height: 24),
 
             const Text(
-              'Analizando con IA...',
+              'Lumi está revisando...',
               style: TextStyle(
                 fontSize: 24,
                 fontWeight: FontWeight.bold,
@@ -292,7 +293,7 @@ class _VerificacionIAReporteScreenState extends State<VerificacionIAReporteScree
             const SizedBox(height: 12),
 
             Text(
-              'Verificando que la categoría reportada coincida exactamente con el contenido de las imágenes.',
+              'Verificando que tu reporte coincida con la foto adjunta.',
               style: TextStyle(
                 fontSize: 16,
                 color: Colors.grey.shade600,
@@ -306,10 +307,10 @@ class _VerificacionIAReporteScreenState extends State<VerificacionIAReporteScree
             // Lista de pasos
             Column(
               children: [
-                _buildAnalysisStep('Procesando imágenes', true),
-                _buildAnalysisStep('Analizando contenido con IA', true),
-                _buildAnalysisStep('Verificando coincidencia de categoría', false),
-                _buildAnalysisStep('Validando ubicación', false),
+                _buildAnalysisStep('Procesando fotos', true),
+                _buildAnalysisStep('Lumi está analizando', true),
+                _buildAnalysisStep('Verificando categoría', false),
+                _buildAnalysisStep('Confirmando ubicación', false),
               ],
             ),
           ],
@@ -500,7 +501,7 @@ class _VerificacionIAReporteScreenState extends State<VerificacionIAReporteScree
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      isSuccess ? 'Verificación exitosa' : 'Problema detectado',
+                      isSuccess ? 'Reporte verificado' : 'Atención',
                       style: TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.bold,
@@ -510,10 +511,10 @@ class _VerificacionIAReporteScreenState extends State<VerificacionIAReporteScree
                     const SizedBox(height: 4),
                     Text(
                       isSuccess
-                          ? '✅ La IA confirma que la imagen muestra un problema de ${verificacionVM.categoria}.'
+                          ? '✅ Lumi confirmó que la foto coincide con tu reporte de ${verificacionVM.categoria}.'
                           : (verificacionVM.detectedCategory == verificacionVM.categoria)
-                              ? '❌ La IA no pudo confirmar con certeza que la imagen corresponda a esta categoría.'
-                              : '❌ La IA detectó un problema de "${verificacionVM.detectedCategory}", pero reportaste "${verificacionVM.categoria}".',
+                              ? '❌ Lumi no está segura de que la foto coincida con esta categoría.'
+                              : '❌ Lumi detectó "${verificacionVM.detectedCategory}", pero reportaste "${verificacionVM.categoria}".',
                       style: TextStyle(
                         fontSize: 14,
                         color: color.shade600,
@@ -560,7 +561,7 @@ class _VerificacionIAReporteScreenState extends State<VerificacionIAReporteScree
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Verificación de ubicación',
+                  'Ubicación de la foto',
                   style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
@@ -772,11 +773,11 @@ class _VerificacionIAReporteScreenState extends State<VerificacionIAReporteScree
           const SizedBox(height: 12),
           Text(
             verificacionVM.isCategoryMatch
-                ? 'Tu reporte ha sido verificado correctamente. Puedes proceder a enviarlo.'
-                : 'Para mejorar la precisión de tu reporte:\n'
-                '• Verifica que la imagen muestre claramente el problema reportado\n'
-                '• Considera cambiar la categoría a "${verificacionVM.detectedCategory}"\n'
-                '• Toma una nueva foto que muestre específicamente el problema de "${verificacionVM.categoria}"',
+                ? 'Reporte verificado. Puedes enviarlo con confianza.'
+                : 'Para que Lumi pueda validar tu reporte:\n'
+                '• Asegúrate que la foto muestre claramente el problema\n'
+                '• Quizás quieras cambiar la categoría a "${verificacionVM.detectedCategory}"\n'
+                '• O toma una nueva foto más clara del problema de "${verificacionVM.categoria}"',
             style: TextStyle(
               fontSize: 14,
               color: Colors.blue.shade700,

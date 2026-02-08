@@ -14,7 +14,9 @@ class GoogleMapComponent extends StatefulWidget {
   final LatLng? initialPosition;
   final List<MarkerData>? markers;
   final bool showLocationButton;
-  final Function(Map<String, dynamic>)? onMarkerTap; // NUEVO CALLBACK
+  final Function(Map<String, dynamic>)? onMarkerTap;
+  final bool enableScroll; // Nuevo parámetro para controlar gestos
+  final bool compactLocationButton; // Nuevo parámetro para mostrar solo FAB
 
   const GoogleMapComponent({
     Key? key,
@@ -25,7 +27,9 @@ class GoogleMapComponent extends StatefulWidget {
     this.initialPosition,
     this.markers,
     this.showLocationButton = true,
-    this.onMarkerTap, // NUEVO PARÁMETRO
+    this.onMarkerTap,
+    this.enableScroll = true, // Por defecto habilitado
+    this.compactLocationButton = false, // Por defecto ancho completo
   }) : super(key: key);
 
   @override
@@ -71,6 +75,19 @@ class GoogleMapComponentState extends State<GoogleMapComponent> {
     if (widget.markers != oldWidget.markers && _isMapReady) {
       _updateMarkersFromData(widget.markers ?? []);
     }
+
+    // NUEVO: Si la posición inicial cambia (ej. al volver de "Ajustar Ubicación"), mover la cámara
+    if (widget.initialPosition != oldWidget.initialPosition) {
+       if (widget.initialPosition != null && _isMapReady) {
+          goToLocation(widget.initialPosition!);
+          // También actualizar el marcador de selección si aplica
+          if (widget.allowPicking) {
+             setState(() {
+               _selectedLocation = widget.initialPosition;
+             });
+          }
+       }
+    }
   }
 
   // MÉTODO PARA ACTUALIZAR MARCADORES SIN RECARGAR EL MAPA
@@ -114,19 +131,22 @@ class GoogleMapComponentState extends State<GoogleMapComponent> {
     }
 
     try {
-      // Generar una clave única para el caché
-      final String cacheKey = '${customIcon.icon?.codePoint}_${customIcon.color?.value ?? 0}_${customIcon.icon?.fontFamily}';
+      // DEFINIR TAMAÑO: Usar el definido en el icono o un default más pequeño (35.0)
+      final double iconSize = customIcon.size ?? 35.0;
+
+      // Generar una clave única para el caché INCLUYENDO EL TAMAÑO
+      final String cacheKey = '${customIcon.icon?.codePoint}_${customIcon.color?.value ?? 0}_${customIcon.icon?.fontFamily}_$iconSize';
 
       // Verificar si ya existe en caché
       if (_markerIconCache.containsKey(cacheKey)) {
         return _markerIconCache[cacheKey]!;
       }
 
-      // Crear un widget de icono personalizado
+      // Crear un widget de icono personalizado con el tamaño correcto
       final icon = Icon(
         customIcon.icon,
         color: customIcon.color ?? Colors.red,
-        size: 48.0, // Tamaño fijo para marcadores
+        size: iconSize,
       );
 
       // Convertir el widget a bitmap
@@ -137,7 +157,7 @@ class GoogleMapComponentState extends State<GoogleMapComponent> {
         text: TextSpan(
           text: String.fromCharCode(customIcon.icon?.codePoint ?? Icons.location_on.codePoint),
           style: TextStyle(
-            fontSize: 48.0,
+            fontSize: iconSize,
             fontFamily: customIcon.icon?.fontFamily ?? 'MaterialIcons',
             color: customIcon.color ?? Colors.red,
           ),
@@ -149,7 +169,8 @@ class GoogleMapComponentState extends State<GoogleMapComponent> {
       textPainter.paint(canvas, const Offset(0, 0));
 
       final picture = pictureRecorder.endRecording();
-      final image = await picture.toImage(48, 48);
+      // Usar el tamaño exacto para la imagen
+      final image = await picture.toImage(iconSize.toInt(), iconSize.toInt());
       final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
 
       final bitmapDescriptor = BitmapDescriptor.bytes(bytes!.buffer.asUint8List());
@@ -192,6 +213,19 @@ class GoogleMapComponentState extends State<GoogleMapComponent> {
       );
     } catch (e) {
       debugPrint('Error al ir a ubicación: $e');
+    }
+  }
+
+  // MÉTODO PÚBLICO PARA AJUSTAR LA CÁMARA A UNOS LÍMITES (AUTO-ENFOQUE)
+  Future<void> fitBounds(LatLngBounds bounds, {double padding = 50.0}) async {
+    if (_mapController == null || !_isMapReady) return;
+
+    try {
+      await _mapController!.animateCamera(
+        CameraUpdate.newLatLngBounds(bounds, padding),
+      );
+    } catch (e) {
+      debugPrint('Error al ajustar límites del mapa: $e');
     }
   }
 
@@ -385,20 +419,29 @@ class GoogleMapComponentState extends State<GoogleMapComponent> {
               compassEnabled: true,
               mapToolbarEnabled: false,
               zoomControlsEnabled: false,
+              scrollGesturesEnabled: widget.enableScroll, // Controlado por parámetro
+              rotateGesturesEnabled: widget.enableScroll, // También bloqueamos rotación si no hay scroll
+              tiltGesturesEnabled: widget.enableScroll,   // Y tilt
+              zoomGesturesEnabled: widget.enableScroll, // Zoom también bloqueado si enableScroll es false (mapa estático)
+
 
               // Callbacks
-              onTap: widget.allowPicking ? _onMapTapped : null,
+              onTap: null, // DESHABILITADO: Evitar cambios accidentales por toque
               onCameraMove: widget.allowPicking ? _onCameraMove : null,
+              onCameraIdle: widget.allowPicking ? _onCameraIdle : null, // Detectar fin del movimiento (Drag)
             ),
           ),
 
           // Marcador central para selección de ubicación
           if (widget.allowPicking)
             Center(
-              child: Icon(
-                Icons.location_pin,
-                color: Colors.red.shade800,
-                size: 36,
+              child: Padding(
+                padding: const EdgeInsets.only(bottom: 36), // Ajuste visual para que la punta del pin esté en el centro
+                child: Icon(
+                  Icons.location_pin,
+                  color: Colors.red.shade800,
+                  size: 40,
+                ),
               ),
             ),
 
@@ -407,36 +450,63 @@ class GoogleMapComponentState extends State<GoogleMapComponent> {
             Positioned(
               bottom: 16,
               right: 16,
-              left: 16, // Ocupar ancho para que sea visible y fácil de tocar
-              child: SizedBox(
-                height: 50,
-                width: double.infinity, // Asegurar ancho completo
-                child: ElevatedButton.icon(
-                  icon: _isLocatingUser
-                      ? const SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: Colors.white,
+              left: widget.compactLocationButton ? null : 16, // Si es compacto, no ocupa todo el ancho
+              child: widget.compactLocationButton
+                  ? FloatingActionButton(
+                      heroTag: 'my_location_fab_${widget.hashCode}',
+                      mini: false,
+                      backgroundColor: Colors.white,
+                      foregroundColor: Colors.blue.shade700,
+                      onPressed: _isLocatingUser ? null : goToMyLocation,
+                      child: _isLocatingUser
+                          ? const SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.my_location),
+                    )
+                  : SizedBox(
+                      height: 50,
+                      width: double.infinity, // Asegurar ancho completo
+                      child: ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.blue.shade700,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(horizontal: 12), // Reducir padding si es necesario
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
                           ),
-                        )
-                      : const Icon(Icons.my_location, color: Colors.white),
-                  label: Text(
-                    _isLocatingUser ? 'Localizando...' : 'Obtener mi ubicación',
-                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                  ),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.blue.shade700,
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
+                          elevation: 4,
+                        ),
+                        onPressed: _isLocatingUser ? null : goToMyLocation,
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            _isLocatingUser
+                                ? const SizedBox(
+                                    width: 20,
+                                    height: 20,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: Colors.white,
+                                    ),
+                                  )
+                                : const Icon(Icons.my_location, color: Colors.white),
+                            const SizedBox(width: 8),
+                            Flexible( // Usar Flexible para que el texto se adapte
+                              child: FittedBox(
+                                fit: BoxFit.scaleDown,
+                                child: Text(
+                                  _isLocatingUser ? 'Localizando...' : 'Obtener mi ubicación',
+                                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
                     ),
-                    elevation: 4,
-                  ),
-                  onPressed: _isLocatingUser ? null : goToMyLocation,
-                ),
-              ),
             ),
 
           // Información de dirección eliminada para limpiar la UI
@@ -447,24 +517,27 @@ class GoogleMapComponentState extends State<GoogleMapComponent> {
   }
 
   // Métodos para picking de ubicación - MEJORADO
-  void _onMapTapped(LatLng location) {
+  
+  void _onCameraMove(CameraPosition position) {
     if (widget.allowPicking) {
+      // Solo actualizamos visualmente para feedback inmediato
+      // No llamamos al callback aquí para evitar spam de peticiones
       setState(() {
-        _selectedLocation = location;
-        _addressText = 'Obteniendo dirección...';
+        _selectedLocation = position.target;
+        // _addressText = 'Soltá para seleccionar...'; 
       });
-
-      // Llamar al callback inmediatamente
-      if (widget.onLocationSelected != null) {
-        widget.onLocationSelected!(location);
-      }
     }
   }
 
-  void _onCameraMove(CameraPosition position) {
-    if (widget.allowPicking) {
+  // NUEVO: Se llama cuando el mapa deja de moverse (por drag o animación)
+  void _onCameraIdle() {
+    if (widget.allowPicking && _selectedLocation != null) {
+      // Aquí es donde realmente confirmamos la selección
+      if (widget.onLocationSelected != null) {
+        widget.onLocationSelected!(_selectedLocation!);
+      }
+      
       setState(() {
-        _selectedLocation = position.target;
         _addressText = 'Obteniendo dirección...';
       });
     }

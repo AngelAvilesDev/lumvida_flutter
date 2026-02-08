@@ -11,6 +11,7 @@ import '../components/GoogleMapComponent.dart'; // CAMBIADO DE OSMMapComponent
 import '../components/BottomNavigationWidget.dart';
 import '../utils/report_categories.dart';
 import '../viewmodels/ReportesViewModel.dart';
+import 'LocationSelectionScreen.dart';
 import 'VerificacionIAReporteScreen.dart';
 
 class ReportesScreen extends StatefulWidget {
@@ -411,12 +412,34 @@ class _ReportesScreenState extends State<ReportesScreen> with TickerProviderStat
   Widget _buildLocationSection() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _buildSectionTitle(
-          '¿Dónde se ubica el problema?',
-          Icons.location_on,
+        children: [
+
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Expanded(
+              child: _buildSectionTitle(
+                '¿Dónde se ubica el problema?',
+                Icons.location_on,
+              ),
+            ),
+            // BOTÓN DE AJUSTE MANUAL (RESTAURADO EN CABECERA)
+            TextButton.icon(
+              onPressed: _openLocationPicker,
+              icon: const Icon(Icons.edit_location_alt, size: 20, color: kPrimaryColor),
+              label: const Text(
+                'Ajustar',
+                style: TextStyle(color: kPrimaryColor, fontWeight: FontWeight.bold),
+              ),
+              style: TextButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                backgroundColor: kPrimaryColor.withValues(alpha: .1),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              ),
+            ),
+          ],
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 12),
 
         Container(
           decoration: BoxDecoration(
@@ -431,11 +454,15 @@ class _ReportesScreenState extends State<ReportesScreen> with TickerProviderStat
           ),
           child: ClipRRect(
             borderRadius: BorderRadius.circular(16),
-            child: GoogleMapComponent( // CAMBIADO DE OSMMapComponent
+            child: GoogleMapComponent( 
               height: 250,
               trackMyLocation: true,
               allowPicking: true,
-              onLocationSelected: (LatLng location) { // CAMBIADO DE osm.GeoPoint
+              enableScroll: false, // BLOQUEADO: Mapa estático
+              showLocationButton: true, // RESTAURADO: Botón "Obtener ubicación"
+              compactLocationButton: false, // Botón ancho completo (azul)
+              initialPosition: _reportesViewModel.selectedLocation, // PASAR UBICACIÓN
+              onLocationSelected: (LatLng location) {
                 _reportesViewModel.setSelectedLocation(location);
               },
             ),
@@ -470,6 +497,27 @@ class _ReportesScreenState extends State<ReportesScreen> with TickerProviderStat
         ],
       ],
     );
+  }
+
+  // MÉTODO PARA ABRIR PANTALLA DE SELECCIÓN
+  void _openLocationPicker() async {
+    if (_reportesViewModel.selectedLocation == null) {
+      _showErrorSnackBar('Primero obtén tu ubicación aproximada');
+      return;
+    }
+
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => LocationSelectionScreen(
+          initialLocation: _reportesViewModel.selectedLocation!,
+        ),
+      ),
+    );
+
+    if (result != null && result is LatLng) {
+      _reportesViewModel.setSelectedLocation(result);
+    }
   }
 
   Widget _buildDescriptionSection(ReportCategory category) {
@@ -571,11 +619,11 @@ class _ReportesScreenState extends State<ReportesScreen> with TickerProviderStat
               const SizedBox(width: 12),
               const Expanded(
                 child: Text(
-                  'Las fotos son necesarias para que la IA verifique tu reporte.',
+                  'Las fotos son necesarias para que Lumi verifique tu reporte.',
                   style: TextStyle(
                     fontSize: 12,
                     color: Colors.orange,
-                    fontWeight: FontWeight.w500,
+                    fontWeight: FontWeight.w800,
                   ),
                 ),
               ),
@@ -585,14 +633,39 @@ class _ReportesScreenState extends State<ReportesScreen> with TickerProviderStat
 
         const SizedBox(height: 16),
 
-        Row(
-          children: [
-            _buildPhotoContainer(0, _reportesViewModel.selectedPhotos),
-            const SizedBox(width: 12),
-            _buildPhotoContainer(1, _reportesViewModel.selectedPhotos),
-            const SizedBox(width: 12),
-            _buildPhotoContainer(2, _reportesViewModel.selectedPhotos),
-          ],
+        // Lista horizontal de fotos
+        SizedBox(
+          height: 120, // Altura fija para el scroll horizontal
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            itemCount: _reportesViewModel.selectedPhotos.length + 1, // +1 para el botón agregar
+            separatorBuilder: (context, index) => const SizedBox(width: 12),
+            itemBuilder: (context, index) {
+              // Si es el último ítem, mostrar botón de agregar
+              if (index == _reportesViewModel.selectedPhotos.length) {
+                // Limitar a máximo 4 fotos
+                if (_reportesViewModel.selectedPhotos.length >= 4) {
+                  return const SizedBox.shrink();
+                }
+                return _buildAddPhotoButton();
+              }
+
+              // Mostrar foto seleccionada
+              return _buildPhotoItem(index, _reportesViewModel.selectedPhotos[index]);
+            },
+          ),
+        ),
+        
+        // Contador de fotos
+        Padding(
+          padding: const EdgeInsets.only(top: 8.0, left: 4.0),
+          child: Text(
+            '${_reportesViewModel.selectedPhotos.length}/4 fotos',
+            style: TextStyle(
+              fontSize: 12,
+              color: Colors.grey.shade600,
+            ),
+          ),
         ),
       ],
     );
@@ -1016,58 +1089,173 @@ class _ReportesScreenState extends State<ReportesScreen> with TickerProviderStat
   Future<void> _proceedToVerification() async {
     if (!mounted) return;
 
-    final authViewModel = Provider.of<AuthViewModel>(context, listen: false);
+    // 1. Mostrar carga inmediatamente para feedback visual
+    setState(() {
+      _reportesViewModel.setSubmitting(true);
+    });
 
-    // Validar usando el ViewModel
-    if (!_reportesViewModel.validateForm(_commentController.text)) {
-      if (mounted) {
-        _showErrorSnackBar(_reportesViewModel.errorMessage ?? 'Error de validación');
+    try {
+      final authViewModel = Provider.of<AuthViewModel>(context, listen: false);
+
+      // 2. Validar usando el ViewModel
+      if (!_reportesViewModel.validateForm(_commentController.text)) {
+        if (mounted) {
+          _showErrorSnackBar(_reportesViewModel.errorMessage ?? 'Error de validación');
+          setState(() {
+            _reportesViewModel.setSubmitting(false);
+          });
+        }
+        return;
       }
-      return;
-    }
 
-    // Si no está autenticado, mostrar diálogo
-    if (!authViewModel.isAuthenticated) {
-      if (mounted) {
-        _mostrarDialogoInicioSesionRequerido();
+      // 3. Si no está autenticado, mostrar diálogo
+      if (!authViewModel.isAuthenticated) {
+        if (mounted) {
+          setState(() {
+            _reportesViewModel.setSubmitting(false);
+          });
+          _mostrarDialogoInicioSesionRequerido();
+        }
+        return;
       }
-      return;
+
+      // 4. Obtener dirección real si es necesario (esto era lo que tardaba)
+      await _reportesViewModel.obtenerDireccionDeUbicacion();
+
+      // 5. Preparar descripción
+      String descripcion = _reportesViewModel.selectedOption == 'Otro (especificar)'
+          ? _commentController.text.trim()
+          : _reportesViewModel.selectedOption!;
+
+      if (descripcion.isEmpty) {
+        descripcion = 'Sin descripción';
+      }
+
+      // 6. Navegar a la pantalla de verificación con IA
+      if (mounted) {
+        // Detener carga antes de navegar
+        setState(() {
+          _reportesViewModel.setSubmitting(false);
+        });
+
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => VerificacionIAReporteScreen(
+              categoria: _selectedCategory,
+              opcionSeleccionada: _reportesViewModel.selectedOption!,
+              comentario: descripcion,
+              ubicacion: _reportesViewModel.selectedLocation!,
+              direccion: _reportesViewModel.addressText,
+              imagenes: _reportesViewModel.selectedPhotos,
+              onConfirm: () => _submitReport(descripcion),
+              onEdit: () {
+                if (mounted) {
+                  Navigator.pop(context);
+                }
+              },
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      // Manejo de errores seguro
+      if (mounted) {
+        setState(() {
+          _reportesViewModel.setSubmitting(false);
+        });
+        _showErrorSnackBar('Ocurrió un error: $e');
+      }
     }
+  }
 
-    // Obtener dirección real si es necesario
-    await _reportesViewModel.obtenerDireccionDeUbicacion();
 
-    // Preparar descripción
-    String descripcion = _reportesViewModel.selectedOption == 'Otro (especificar)'
-        ? _commentController.text.trim()
-        : _reportesViewModel.selectedOption!;
 
-    if (descripcion.isEmpty) {
-      descripcion = 'Sin descripción';
-    }
-
-    // Navegar a la pantalla de verificación con IA
-    if (mounted) {
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (context) => VerificacionIAReporteScreen(
-            categoria: _selectedCategory,
-            opcionSeleccionada: _reportesViewModel.selectedOption!,
-            comentario: descripcion,
-            ubicacion: _reportesViewModel.selectedLocation!, // YA ES LatLng
-            direccion: _reportesViewModel.addressText,
-            imagenes: _reportesViewModel.selectedPhotos,
-            onConfirm: () => _submitReport(descripcion),
-            onEdit: () {
-              if (mounted) {
-                Navigator.pop(context);
-              }
-            },
+  Widget _buildAddPhotoButton() {
+    return Material(
+      color: Colors.grey.shade100,
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
+        onTap: () => _showImageOptions(_reportesViewModel.selectedPhotos.length),
+        borderRadius: BorderRadius.circular(16),
+        child: Container(
+          width: 120,
+          height: 120,
+          decoration: BoxDecoration(
+            border: Border.all(color: Colors.grey.shade300, style: BorderStyle.solid),
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: kPrimaryColor.withValues(alpha: .1),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.add_a_photo, color: kPrimaryColor, size: 24),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'Agregar',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                  color: kPrimaryColor,
+                ),
+              ),
+            ],
           ),
         ),
-      );
-    }
+      ),
+    );
+  }
+
+  Widget _buildPhotoItem(int index, File photo) {
+    return Stack(
+      children: [
+        Container(
+          width: 120,
+          height: 120,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: Colors.grey.shade300),
+            image: DecorationImage(
+              image: FileImage(photo),
+              fit: BoxFit.cover,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: .1),
+                blurRadius: 4,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+        ),
+        Positioned(
+          top: 4,
+          right: 4,
+          child: GestureDetector(
+            onTap: () => _reportesViewModel.removePhoto(index),
+            child: Container(
+              padding: const EdgeInsets.all(4),
+              decoration: BoxDecoration(
+                color: Colors.red,
+                shape: BoxShape.circle,
+                border: Border.all(color: Colors.white, width: 2),
+              ),
+              child: const Icon(
+                Icons.close,
+                color: Colors.white,
+                size: 14,
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
   }
 
   Future<void> _submitReport(String descripcion) async {

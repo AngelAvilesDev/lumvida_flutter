@@ -1,9 +1,11 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart'; // CAMBIADO DE OSM
+import 'package:flutter_image_compress/flutter_image_compress.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:http/http.dart' as http;
 import 'package:uuid/uuid.dart';
 
@@ -202,7 +204,7 @@ class ReporteService {
     );
   }
 
-  // Convertir imágenes a Base64 - SIN CAMBIOS
+  // Convertir imágenes a Base64 - CON COMPRESIÓN OPTIMIZADA
   Future<Map<String, dynamic>> _convertirImagenesABase64(List<File> imagenes) async {
     List<String> base64Images = [];
     List<String> errores = [];
@@ -212,7 +214,7 @@ class ReporteService {
 
       try {
         if (kDebugMode) {
-          print('Convirtiendo imagen $i a Base64');
+          print('🔄 Comprimiendo y convirtiendo imagen $i...');
         }
 
         // Verificar que el archivo existe y es válido
@@ -221,18 +223,38 @@ class ReporteService {
           continue;
         }
 
-        // Verificar el tamaño del archivo (máximo 10MB)
-        final fileSize = await file.length();
-        if (fileSize > 10 * 1024 * 1024) {
-          errores.add('Archivo $i es demasiado grande (${(fileSize / 1024 / 1024).toStringAsFixed(1)}MB)');
+        // Verificar el tamaño del archivo original (máximo 10MB)
+        final originalSize = await file.length();
+        if (originalSize > 10 * 1024 * 1024) {
+          errores.add('Archivo $i es demasiado grande (${(originalSize / 1024 / 1024).toStringAsFixed(1)}MB)');
           continue;
         }
 
-        // Leer los bytes del archivo
-        final bytes = await file.readAsBytes();
+        // 📦 COMPRIMIR IMAGEN (reducir ~70% del tamaño)
+        Uint8List? compressedBytes;
+        try {
+          compressedBytes = await FlutterImageCompress.compressWithFile(
+            file.absolute.path,
+            quality: 70,          // Calidad 70% (buen balance calidad/tamaño)
+            minWidth: 1920,       // Max ancho
+            minHeight: 1920,      // Max alto
+            format: CompressFormat.jpeg,
+          );
+        } catch (compressError) {
+          if (kDebugMode) {
+            print('⚠️ Error de compresión, usando imagen original: $compressError');
+          }
+          // Fallback: usar imagen sin comprimir
+          compressedBytes = await file.readAsBytes();
+        }
+
+        if (compressedBytes == null || compressedBytes.isEmpty) {
+          errores.add('Error al comprimir imagen $i');
+          continue;
+        }
 
         // Convertir a Base64
-        final base64String = base64Encode(bytes);
+        final base64String = base64Encode(compressedBytes);
 
         // Agregar prefijo del tipo de imagen
         final base64WithPrefix = 'data:image/jpeg;base64,$base64String';
@@ -240,14 +262,17 @@ class ReporteService {
         base64Images.add(base64WithPrefix);
 
         if (kDebugMode) {
-          print('Imagen $i convertida exitosamente (${(base64String.length / 1024).toStringAsFixed(1)}KB)');
+          final originalKB = originalSize / 1024;
+          final compressedKB = compressedBytes.length / 1024;
+          final savings = ((1 - compressedBytes.length / originalSize) * 100).toStringAsFixed(0);
+          print('✅ Imagen $i: ${originalKB.toStringAsFixed(0)}KB → ${compressedKB.toStringAsFixed(0)}KB (${savings}% ahorro)');
         }
 
       } catch (e) {
         final errorMsg = 'Error al convertir imagen $i: $e';
         errores.add(errorMsg);
         if (kDebugMode) {
-          print(errorMsg);
+          print('❌ $errorMsg');
         }
       }
     }

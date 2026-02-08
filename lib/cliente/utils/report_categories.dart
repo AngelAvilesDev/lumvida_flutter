@@ -90,7 +90,7 @@ class ReportCategories {
       backgroundColor: Color(0xFFFF7043), // Naranja para UI
       mapMarkerColor: Color(0xFFE65100),  // Naranja más oscuro para mapa
       description: 'Problemas de pavimento y calles',
-      markerIconSize: 42.0, // Ligeramente más grande para bacheo
+      markerIconSize: 32.0, // Reducido de 42.0 (~24% menos)
       options: [
         ReportOption(description: 'Bache grande que dificulta el tránsito'),
         ReportOption(description: 'Múltiples baches en la zona'),
@@ -107,6 +107,7 @@ class ReportCategories {
       mapMarkerColor: Color(0xFFF57C00),  // Ámbar más oscuro para mapa
       description: 'Problemas de iluminación urbana',
       alternativeIcon: Icons.lightbulb_outline, // Icono alternativo para mapa
+      markerIconSize: 30.0, // Default reducido
       options: [
         ReportOption(description: 'Luminaria apagada'),
         ReportOption(description: 'Luminaria intermitente'),
@@ -123,6 +124,7 @@ class ReportCategories {
       mapMarkerColor: Color(0xFF2E7D32),  // Verde más oscuro para mapa
       description: 'Problemas de recolección de basura',
       alternativeIcon: Icons.delete_forever, // Icono más fuerte para mapa
+      markerIconSize: 30.0, // Default reducido
       options: [
         ReportOption(description: 'Basurero desbordado'),
         ReportOption(description: 'Basura en la vía pública'),
@@ -139,7 +141,7 @@ class ReportCategories {
       mapMarkerColor: Color(0xFF1565C0),  // Azul más oscuro para mapa
       description: 'Problemas de drenaje y alcantarillado',
       alternativeIcon: Icons.water_damage, // Icono más específico para mapa
-      markerIconSize: 44.0, // Más grande para drenajes (problema crítico)
+      markerIconSize: 34.0, // Reducido de 44.0. Más grande que otros por importancia.
       options: [
         ReportOption(description: 'Alcantarilla tapada o bloqueada'),
         ReportOption(description: 'Inundación en la vía pública'),

@@ -21,6 +21,7 @@ class _ProfileScreenState extends State<ProfileScreen> with TickerProviderStateM
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
   final _phoneController = TextEditingController();
+  final _emailController = TextEditingController();
 
   late ProfileViewModel _profileViewModel;
   late AnimationController _fadeController;
@@ -47,6 +48,7 @@ class _ProfileScreenState extends State<ProfileScreen> with TickerProviderStateM
   void dispose() {
     _nameController.dispose();
     _phoneController.dispose();
+    _emailController.dispose();
     _profileViewModel.dispose();
     _fadeController.dispose();
     super.dispose();
@@ -82,6 +84,7 @@ class _ProfileScreenState extends State<ProfileScreen> with TickerProviderStateM
   void _updateControllers() {
     _nameController.text = _profileViewModel.nombre;
     _phoneController.text = _profileViewModel.telefono;
+    _emailController.text = _profileViewModel.email;
   }
 
   @override
@@ -433,21 +436,13 @@ class _ProfileScreenState extends State<ProfileScreen> with TickerProviderStateM
 
           const SizedBox(height: 16),
 
-          // Nombre y email
+          // Nombre
           Text(
             profileVM.nombre.isNotEmpty ? profileVM.nombre : 'Usuario',
             style: const TextStyle(
               fontSize: 24,
               fontWeight: FontWeight.bold,
               color: kPrimaryColor,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            profileVM.email,
-            style: TextStyle(
-              fontSize: 16,
-              color: Colors.grey.shade600,
             ),
           ),
         ],
@@ -493,7 +488,7 @@ class _ProfileScreenState extends State<ProfileScreen> with TickerProviderStateM
 
         // Campo de email (no editable)
         _buildModernTextField(
-          initialValue: profileVM.email,
+          controller: _emailController,
           label: 'Correo electrónico',
           icon: Icons.email_outlined,
           enabled: false,
@@ -655,10 +650,12 @@ class _ProfileScreenState extends State<ProfileScreen> with TickerProviderStateM
         textCapitalization: textCapitalization ?? TextCapitalization.none,
         validator: validator,
         onChanged: onChanged,
+        maxLines: 1,
         style: TextStyle(
-          fontSize: 16,
+          fontSize: (controller?.text.length ?? initialValue?.length ?? 0) > 25 ? 13 : 16,
           fontWeight: FontWeight.w500,
           color: enabled ? Colors.black87 : Colors.grey.shade600,
+          overflow: TextOverflow.ellipsis,
         ),
         decoration: InputDecoration(
           labelText: label,

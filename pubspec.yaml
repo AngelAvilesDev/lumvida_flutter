@@ -41,6 +41,7 @@ dependencies:
   uuid: ^4.2.1
   image_picker: ^1.0.2
   path_provider: ^2.1.0
+  flutter_image_compress: ^2.1.0  # Compresión de imágenes para optimización
 
   # IA
   http: ^0.13.5

@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import '../models/NotificacionModel.dart';
 
 class NotificacionesViewModel extends ChangeNotifier {
@@ -59,6 +60,74 @@ class NotificacionesViewModel extends ChangeNotifier {
   void dispose() {
     _reportesSubscription?.cancel();
     super.dispose();
+  }
+
+  Future<void> configurarFCM(String userId) async {
+    if (userId.isEmpty) return;
+
+    try {
+      FirebaseMessaging messaging = FirebaseMessaging.instance;
+
+      // 1. Solicitar permisos (iOS y Android 13+)
+      NotificationSettings settings = await messaging.requestPermission(
+        alert: true,
+        badge: true,
+        sound: true,
+      );
+
+      if (settings.authorizationStatus == AuthorizationStatus.authorized) {
+        if (kDebugMode) print('Permiso concedido para notificaciones');
+
+        // 2. Obtener el token
+        String? token = await messaging.getToken();
+        
+        if (token != null) {
+          if (kDebugMode) print('FCM Token: $token');
+          
+          // 3. Guardar en Firestore
+          await FirebaseFirestore.instance
+              .collection('usuarios')
+              .doc(userId)
+              .set({
+                'fcm_token': token,
+                'updatedAt': FieldValue.serverTimestamp(),
+              }, SetOptions(merge: true));
+              
+          await FirebaseFirestore.instance
+              .collection('tokens')
+              .doc(userId)
+              .set({
+                'token': token,
+                'userId': userId,
+                'updatedAt': FieldValue.serverTimestamp(),
+              }, SetOptions(merge: true));
+        }
+      } else {
+        if (kDebugMode) print('Permiso denegado para notificaciones');
+      }
+      
+      // Escuchar si el token se actualiza
+      messaging.onTokenRefresh.listen((newToken) async {
+        await FirebaseFirestore.instance
+            .collection('usuarios')
+            .doc(userId)
+            .update({'fcm_token': newToken});
+            
+        await FirebaseFirestore.instance
+            .collection('tokens')
+            .doc(userId)
+            .set({
+              'token': newToken,
+              'userId': userId,
+              'updatedAt': FieldValue.serverTimestamp(),
+            }, SetOptions(merge: true));
+      });
+
+    } catch (e) {
+      if (kDebugMode) {
+        print('Error al configurar FCM: $e');
+      }
+    }
   }
 
   // Cargar notificaciones desde SharedPreferences

@@ -67,8 +67,9 @@ class _InicioScreenState extends State<InicioScreen> with TickerProviderStateMix
       final authVM = Provider.of<AuthViewModel>(context, listen: false);
       authVM.checkAuthState();
       if (authVM.isAuthenticated && authVM.user != null) {
-        Provider.of<NotificacionesViewModel>(context, listen: false)
-            .iniciarEscuchaReportes(authVM.user!.uid);
+        final notifVM = Provider.of<NotificacionesViewModel>(context, listen: false);
+        notifVM.iniciarEscuchaReportes(authVM.user!.uid);
+        notifVM.configurarFCM(authVM.user!.uid);
       }
     });
   }

@@ -1,0 +1,29 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Reglas para la colección 'reportes'
+    match /reportes/{reporteId} {
+      
+      // Permitir lectura a cualquier usuario que esté autenticado en la aplicación.
+      allow read: if request.auth != null;
+      
+      // Permitir la creación de reportes solo a usuarios autenticados,
+      // asegurando que el 'userId' del documento coincida con el UID del usuario que realiza la petición.
+      allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
+      
+      // Permitir la actualización de reportes bajo las siguientes condiciones:
+      // 1. El usuario es el propietario del reporte (su UID coincide con el 'userId' del documento).
+      // 2. Si no es el propietario, cualquier usuario autenticado puede actualizar ÚNICAMENTE
+      //    los campos 'duplicados' y 'reportesRelacionados' (útil para el proceso de deduplicación).
+      allow update: if request.auth != null && (
+        resource.data.userId == request.auth.uid || 
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['duplicados', 'reportesRelacionados'])
+      );
+    }
+    
+    // Las reglas para las colecciones 'brigadas' y 'usuarios' están pendientes de definir.
+    // match /brigadas/{brigadaId} { ... }
+    // match /usuarios/{usuarioId} { ... }
+  }
+}

@@ -18,6 +18,10 @@ class ReporteModel {
   final Timestamp? fechaCreacion;
   final Timestamp? fechaResolucion;
   final Timestamp? fechaUltimaActualizacion;
+  final int duplicados;
+  final List<String> reportesRelacionados;
+  final String? esDuplicadoDe;
+
 
   ReporteModel({
     required this.id,
@@ -32,6 +36,9 @@ class ReporteModel {
     this.fechaCreacion,
     this.fechaResolucion,
     this.fechaUltimaActualizacion,
+    this.duplicados = 0,
+    this.reportesRelacionados = const [],
+    this.esDuplicadoDe,
   });
 
   factory ReporteModel.fromFirestore(DocumentSnapshot doc) {
@@ -51,6 +58,11 @@ class ReporteModel {
       fechaCreacion: data['fechaCreacion'],
       fechaResolucion: data['fechaResolucion'],
       fechaUltimaActualizacion: data['fechaUltimaActualizacion'],
+      duplicados: data['duplicados'] ?? 0,
+      reportesRelacionados: data['reportesRelacionados'] != null
+          ? List<String>.from(data['reportesRelacionados'])
+          : [],
+      esDuplicadoDe: data['esDuplicadoDe'],
     );
   }
 
@@ -70,6 +82,11 @@ class ReporteModel {
       fechaCreacion: data['fechaCreacion'],
       fechaResolucion: data['fechaResolucion'],
       fechaUltimaActualizacion: data['fechaUltimaActualizacion'],
+      duplicados: data['duplicados'] ?? 0,
+      reportesRelacionados: data['reportesRelacionados'] != null
+          ? List<String>.from(data['reportesRelacionados'])
+          : [],
+      esDuplicadoDe: data['esDuplicadoDe'],
     );
   }
 
@@ -86,6 +103,9 @@ class ReporteModel {
       'fechaCreacion': fechaCreacion,
       'fechaResolucion': fechaResolucion,
       'fechaUltimaActualizacion': fechaUltimaActualizacion,
+      'duplicados': duplicados,
+      'reportesRelacionados': reportesRelacionados,
+      'esDuplicadoDe': esDuplicadoDe,
     };
   }
 

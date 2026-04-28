@@ -1278,7 +1278,14 @@ class _ReportesScreenState extends State<ReportesScreen> with TickerProviderStat
 
       if (mounted) {
         if (resultado['success']) {
-          _mostrarDialogoReporteExitoso(resultado['folio']);
+          if (resultado['isDuplicate'] == true) {
+            _mostrarDialogoDuplicado(
+              resultado['folio'] ?? 'Sin folio',
+              resultado['reporteId'] ?? '',
+            );
+          } else {
+            _mostrarDialogoReporteExitoso(resultado['folio']);
+          }
         } else {
           _showErrorSnackBar(resultado['message'] ?? 'Error al enviar el reporte');
         }
@@ -1359,6 +1366,137 @@ class _ReportesScreenState extends State<ReportesScreen> with TickerProviderStat
         );
       },
     );
+  }
+
+  void _mostrarDialogoDuplicado(String folio, String reporteId) {
+    if (!mounted) return;
+
+    Future.delayed(const Duration(milliseconds: 100), () {
+      if (!mounted) return;
+
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (BuildContext dialogContext) {
+          return AlertDialog(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+            title: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.orange.shade100,
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(Icons.report_problem, color: Colors.orange.shade600, size: 32),
+                ),
+                const SizedBox(width: 12),
+                const Expanded(
+                  child: Text(
+                    'Reporte ya registrado',
+                    style: TextStyle(
+                        color: kPrimaryColor,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 18
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                    'Ya existe un reporte activo para este incidente en tu zona. Tu reporte ha sido registrado y vinculado al siguiente folio:',
+                    style: TextStyle(fontSize: 16)
+                ),
+                const SizedBox(height: 16),
+                const Text(
+                    'Número de folio:',
+                    style: TextStyle(fontWeight: FontWeight.bold, color: kPrimaryColor)
+                ),
+                const SizedBox(height: 8),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade100,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.grey.shade300),
+                  ),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                            folio,
+                            style: const TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                                color: kPrimaryColor
+                            )
+                        ),
+                      ),
+                      IconButton(
+                        onPressed: () {
+                          Clipboard.setData(ClipboardData(text: folio));
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: const Text('Folio copiado al portapapeles'),
+                              backgroundColor: Colors.green,
+                              behavior: SnackBarBehavior.floating,
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                              duration: const Duration(seconds: 2),
+                            ),
+                          );
+                        },
+                        icon: const Icon(Icons.copy, color: kPrimaryColor),
+                        tooltip: 'Copiar folio',
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  'Puedes hacer seguimiento en "Historial de reportes".',
+                  style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
+                ),
+              ],
+            ),
+            actions: [
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: () {
+                    Navigator.of(dialogContext).pop();
+                    Future.delayed(const Duration(milliseconds: 100), () {
+                      if (mounted) {
+                        Navigator.of(context).popUntil((route) {
+                          return route.settings.name == '/' ||
+                              route.isFirst ||
+                              route.settings.arguments?.toString().contains('InicioScreen') == true;
+                        });
+                      }
+                    });
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: kPrimaryColor,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
+                  icon: const Icon(Icons.check, size: 20),
+                  label: const Text(
+                      'Entendido',
+                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)
+                  ),
+                ),
+              ),
+            ],
+          );
+        },
+      );
+    });
   }
 
   void _mostrarDialogoReporteExitoso(String folio) {

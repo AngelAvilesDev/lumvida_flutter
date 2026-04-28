@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -93,10 +94,11 @@ class ReporteService {
     required String telefono,
     bool isAnonymous = false,
     List<File>? imagenes,
+    String? folioExistente,
   }) async {
     try {
       // Generar un folio único
-      final folio = _generarFolio();
+      final folio = folioExistente ?? _generarFolio();
 
       // Obtener una dirección real si la dirección proporcionada parece ser coordenadas
       if (direccion.contains('Lat:') || direccion.contains('Lon:')) {
@@ -513,5 +515,99 @@ class ReporteService {
       'totalSizeMB': (totalSize / 1024 / 1024).toStringAsFixed(2),
       'imageInfo': imagenInfo,
     };
+  }
+  // --- MÉTODOS DE DEDUPLICACIÓN ---
+
+  // Calcular distancia entre dos puntos usando la fórmula Haversine
+  double _calcularDistancia(double lat1, double lon1, double lat2, double lon2) {
+    const R = 6371000; // Radio de la tierra en metros
+    final dLat = _toRadians(lat2 - lat1);
+    final dLon = _toRadians(lon2 - lon1);
+    final a = math.sin(dLat / 2) * math.sin(dLat / 2) +
+        math.cos(_toRadians(lat1)) *
+            math.cos(_toRadians(lat2)) *
+            math.sin(dLon / 2) *
+            math.sin(dLon / 2);
+    final c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a));
+    return R * c;
+  }
+
+  double _toRadians(double degree) {
+    return degree * math.pi / 180;
+  }
+
+  // Buscar si ya existe un reporte similar activo
+  Future<Map<String, dynamic>?> buscarReporteDuplicado({
+    required double latitud,
+    required double longitud,
+    required String categoria,
+  }) async {
+    try {
+      final snapshot = await _reportesRef
+          .where('categoria', isEqualTo: categoria)
+          .get();
+
+      for (var doc in snapshot.docs) {
+        final data = doc.data() as Map<String, dynamic>;
+        final double? repLat = data['latitud'] != null ? (data['latitud'] as num).toDouble() : null;
+        final double? repLon = data['longitud'] != null ? (data['longitud'] as num).toDouble() : null;
+        final String? estado = data['estado'] as String?;
+
+        // Ignorar reportes resueltos o cancelados
+        if (estado == 'resuelto' || estado == 'cancelado') {
+          continue;
+        }
+
+        if (repLat != null && repLon != null) {
+          final distancia = _calcularDistancia(latitud, longitud, repLat, repLon);
+          if (distancia <= 100) { // 100 metros como umbral de duplicidad
+            return {
+              'id': doc.id,
+              ...data,
+            };
+          }
+        }
+      }
+      return null;
+    } catch (e) {
+      if (kDebugMode) {
+        print('Error al buscar reporte duplicado: $e');
+      }
+      return null;
+    }
+  }
+
+  // Incrementar contador de duplicados y registrar reportante
+  Future<void> incrementarContadorDuplicados({
+    required String reporteId,
+    required String reporteRelacionadoId,
+  }) async {
+    try {
+      final docRef = _reportesRef.doc(reporteId);
+      
+      await _firestore.runTransaction((transaction) async {
+        final snapshot = await transaction.get(docRef);
+        if (!snapshot.exists) {
+          throw Exception('El reporte no existe');
+        }
+
+        final data = snapshot.data() as Map<String, dynamic>;
+        final int contadorActual = data['contadorDuplicados'] != null ? (data['contadorDuplicados'] as num).toInt() : 1;
+        final List<dynamic> reportantes = data['reportantesRelacionados'] as List<dynamic>? ?? [];
+
+        if (!reportantes.contains(reporteRelacionadoId)) {
+          reportantes.add(reporteRelacionadoId);
+          transaction.update(docRef, {
+            'contadorDuplicados': contadorActual + 1,
+            'reportantesRelacionados': reportantes,
+          });
+        }
+      });
+    } catch (e) {
+      if (kDebugMode) {
+        print('Error al incrementar contador de duplicados: $e');
+      }
+      rethrow;
+    }
   }
 }

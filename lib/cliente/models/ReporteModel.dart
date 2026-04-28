@@ -18,6 +18,10 @@ class ReporteModel {
   final bool isAnonymous;
   final List<String> imagenes;
   final List<HistorialEstado> historialEstados;
+  final int duplicados;
+  final List<String> reportesRelacionados;
+  final String? esDuplicadoDe;
+
 
   ReporteModel({
     required this.id,
@@ -35,6 +39,9 @@ class ReporteModel {
     this.isAnonymous = false,
     this.imagenes = const [],
     this.historialEstados = const [],
+    this.duplicados = 0,
+    this.reportesRelacionados = const [],
+    this.esDuplicadoDe,
   });
 
   // Convertir desde Firestore
@@ -73,6 +80,11 @@ class ReporteModel {
       isAnonymous: data['isAnonymous'] ?? false,
       imagenes: imgs,
       historialEstados: historial,
+      duplicados: data['duplicados'] ?? 0,
+      reportesRelacionados: data['reportesRelacionados'] != null
+          ? List<String>.from(data['reportesRelacionados'])
+          : [],
+      esDuplicadoDe: data['esDuplicadoDe'],
     );
   }
 
@@ -93,6 +105,9 @@ class ReporteModel {
       'isAnonymous': isAnonymous,
       'imagenes': imagenes,
       'historialEstados': historialEstados.map((e) => e.toMap()).toList(),
+      'duplicados': duplicados,
+      'reportesRelacionados': reportesRelacionados,
+      'esDuplicadoDe': esDuplicadoDe,
     };
   }
 
@@ -113,6 +128,9 @@ class ReporteModel {
     bool? isAnonymous,
     List<String>? imagenes,
     List<HistorialEstado>? historialEstados,
+    int? duplicados,
+    List<String>? reportesRelacionados,
+    String? esDuplicadoDe,
   }) {
     return ReporteModel(
       id: id ?? this.id,
@@ -130,6 +148,9 @@ class ReporteModel {
       isAnonymous: isAnonymous ?? this.isAnonymous,
       imagenes: imagenes ?? this.imagenes,
       historialEstados: historialEstados ?? this.historialEstados,
+      duplicados: duplicados ?? this.duplicados,
+      reportesRelacionados: reportesRelacionados ?? this.reportesRelacionados,
+      esDuplicadoDe: esDuplicadoDe ?? this.esDuplicadoDe,
     );
   }
 

@@ -15,6 +15,11 @@ class ReportesViewModel extends ChangeNotifier {
   LatLng? _selectedLocation;
   String _addressText = "Selecciona una ubicación en el mapa";
   final List<File> _selectedPhotos = [];
+  bool _isDuplicate = false;
+  String? _folioExistente;
+  String? _reporteOriginalId;
+  String? _reporteOriginalFolio;
+
 
   // Flag para controlar si el ViewModel ha sido disposed
   bool _disposed = false;
@@ -27,6 +32,12 @@ class ReportesViewModel extends ChangeNotifier {
   LatLng? get selectedLocation => _selectedLocation;
   String get addressText => _addressText;
   List<File> get selectedPhotos => _selectedPhotos;
+
+  bool get isDuplicate => _isDuplicate;
+  String? get folioExistente => _folioExistente;
+  String? get reporteOriginalId => _reporteOriginalId;
+  String? get reporteOriginalFolio => _reporteOriginalFolio;
+
 
   // Setters con notificación
   void setSelectedOption(String? option) {
@@ -228,8 +239,45 @@ class ReportesViewModel extends ChangeNotifier {
         direccion = await _reporteService.obtenerDireccionFromLatLng(_selectedLocation!);
       }
 
+      // 1. Buscar si ya existe un reporte similar activo
+      final reporteDuplicado = await _reporteService.buscarReporteDuplicado(
+        latitud: _selectedLocation!.latitude,
+        longitud: _selectedLocation!.longitude,
+        categoria: categoria,
+      );
+
+      // 2. Si hay duplicado, NO crear nuevo reporte — solo incrementar contador
+      if (reporteDuplicado != null) {
+        final reporteOriginalId = reporteDuplicado['id'] as String;
+        final reporteOriginalFolio = reporteDuplicado['folio'] as String? ?? 'Sin folio';
+        
+        // Registrar que este usuario también reportó el mismo incidente
+        await _reporteService.incrementarContadorDuplicados(
+          reporteId: reporteOriginalId,
+          reporteRelacionadoId: userId,  // guardamos el userId del nuevo reportante
+        );
+
+        if (!_disposed) {
+          _isDuplicate = true;
+          _folioExistente = reporteOriginalFolio;
+          _reporteOriginalId = reporteOriginalId;
+          _reporteOriginalFolio = reporteOriginalFolio;
+          _isSubmitting = false;
+          notifyListeners();
+        }
+
+        return {
+          'success': true,
+          'isDuplicate': true,
+          'reporteId': reporteOriginalId,
+          'folio': reporteOriginalFolio,
+          'message': 'Ya existe un reporte activo para este incidente',
+        };
+      }
+
       // Crear el reporte - USANDO EL MÉTODO ACTUALIZADO
       final reporteId = await _reporteService.crearReporteFromLatLng(
+
         userId: userId,
         categoria: categoria,
         descripcion: descripcion,
@@ -319,6 +367,10 @@ class ReportesViewModel extends ChangeNotifier {
     _errorMessage = null;
     _isSubmitting = false;
     _isAnalyzing = false;
+    _isDuplicate = false;
+    _folioExistente = null;
+    _reporteOriginalId = null;
+    _reporteOriginalFolio = null;
     notifyListeners();
   }
 

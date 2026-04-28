@@ -18,7 +18,10 @@ import 'brigadistas/screens/BrigadistaInicioScreen.dart'; // ← AÑADIDO
 import 'firebase_options.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 
+import 'cliente/viewmodels/NotificacionesViewModel.dart';
+
 void main() async {
+
   WidgetsFlutterBinding.ensureInitialized();
 
   try {
@@ -66,8 +69,11 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ChangeNotifierProvider(
-      create: (context) => AuthViewModel(),
+    return MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (context) => AuthViewModel()),
+        ChangeNotifierProvider(create: (context) => NotificacionesViewModel()),
+      ],
       child: MaterialApp(
         title: 'LumVida',
         debugShowCheckedModeBanner: false,

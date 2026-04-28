@@ -1,15 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
-import 'package:flutter/services.dart'; // PARA COPIAR FOLIO
+import 'package:flutter/services.dart';
+import 'dart:async';
 import 'package:provider/provider.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../viewmodels/NotificacionesViewModel.dart';
 import '../../shared/components/base64_image_widget.dart';
 import '../../shared/utils/constants.dart';
 import '../../shared/viewmodels/AuthViewModel.dart';
 import '../components/BottomNavigationWidget.dart';
 
 class MisReportesScreen extends StatefulWidget {
-  const MisReportesScreen({Key? key}) : super(key: key);
+  final String? folioInicial;
+  const MisReportesScreen({Key? key, this.folioInicial}) : super(key: key);
 
   @override
   State<MisReportesScreen> createState() => _MisReportesScreenState();
@@ -17,7 +20,9 @@ class MisReportesScreen extends StatefulWidget {
 
 class _MisReportesScreenState extends State<MisReportesScreen> with TickerProviderStateMixin {
   List<Map<String, dynamic>> _reportes = [];
+  StreamSubscription? _reportesSubscription;
   bool _isLoading = false;
+  bool _abiertoInicial = false;
   String? _error;
   String _filtroActual = 'Todos';
   bool _showFilters = false; // NUEVO: CONTROLAR VISIBILIDAD DE FILTROS
@@ -51,13 +56,14 @@ class _MisReportesScreenState extends State<MisReportesScreen> with TickerProvid
     _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(_fadeController);
     _filterAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(_filterController);
 
-    _cargarReportes();
+    _escucharReportes();
   }
 
   @override
   void dispose() {
     _fadeController.dispose();
     _filterController.dispose();
+    _reportesSubscription?.cancel();
     super.dispose();
   }
 
@@ -74,7 +80,7 @@ class _MisReportesScreenState extends State<MisReportesScreen> with TickerProvid
     }
   }
 
-  Future<void> _cargarReportes() async {
+  void _escucharReportes() {
     final authViewModel = Provider.of<AuthViewModel>(context, listen: false);
 
     if (!authViewModel.isAuthenticated) {
@@ -87,47 +93,85 @@ class _MisReportesScreenState extends State<MisReportesScreen> with TickerProvid
     });
 
     try {
-      final reportesSnapshot = await FirebaseFirestore.instance
+      _reportesSubscription?.cancel();
+      _reportesSubscription = FirebaseFirestore.instance
           .collection('reportes')
           .where('userId', isEqualTo: authViewModel.user!.uid)
           .orderBy('fecha', descending: true)
-          .get();
+          .snapshots()
+          .listen((snapshot) {
+        
+        if (!mounted) return;
+        final notifViewModel = Provider.of<NotificacionesViewModel>(context, listen: false);
 
-      final reportes = reportesSnapshot.docs.map((doc) {
-        try {
-          final data = doc.data();
-          return {
-            'id': doc.id,
-            'folio': data['folio'] ?? 'Sin folio',
-            'fecha': _formatearFecha(data['fecha']),
-            'estado': data['estado'] ?? 'pendiente',
-            'tipo': data['categoria'] ?? 'Sin categoría',
-            'descripcion': data['comentario'] ?? 'Sin descripción',
-            'ubicacion': data['direccion'] ?? 'Sin ubicación',
-            'nombreCompleto': data['nombreCompleto'] ?? '',
-            'telefono': data['telefono'] ?? '',
-            'isAnonymous': data['isAnonymous'] ?? false,
-            'imagenes': data['imagenes'] ?? [],
-            'historialEstados': data['historialEstados'] ?? [],
-          };
-        } catch (e) {
-          if (kDebugMode) print("Error parsing report ${doc.id}: $e");
-          return null; // Retornamos null para filtrar después
+        final reportes = snapshot.docs.map((doc) {
+          try {
+            final data = doc.data();
+            final id = doc.id;
+            final folio = data['folio'] ?? 'Sin folio';
+            final estado = data['estado'] ?? 'pendiente';
+
+            return {
+              'id': id,
+              'folio': folio,
+              'fecha': _formatearFecha(data['fecha']),
+              'estado': estado,
+              'tipo': data['categoria'] ?? 'Sin categoría',
+              'descripcion': data['comentario'] ?? 'Sin descripción',
+              'ubicacion': data['direccion'] ?? 'Sin ubicación',
+              'nombreCompleto': data['nombreCompleto'] ?? '',
+              'telefono': data['telefono'] ?? '',
+              'isAnonymous': data['isAnonymous'] ?? false,
+              'imagenes': data['imagenes'] ?? [],
+              'historialEstados': data['historialEstados'] ?? [],
+            };
+          } catch (e) {
+            if (kDebugMode) print("Error parsing report ${doc.id}: $e");
+            return null;
+          }
+        }).where((element) => element != null).cast<Map<String, dynamic>>().toList();
+
+        if (mounted) {
+          setState(() {
+            _reportes = reportes;
+            _isLoading = false;
+          });
+          _fadeController.forward();
+
+          if (widget.folioInicial != null && !_abiertoInicial) {
+            _abiertoInicial = true;
+            final reporte = _reportes.firstWhere(
+              (r) => r['folio'] == widget.folioInicial,
+              orElse: () => {},
+            );
+            if (reporte.isNotEmpty) {
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                _mostrarDetalleReporte(context, reporte);
+              });
+            }
+          }
         }
-      }).where((element) => element != null).cast<Map<String, dynamic>>().toList();
-
-      setState(() {
-        _reportes = reportes;
-        _isLoading = false;
+      }, onError: (e) {
+        if (mounted) {
+          setState(() {
+            _error = 'Error al cargar reportes: $e';
+            _isLoading = false;
+          });
+        }
       });
-
-      _fadeController.forward();
     } catch (e) {
-      setState(() {
-        _error = 'Error al cargar reportes: $e';
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _error = 'Error al cargar reportes: $e';
+          _isLoading = false;
+        });
+      }
     }
+  }
+
+  Future<void> _refrescarReportes() async {
+    _escucharReportes();
+    await Future.delayed(const Duration(seconds: 1));
   }
 
   List<Map<String, dynamic>> get _reportesFiltrados {
@@ -318,7 +362,7 @@ class _MisReportesScreenState extends State<MisReportesScreen> with TickerProvid
                     ),
                     child: IconButton(
                       icon: const Icon(Icons.refresh, color: Color(0xFF880E4F)),
-                      onPressed: _cargarReportes,
+                      onPressed: _refrescarReportes,
                     ),
                   ),
                 ],
@@ -473,7 +517,7 @@ class _MisReportesScreenState extends State<MisReportesScreen> with TickerProvid
               ),
               const SizedBox(height: 16),
               ElevatedButton.icon(
-                onPressed: _cargarReportes,
+                onPressed: _refrescarReportes,
                 style: ElevatedButton.styleFrom(backgroundColor: kPrimaryColor),
                 icon: const Icon(Icons.refresh),
                 label: const Text('Reintentar'),
@@ -519,7 +563,7 @@ class _MisReportesScreenState extends State<MisReportesScreen> with TickerProvid
     return FadeTransition(
       opacity: _fadeAnimation,
       child: RefreshIndicator(
-        onRefresh: _cargarReportes,
+        onRefresh: _refrescarReportes,
         color: kPrimaryColor,
         child: ListView.builder(
           padding: const EdgeInsets.all(16),
@@ -1132,6 +1176,33 @@ class _MisReportesScreenState extends State<MisReportesScreen> with TickerProvid
                     ),
                   ),
                   
+                  const SizedBox(height: 24),
+
+                  // Historial de seguimiento
+                  const Row(
+                    children: [
+                      Icon(Icons.history, size: 20),
+                      SizedBox(width: 8),
+                      Text(
+                        'Historial de seguimiento',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(20),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: _buildTimeline(reporte['historialEstados']),
+                  ),
+                  
                   const SizedBox(height: 40),
                 ],
               ),
@@ -1176,5 +1247,143 @@ class _MisReportesScreenState extends State<MisReportesScreen> with TickerProvid
       default:
         return Colors.grey.shade600; // Gris por defecto
     }
+  }
+
+  Widget _buildTimeline(dynamic historial) {
+    if (historial == null || (historial is List && historial.isEmpty)) {
+      return const Text(
+        'No hay historial de seguimiento disponible.',
+        style: TextStyle(color: Colors.grey),
+      );
+    }
+
+    final List<dynamic> listaOriginal = historial is List ? historial : [];
+    final List<dynamic> lista = listaOriginal.reversed.toList();
+    
+    return ListView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      itemCount: lista.length,
+      itemBuilder: (context, index) {
+        final item = lista[index];
+        final String estado = item['estado'] ?? 'Desconocido';
+        final dynamic fechaRaw = item['fecha'];
+        final String comentario = item['comentario'] ?? '';
+        
+        String fechaStr = 'Fecha desconocida';
+        if (fechaRaw is Timestamp) {
+          final fecha = fechaRaw.toDate();
+          fechaStr = '${fecha.day.toString().padLeft(2, '0')}/${fecha.month.toString().padLeft(2, '0')}/${fecha.year} ${fecha.hour.toString().padLeft(2, '0')}:${fecha.minute.toString().padLeft(2, '0')}';
+        } else if (fechaRaw is String) {
+          fechaStr = fechaRaw;
+        }
+
+        final Color colorEstado = _getColorPorEstado(estado);
+        final bool isLast = index == lista.length - 1;
+        final bool isFirst = index == 0;
+
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Column(
+              children: [
+                Container(
+                  width: 16,
+                  height: 16,
+                  decoration: BoxDecoration(
+                    color: colorEstado,
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: Colors.white,
+                      width: 2,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: colorEstado.withValues(alpha: 0.4),
+                        blurRadius: 4,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                ),
+                if (!isLast)
+                  Container(
+                    width: 2,
+                    height: 50,
+                    color: Colors.grey.shade300,
+                  ),
+              ],
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.only(bottom: 24),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Text(
+                          _getEstadoDisplayText(estado).toUpperCase(),
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 14,
+                            color: colorEstado,
+                          ),
+                        ),
+                        if (isFirst) ...[
+                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: colorEstado.withValues(alpha: 0.2),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Text(
+                              'ACTUAL',
+                              style: TextStyle(
+                                color: colorEstado,
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      fechaStr,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey.shade600,
+                      ),
+                    ),
+                    if (comentario.isNotEmpty) ...[
+                      const SizedBox(height: 8),
+                      Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: Colors.grey.shade50,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: Colors.grey.shade200),
+                        ),
+                        child: Text(
+                          comentario,
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: Colors.blueGrey.shade700,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
   }
 }

@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:lumvida_app/shared/utils/constants.dart';
 import 'package:lumvida_app/shared/viewmodels/AuthViewModel.dart';
+import 'package:provider/provider.dart';
+import '../viewmodels/NotificacionesViewModel.dart';
+import '../screens/NotificacionesScreen.dart';
 
 class WelcomeHeader extends StatelessWidget {
   final AuthViewModel authViewModel;
@@ -114,18 +117,62 @@ class WelcomeHeader extends StatelessWidget {
             ),
           ),
 
-          // Icono de notificaciones (opcional)
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: kPrimaryColor.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: const Icon(
-              Icons.notifications_outlined,
-              color: kPrimaryColor,
-              size: 24,
-            ),
+          // Icono de notificaciones
+          Consumer<NotificacionesViewModel>(
+            builder: (context, notifViewModel, child) {
+              return GestureDetector(
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const NotificacionesScreen(),
+                    ),
+                  );
+                },
+                child: Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: kPrimaryColor.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Icon(
+                        Icons.notifications_outlined,
+                        color: kPrimaryColor,
+                        size: 24,
+                      ),
+                    ),
+                    if (notifViewModel.noLeidasCount > 0)
+                      Positioned(
+                        top: -5,
+                        right: -5,
+                        child: Container(
+                          padding: const EdgeInsets.all(4),
+                          decoration: const BoxDecoration(
+                            color: Colors.red,
+                            shape: BoxShape.circle,
+                          ),
+                          constraints: const BoxConstraints(
+                            minWidth: 16,
+                            minHeight: 16,
+                          ),
+                          child: Text(
+                            '${notifViewModel.noLeidasCount}',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              );
+            },
           ),
         ],
       ),

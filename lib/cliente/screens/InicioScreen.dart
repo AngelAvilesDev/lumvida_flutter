@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../shared/utils/constants.dart';
 import '../../shared/viewmodels/AuthViewModel.dart';
+import '../viewmodels/NotificacionesViewModel.dart';
 import '../utils/report_categories.dart';
 import '../components/BottomNavigationWidget.dart';
 import '../components/WelcomeHeader.dart';
@@ -63,7 +64,12 @@ class _InicioScreenState extends State<InicioScreen> with TickerProviderStateMix
 
     // Check auth state just in case, but usually handled by AuthGate
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      Provider.of<AuthViewModel>(context, listen: false).checkAuthState();
+      final authVM = Provider.of<AuthViewModel>(context, listen: false);
+      authVM.checkAuthState();
+      if (authVM.isAuthenticated && authVM.user != null) {
+        Provider.of<NotificacionesViewModel>(context, listen: false)
+            .iniciarEscuchaReportes(authVM.user!.uid);
+      }
     });
   }
 

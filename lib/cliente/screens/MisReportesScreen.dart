@@ -199,6 +199,7 @@ class _MisReportesScreenState extends State<MisReportesScreen> with TickerProvid
       case 'asignado':
         return 'asignado';
       case 'en proceso':
+      case 'en_proceso':
       case 'proceso':
         return 'en proceso';
       case 'resuelto':

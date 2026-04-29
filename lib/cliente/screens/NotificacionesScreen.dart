@@ -242,7 +242,7 @@ class NotificacionesScreen extends StatelessWidget {
                       ),
                       const SizedBox(height: 8),
                       Text(
-                        'Tu reporte pasó de ${notif.estadoAnterior} a ${notif.estadoNuevo}',
+                        'Tu reporte pasó de ${_getEstadoDisplayText(notif.estadoAnterior)} a ${_getEstadoDisplayText(notif.estadoNuevo)}',
                         style: TextStyle(
                           fontSize: 14,
                           fontWeight: notif.leida ? FontWeight.normal : FontWeight.bold,
@@ -294,12 +294,54 @@ class NotificacionesScreen extends StatelessWidget {
     );
   }
 
-  Color _getColorPorEstado(String estado) {
+  String _normalizeEstado(String estado) {
     switch (estado.toLowerCase().trim()) {
+      case 'pendiente':
+      case 'nuevo':
+        return 'pendiente';
+      case 'en revision':
+      case 'en revisión':
+      case 'revision':
+        return 'en revisión';
+      case 'asignado':
+        return 'asignado';
+      case 'en proceso':
+      case 'en_proceso':
+      case 'proceso':
+        return 'en proceso';
+      case 'resuelto':
+      case 'completado':
+      case 'terminado':
+        return 'resuelto';
+      default:
+        return estado.toLowerCase();
+    }
+  }
+
+  String _getEstadoDisplayText(String estado) {
+    switch (_normalizeEstado(estado)) {
+      case 'pendiente':
+        return 'Pendiente';
+      case 'en revisión':
+        return 'En Revisión';
+      case 'asignado':
+        return 'Asignado';
+      case 'en proceso':
+        return 'En Proceso';
+      case 'resuelto':
+        return 'Resuelto';
+      default:
+        // Capitalizar primera letra si es un estado desconocido
+        if (estado.isEmpty) return 'Pendiente';
+        return estado.replaceFirst(estado[0], estado[0].toUpperCase());
+    }
+  }
+
+  Color _getColorPorEstado(String estado) {
+    switch (_normalizeEstado(estado)) {
       case 'pendiente':
         return Colors.grey.shade600;
       case 'en revisión':
-      case 'en revision':
         return Colors.orange.shade600;
       case 'asignado':
         return Colors.blue.shade600;
@@ -313,11 +355,10 @@ class NotificacionesScreen extends StatelessWidget {
   }
 
   IconData _getIconForEstado(String estado) {
-    switch (estado.toLowerCase().trim()) {
+    switch (_normalizeEstado(estado)) {
       case 'pendiente':
         return Icons.hourglass_empty;
       case 'en revisión':
-      case 'en revision':
         return Icons.search;
       case 'asignado':
         return Icons.person_outline;

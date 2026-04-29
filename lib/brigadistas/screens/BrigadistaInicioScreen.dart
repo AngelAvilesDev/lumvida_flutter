@@ -85,46 +85,41 @@ class _BrigadistaInicioScreenState extends State<BrigadistaInicioScreen> {
     ];
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text(
-          'LumVida - Brigadista',
-          style: TextStyle(
-            color: kPrimaryColor,
-            fontWeight: FontWeight.bold,
+      body: Container(
+        color: Colors.transparent,
+        child: Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [
+                Colors.white.withValues(alpha: .8),
+                Colors.white.withValues(alpha: .95),
+                kPrimaryColor.withValues(alpha: .03),
+              ],
+            ),
+          ),
+          child: SafeArea(
+            child: Column(
+              children: [
+                _buildModernHeader(),
+                Expanded(child: _screens[_selectedIndex]),
+              ],
+            ),
           ),
         ),
-        backgroundColor: Colors.white,
-        elevation: 2,
-        actions: [
-          Container(
-            margin: const EdgeInsets.only(right: 8),
-            child: Chip(
-              label: Text(
-                _brigadaData!['nombre'] ?? 'Brigadista',
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 12,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              backgroundColor: kPrimaryColor,
-              padding: const EdgeInsets.symmetric(horizontal: 8),
-            ),
-          ),
-        ],
       ),
-      body: _screens[_selectedIndex],
       bottomNavigationBar: Container(
-        decoration: BoxDecoration(
-          boxShadow: [
-            BoxShadow(
-              color: Colors.grey.withOpacity(0.2),
-              blurRadius: 10,
-              offset: const Offset(0, -2),
-            ),
-          ],
+        decoration: const BoxDecoration(
+          color: kSecondaryColor,
+          borderRadius: BorderRadius.only(
+            topLeft: Radius.circular(30),
+            topRight: Radius.circular(30),
+          ),
         ),
         child: BottomNavigationBar(
+          backgroundColor: Colors.transparent,
+          elevation: 0,
           currentIndex: _selectedIndex,
           onTap: (index) {
             setState(() {
@@ -132,8 +127,8 @@ class _BrigadistaInicioScreenState extends State<BrigadistaInicioScreen> {
             });
           },
           type: BottomNavigationBarType.fixed,
-          selectedItemColor: kPrimaryColor,
-          unselectedItemColor: Colors.grey,
+          selectedItemColor: Colors.white,
+          unselectedItemColor: Colors.white.withOpacity(0.6),
           items: const [
             BottomNavigationBarItem(
               icon: Icon(Icons.home),
@@ -153,6 +148,40 @@ class _BrigadistaInicioScreenState extends State<BrigadistaInicioScreen> {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildModernHeader() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          const Text(
+            'Brigadista',
+            style: TextStyle(
+              fontSize: 28,
+              fontWeight: FontWeight.bold,
+              color: Color(0xFF880E4F),
+            ),
+          ),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            decoration: BoxDecoration(
+              color: const Color(0xFFFFF0F3),
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Text(
+              _brigadaData!['nombre'] ?? 'Brigadista',
+              style: const TextStyle(
+                color: Color(0xFF880E4F),
+                fontSize: 12,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -205,7 +234,7 @@ class _BrigadistaHomeTabState extends State<BrigadistaHomeTab> {
     final user = FirebaseAuth.instance.currentUser;
 
     return Container(
-      decoration: backgroundDecoration,
+      color: Colors.transparent,
       child: SingleChildScrollView(
         padding: const EdgeInsets.all(16.0),
         child: Column(
@@ -278,7 +307,7 @@ class _BrigadistaHomeTabState extends State<BrigadistaHomeTab> {
                     icon: Icons.assignment,
                     title: 'Total',
                     value: _estadisticas.total.toString(),
-                    color: Colors.blue,
+                    color: Colors.blueGrey.shade600,
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -287,7 +316,7 @@ class _BrigadistaHomeTabState extends State<BrigadistaHomeTab> {
                     icon: Icons.pending_actions,
                     title: 'Asignados',
                     value: _estadisticas.asignados.toString(),
-                    color: Colors.orange,
+                    color: Colors.blue.shade600,
                   ),
                 ),
               ],
@@ -300,7 +329,7 @@ class _BrigadistaHomeTabState extends State<BrigadistaHomeTab> {
                     icon: Icons.loop,
                     title: 'En Proceso',
                     value: _estadisticas.enProceso.toString(),
-                    color: Colors.purple,
+                    color: Colors.yellow.shade700,
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -309,7 +338,7 @@ class _BrigadistaHomeTabState extends State<BrigadistaHomeTab> {
                     icon: Icons.check_circle,
                     title: 'Resueltos',
                     value: _estadisticas.resueltos.toString(),
-                    color: Colors.green,
+                    color: Colors.green.shade600,
                   ),
                 ),
               ],
@@ -326,17 +355,31 @@ class _BrigadistaHomeTabState extends State<BrigadistaHomeTab> {
     required String value,
     required Color color,
   }) {
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.03),
+            blurRadius: 15,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
       child: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
           children: [
-            Icon(icon, color: color, size: 32),
-            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: color.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(icon, color: color, size: 28),
+            ),
+            const SizedBox(height: 12),
             Text(
               value,
               style: TextStyle(
@@ -352,11 +395,13 @@ class _BrigadistaHomeTabState extends State<BrigadistaHomeTab> {
               style: TextStyle(
                 fontSize: 12,
                 color: Colors.grey[600],
+                fontWeight: FontWeight.w500,
               ),
             ),
           ],
         ),
       ),
+
     );
   }
 }
@@ -427,7 +472,7 @@ class _BrigadistaReportesTabState extends State<BrigadistaReportesTab> {
   @override
   Widget build(BuildContext context) {
     return Container(
-      decoration: backgroundDecoration,
+      color: Colors.transparent,
       child: _loading
           ? const Center(
         child: CircularProgressIndicator(color: kPrimaryColor),
@@ -461,69 +506,114 @@ class _BrigadistaReportesTabState extends State<BrigadistaReportesTab> {
   }
 
   Widget _buildReporteCard(ReporteModel reporte) {
-    return Card(
-      margin: const EdgeInsets.only(bottom: 16),
-      elevation: 2,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
+    IconData getIconForType(String type) {
+      if (type.toLowerCase().contains('basura') || type.toLowerCase().contains('recolección')) {
+        return Icons.delete_outline;
+      } else if (type.toLowerCase().contains('alumbrado')) {
+        return Icons.lightbulb_outline;
+      } else if (type.toLowerCase().contains('baches') || type.toLowerCase().contains('bacheo')) {
+        return Icons.directions_car;
+      } else if (type.toLowerCase().contains('alcantarillado') || type.toLowerCase().contains('drenaje')) {
+        return Icons.water_drop;
+      }
+      return Icons.report_problem_outlined;
+    }
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.03),
+            blurRadius: 20,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
-      child: InkWell(
-        onTap: () {
-          _mostrarDetalleReporte(reporte);
-        },
-        borderRadius: BorderRadius.circular(12),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Expanded(
-                    child: Text(
-                      reporte.categoria,
-                      style: const TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () => _mostrarDetalleReporte(reporte),
+          borderRadius: BorderRadius.circular(24),
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFFF0F3),
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: Icon(
+                        getIconForType(reporte.categoria),
+                        color: const Color(0xFF880E4F),
+                        size: 28,
                       ),
                     ),
-                  ),
-                  _buildEstadoBadge(reporte.estado),
-                ],
-              ),
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  const Icon(Icons.location_on, size: 16, color: Colors.grey),
-                  const SizedBox(width: 4),
-                  Expanded(
-                    child: Text(
-                      reporte.direccion,
-                      style: TextStyle(color: Colors.grey[600]),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            reporte.categoria,
+                            style: const TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFF880E4F),
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Folio: ${reporte.folio ?? reporte.id}',
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: Colors.grey.shade400,
+                              fontWeight: FontWeight.w500,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
+                      ),
                     ),
+                    _buildEstadoBadge(reporte.estado),
+                  ],
+                ),
+                const SizedBox(height: 20),
+                Text(
+                  reporte.descripcion.isNotEmpty ? reporte.descripcion : 'Sin descripción',
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.black87,
                   ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    'Folio: ${reporte.folio ?? reporte.id}',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Colors.grey[600],
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    const Icon(Icons.location_on, size: 18, color: Color(0xFFFF80AB)),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        reporte.direccion,
+                        style: TextStyle(color: Colors.blueGrey.shade400, fontSize: 13),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
                     ),
-                  ),
-                  TextButton.icon(
-                    onPressed: () => _mostrarDetalleReporte(reporte),
-                    icon: const Icon(Icons.visibility, size: 16),
-                    label: const Text('Ver detalles'),
-                  ),
-                ],
-              ),
-            ],
+                  ],
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -534,33 +624,44 @@ class _BrigadistaReportesTabState extends State<BrigadistaReportesTab> {
     Color color;
     String texto;
 
-    switch (estado.toLowerCase()) {
+    switch (estado.toLowerCase().trim()) {
       case 'asignado':
-        color = Colors.orange;
+        color = Colors.blue.shade600;
         texto = 'Asignado';
         break;
       case 'en_proceso':
       case 'en proceso':
-        color = Colors.purple;
+      case 'proceso':
+        color = Colors.yellow.shade700;
         texto = 'En Proceso';
         break;
+      case 'resuelto':
+        color = Colors.green.shade600;
+        texto = 'Resuelto';
+        break;
+      case 'en revisión':
+      case 'en revision':
+        color = Colors.orange.shade600;
+        texto = 'En Revisión';
+        break;
       default:
-        color = Colors.grey;
+        color = Colors.grey.shade600;
         texto = 'Pendiente';
     }
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.2),
+        color: Colors.grey.shade700,
         borderRadius: BorderRadius.circular(20),
       ),
       child: Text(
-        texto,
-        style: TextStyle(
-          color: color,
+        texto.toUpperCase(),
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 10,
           fontWeight: FontWeight.bold,
-          fontSize: 12,
+          letterSpacing: 0.5,
         ),
       ),
     );
@@ -647,7 +748,7 @@ class _BrigadistaResueltosTabState extends State<BrigadistaResueltosTab> {
   @override
   Widget build(BuildContext context) {
     return Container(
-      decoration: backgroundDecoration,
+      color: Colors.transparent,
       child: _loading
           ? const Center(
         child: CircularProgressIndicator(color: kPrimaryColor),
@@ -685,106 +786,146 @@ class _BrigadistaResueltosTabState extends State<BrigadistaResueltosTab> {
     if (reporte.fechaResolucion != null) {
       try {
         final fecha = reporte.fechaResolucion!.toDate();
-        fechaTexto = '${fecha.day}/${fecha.month}/${fecha.year}';
+        fechaTexto = '${fecha.day.toString().padLeft(2, '0')}/${fecha.month.toString().padLeft(2, '0')}/${fecha.year}';
       } catch (e) {
         fechaTexto = 'Fecha inválida';
       }
     }
 
-    return Card(
-      margin: const EdgeInsets.only(bottom: 16),
-      elevation: 2,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
+    IconData getIconForType(String type) {
+      if (type.toLowerCase().contains('basura') || type.toLowerCase().contains('recolección')) {
+        return Icons.delete_outline;
+      } else if (type.toLowerCase().contains('alumbrado')) {
+        return Icons.lightbulb_outline;
+      } else if (type.toLowerCase().contains('baches') || type.toLowerCase().contains('bacheo')) {
+        return Icons.directions_car;
+      } else if (type.toLowerCase().contains('alcantarillado') || type.toLowerCase().contains('drenaje')) {
+        return Icons.water_drop;
+      }
+      return Icons.report_problem_outlined;
+    }
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.03),
+            blurRadius: 20,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
-      child: InkWell(
-        onTap: () {
-          _mostrarDetalleReporte(reporte);
-        },
-        borderRadius: BorderRadius.circular(12),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Expanded(
-                    child: Text(
-                      reporte.categoria,
-                      style: const TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () => _mostrarDetalleReporte(reporte),
+          borderRadius: BorderRadius.circular(24),
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFFF0F3),
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: Icon(
+                        getIconForType(reporte.categoria),
+                        color: const Color(0xFF880E4F),
+                        size: 28,
                       ),
                     ),
-                  ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: Colors.green.withOpacity(0.2),
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: const Row(
-                      children: [
-                        Icon(Icons.check_circle, color: Colors.green, size: 16),
-                        SizedBox(width: 4),
-                        Text(
-                          'Resuelto',
-                          style: TextStyle(
-                            color: Colors.green,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 12,
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            reporte.categoria,
+                            style: const TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFF880E4F),
+                            ),
                           ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Folio: ${reporte.folio ?? reporte.id}',
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: Colors.grey.shade400,
+                              fontWeight: FontWeight.w500,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade700,
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: const Text(
+                        'RESUELTO',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 0.5,
                         ),
-                      ],
+                      ),
                     ),
+                  ],
+                ),
+                const SizedBox(height: 20),
+                Text(
+                  reporte.descripcion.isNotEmpty ? reporte.descripcion : 'Sin descripción',
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.black87,
                   ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  const Icon(Icons.location_on, size: 16, color: Colors.grey),
-                  const SizedBox(width: 4),
-                  Expanded(
-                    child: Text(
-                      reporte.direccion,
-                      style: TextStyle(color: Colors.grey[600]),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    const Icon(Icons.location_on, size: 18, color: Color(0xFFFF80AB)),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        reporte.direccion,
+                        style: TextStyle(color: Colors.blueGrey.shade400, fontSize: 13),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
                     ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  const Icon(Icons.calendar_today, size: 16, color: Colors.grey),
-                  const SizedBox(width: 4),
-                  Text(
-                    'Resuelto: $fechaTexto',
-                    style: TextStyle(color: Colors.grey[600], fontSize: 12),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    'Folio: ${reporte.folio ?? reporte.id}',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Colors.grey[600],
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    const Icon(Icons.calendar_today_outlined, size: 18, color: Color(0xFFFF80AB)),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Resuelto el $fechaTexto',
+                      style: TextStyle(color: Colors.blueGrey.shade400, fontSize: 13),
                     ),
-                  ),
-                  TextButton.icon(
-                    onPressed: () => _mostrarDetalleReporte(reporte),
-                    icon: const Icon(Icons.visibility, size: 16),
-                    label: const Text('Ver detalles'),
-                  ),
-                ],
-              ),
-            ],
+                  ],
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -1565,7 +1706,7 @@ class BrigadistaPerfilTab extends StatelessWidget {
     final user = FirebaseAuth.instance.currentUser;
 
     return Container(
-      decoration: backgroundDecoration,
+      color: Colors.transparent,
       child: SingleChildScrollView(
         padding: const EdgeInsets.all(16.0),
         child: Column(

@@ -63,22 +63,37 @@ exports.notificarCambioEstado = functions.firestore
                 return null;
             }
 
-            const message = {
-                notification: {
-                    title: "Actualización de Reporte",
-                    body: `Tu reporte #${folio} pasó a: ${nuevoEstado}`,
-                },
-                data: {
-                    click_action: "FLUTTER_NOTIFICATION_CLICK",
-                    folio: folio,
-                    reporteId: context.params.reporteId,
-                },
-                tokens: tokens,
-            };
+            const sendPromises = tokens.map(token => {
+                const message = {
+                    notification: {
+                        title: "Actualización de Reporte",
+                        body: `Tu reporte #${folio} pasó a: ${nuevoEstado}`,
+                    },
+                    data: {
+                        click_action: "FLUTTER_NOTIFICATION_CLICK",
+                        folio: folio,
+                        reporteId: context.params.reporteId,
+                    },
+                    token: token,
+                };
+                return admin.messaging().send(message);
+            });
 
-            const response = await admin.messaging().sendMulticast(message);
-            console.log(`Notificaciones enviadas. Éxitos: ${response.successCount}, Fallos: ${response.failureCount}`);
-            return response;
+            const responses = await Promise.allSettled(sendPromises);
+            
+            let successCount = 0;
+            let failureCount = 0;
+            responses.forEach((r, index) => {
+                if (r.status === 'fulfilled') {
+                    successCount++;
+                } else {
+                    failureCount++;
+                    console.error(`Error enviando al token ${tokens[index]}:`, r.reason);
+                }
+            });
+
+            console.log(`Notificaciones enviadas. Éxitos: ${successCount}, Fallos: ${failureCount}`);
+            return null;
         } catch (error) {
             console.error("Error al enviar notificación:", error);
             return null;

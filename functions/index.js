@@ -34,6 +34,16 @@ exports.notificarCambioEstado = functions.firestore
             return null;
         }
 
+        // Convertir estados técnicos a texto amigable
+        const estadosLegibles = {
+            "pendiente": "Pendiente de revisión",
+            "en_proceso": "En proceso de atención",
+            "atendido": "Atendido",
+            "resuelto": "Resuelto",
+            "cancelado": "Cancelado"
+        };
+        const estadoFormateado = estadosLegibles[nuevoEstado] || nuevoEstado;
+
         try {
             let tokens = [];
 
@@ -67,7 +77,7 @@ exports.notificarCambioEstado = functions.firestore
                 const message = {
                     notification: {
                         title: "Actualización de Reporte",
-                        body: `Tu reporte #${folio} pasó a: ${nuevoEstado}`,
+                        body: `El estado de tu reporte #${folio} se ha actualizado a: ${estadoFormateado}`,
                     },
                     data: {
                         click_action: "FLUTTER_NOTIFICATION_CLICK",

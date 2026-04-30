@@ -15,6 +15,7 @@ class ReporteModel {
   final GeoPoint? ubicacion;
   final String? nombreUsuario;
   final List<String>? evidencias;
+  final List<String>? imagenes; // Fotos enviadas por el ciudadano
   final Timestamp? fechaCreacion;
   final Timestamp? fechaResolucion;
   final Timestamp? fechaUltimaActualizacion;
@@ -33,6 +34,7 @@ class ReporteModel {
     this.ubicacion,
     this.nombreUsuario,
     this.evidencias,
+    this.imagenes,
     this.fechaCreacion,
     this.fechaResolucion,
     this.fechaUltimaActualizacion,
@@ -43,6 +45,17 @@ class ReporteModel {
 
   factory ReporteModel.fromFirestore(DocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>;
+    
+    GeoPoint? geoPoint;
+    if (data['ubicacion'] != null) {
+      geoPoint = data['ubicacion'] as GeoPoint;
+    } else if (data['latitud'] != null && data['longitud'] != null) {
+      geoPoint = GeoPoint(
+        (data['latitud'] as num).toDouble(),
+        (data['longitud'] as num).toDouble(),
+      );
+    }
+
     return ReporteModel(
       id: doc.id,
       categoria: data['categoria'] ?? 'Sin categoría',
@@ -50,23 +63,36 @@ class ReporteModel {
       direccion: data['direccion'] ?? 'Sin dirección',
       estado: data['estado'] ?? 'pendiente',
       folio: data['folio'],
-      ubicacion: data['ubicacion'],
-      nombreUsuario: data['nombreUsuario'],
+      ubicacion: geoPoint,
+      nombreUsuario: data['nombreCompleto'] ?? data['nombreUsuario'],
       evidencias: data['evidencias'] != null
           ? List<String>.from(data['evidencias'])
           : null,
-      fechaCreacion: data['fechaCreacion'],
+      imagenes: data['imagenes'] != null
+          ? List<String>.from(data['imagenes'])
+          : null,
+      fechaCreacion: data['fechaCreacion'] ?? data['fecha'],
       fechaResolucion: data['fechaResolucion'],
       fechaUltimaActualizacion: data['fechaUltimaActualizacion'],
-      duplicados: data['duplicados'] ?? 0,
-      reportesRelacionados: data['reportesRelacionados'] != null
-          ? List<String>.from(data['reportesRelacionados'])
+      duplicados: data['duplicados'] ?? data['contadorDuplicados'] ?? 0,
+      reportesRelacionados: (data['reportesRelacionados'] ?? data['reportantesRelacionados']) != null
+          ? List<String>.from(data['reportesRelacionados'] ?? data['reportantesRelacionados'])
           : [],
       esDuplicadoDe: data['esDuplicadoDe'],
     );
   }
 
   factory ReporteModel.fromMap(Map<String, dynamic> data, String id) {
+    GeoPoint? geoPoint;
+    if (data['ubicacion'] != null) {
+      geoPoint = data['ubicacion'] as GeoPoint;
+    } else if (data['latitud'] != null && data['longitud'] != null) {
+      geoPoint = GeoPoint(
+        (data['latitud'] as num).toDouble(),
+        (data['longitud'] as num).toDouble(),
+      );
+    }
+
     return ReporteModel(
       id: id,
       categoria: data['categoria'] ?? 'Sin categoría',
@@ -74,17 +100,20 @@ class ReporteModel {
       direccion: data['direccion'] ?? 'Sin dirección',
       estado: data['estado'] ?? 'pendiente',
       folio: data['folio'],
-      ubicacion: data['ubicacion'],
-      nombreUsuario: data['nombreUsuario'],
+      ubicacion: geoPoint,
+      nombreUsuario: data['nombreCompleto'] ?? data['nombreUsuario'],
       evidencias: data['evidencias'] != null
           ? List<String>.from(data['evidencias'])
           : null,
-      fechaCreacion: data['fechaCreacion'],
+      imagenes: data['imagenes'] != null
+          ? List<String>.from(data['imagenes'])
+          : null,
+      fechaCreacion: data['fechaCreacion'] ?? data['fecha'],
       fechaResolucion: data['fechaResolucion'],
       fechaUltimaActualizacion: data['fechaUltimaActualizacion'],
-      duplicados: data['duplicados'] ?? 0,
-      reportesRelacionados: data['reportesRelacionados'] != null
-          ? List<String>.from(data['reportesRelacionados'])
+      duplicados: data['duplicados'] ?? data['contadorDuplicados'] ?? 0,
+      reportesRelacionados: (data['reportesRelacionados'] ?? data['reportantesRelacionados']) != null
+          ? List<String>.from(data['reportesRelacionados'] ?? data['reportantesRelacionados'])
           : [],
       esDuplicadoDe: data['esDuplicadoDe'],
     );
@@ -100,6 +129,7 @@ class ReporteModel {
       'ubicacion': ubicacion,
       'nombreUsuario': nombreUsuario,
       'evidencias': evidencias,
+      'imagenes': imagenes,
       'fechaCreacion': fechaCreacion,
       'fechaResolucion': fechaResolucion,
       'fechaUltimaActualizacion': fechaUltimaActualizacion,
@@ -112,6 +142,11 @@ class ReporteModel {
   bool get esResuelto => estado == 'resuelto' || estado == 'completado';
   bool get esAsignado => estado == 'asignado';
   bool get esEnProceso => estado == 'en_proceso' || estado == 'en proceso';
+
+  // Getters de conveniencia
+  double? get latitud => ubicacion?.latitude;
+  double? get longitud => ubicacion?.longitude;
+  Timestamp? get createdAt => fechaCreacion;
 }
 
 // Modelo de Brigada

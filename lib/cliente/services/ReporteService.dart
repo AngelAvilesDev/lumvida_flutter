@@ -347,11 +347,17 @@ class ReporteService {
   // Método para convertir Base64 de vuelta a imagen (sin cambios)
   static List<int> base64ToBytes(String base64String) {
     try {
-      // Remover el prefijo si existe
-      String cleanBase64 = base64String;
-      if (base64String.contains(',')) {
-        cleanBase64 = base64String.split(',')[1];
+      if (base64String.isEmpty) return [];
+      
+      // Remover el prefijo si existe y limpiar espacios
+      String cleanBase64 = base64String.trim();
+      if (cleanBase64.contains(',')) {
+        cleanBase64 = cleanBase64.split(',')[1].trim();
       }
+      
+      // Reemplazar posibles saltos de línea o espacios internos que base64Decode no maneja bien
+      cleanBase64 = cleanBase64.replaceAll(RegExp(r'\s+'), '');
+      
       return base64Decode(cleanBase64);
     } catch (e) {
       if (kDebugMode) {

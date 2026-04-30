@@ -51,6 +51,41 @@ class BrigadaService {
   }
 
   // ============================================
+  // 🔍 OBTENER BRIGADA DEL USUARIO (Stream)
+  // ============================================
+  Stream<Map<String, dynamic>?> obtenerBrigadaDelUsuarioStream() {
+    final user = _auth.currentUser;
+    if (user == null) return Stream.value(null);
+
+    return _firestore
+        .collection('brigadas')
+        .where('activa', isEqualTo: true)
+        .snapshots()
+        .map((snapshot) {
+      for (var doc in snapshot.docs) {
+        final data = doc.data();
+        final miembros = data['miembros'] as List<dynamic>?;
+
+        if (miembros != null) {
+          final perteneceABrigada = miembros.any((miembro) {
+            final email = miembro['email'] as String?;
+            return email != null && email.toLowerCase() == user.email?.toLowerCase();
+          });
+
+          if (perteneceABrigada) {
+            return {
+              'id': doc.id,
+              ...data,
+            };
+          }
+        }
+      }
+      return null;
+    });
+  }
+
+
+  // ============================================
   // 📊 OBTENER ESTADÍSTICAS
   // ============================================
   Stream<EstadisticasModel> obtenerEstadisticasStream(List<dynamic> reportesIds) {
@@ -323,6 +358,26 @@ class BrigadaService {
     } catch (e) {
       if (kDebugMode) print('❌ Error: $e');
       throw Exception('Error al subir imágenes: $e');
+    }
+  }
+
+  // ============================================
+  // ✅ RESOLVER REPORTE (Con imágenes base64)
+  // ============================================
+  Future<bool> resolverReporte(String reporteId, List<String> base64Evidencias) async {
+    try {
+      await _firestore.collection('reportes').doc(reporteId).update({
+        'estado': 'resuelto',
+        'fechaResolucion': FieldValue.serverTimestamp(),
+        'fechaUltimaActualizacion': FieldValue.serverTimestamp(),
+        'evidencias': base64Evidencias,
+      });
+
+      if (kDebugMode) print('✅ Reporte resuelto: $reporteId');
+      return true;
+    } catch (e) {
+      if (kDebugMode) print('❌ Error al resolver reporte: $e');
+      return false;
     }
   }
 }

@@ -26,14 +26,29 @@ class _BrigadistaHomeTabState extends State<BrigadistaHomeTab> {
   }
 
   @override
+  void didUpdateWidget(covariant BrigadistaHomeTab oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Si la lista de reportes asignados cambió, actualizar estadísticas
+    if (widget.brigadaData['reportesAsignados'] != oldWidget.brigadaData['reportesAsignados']) {
+      _escucharEstadisticas();
+    }
+  }
+
+  @override
   void dispose() {
     _estadisticasSubscription?.cancel();
     super.dispose();
   }
 
   void _escucharEstadisticas() {
+    _estadisticasSubscription?.cancel(); // Cancelar previa si existe
     final reportesIds = widget.brigadaData['reportesAsignados'] as List<dynamic>?;
-    if (reportesIds == null || reportesIds.isEmpty) return;
+    if (reportesIds == null || reportesIds.isEmpty) {
+      setState(() {
+        _estadisticas = EstadisticasModel.vacio();
+      });
+      return;
+    }
 
     _estadisticasSubscription = _brigadaService
         .obtenerEstadisticasStream(reportesIds)

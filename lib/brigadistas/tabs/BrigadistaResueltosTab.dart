@@ -28,12 +28,22 @@ class _BrigadistaResueltosTabState extends State<BrigadistaResueltosTab> {
   }
 
   @override
+  void didUpdateWidget(covariant BrigadistaResueltosTab oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Si la lista de reportes asignados cambió, actualizar la escucha
+    if (widget.brigadaData['reportesAsignados'] != oldWidget.brigadaData['reportesAsignados']) {
+      _escucharReportes();
+    }
+  }
+
+  @override
   void dispose() {
     _reportesSubscription?.cancel();
     super.dispose();
   }
 
   void _escucharReportes() {
+    _reportesSubscription?.cancel(); // Cancelar previa
     final reportesIds = widget.brigadaData['reportesAsignados'] as List<dynamic>?;
 
     if (reportesIds == null || reportesIds.isEmpty) {

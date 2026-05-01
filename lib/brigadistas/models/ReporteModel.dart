@@ -139,9 +139,9 @@ class ReporteModel {
     };
   }
 
-  bool get esResuelto => estado == 'resuelto' || estado == 'completado';
-  bool get esAsignado => estado == 'asignado';
-  bool get esEnProceso => estado == 'en_proceso' || estado == 'en proceso';
+  bool get esResuelto => estado.toLowerCase() == 'resuelto' || estado.toLowerCase() == 'completado';
+  bool get esAsignado => estado.toLowerCase() == 'asignado';
+  bool get esEnProceso => estado.toLowerCase() == 'en_proceso' || estado.toLowerCase() == 'en proceso';
 
   // Getters de conveniencia
   double? get latitud => ubicacion?.latitude;

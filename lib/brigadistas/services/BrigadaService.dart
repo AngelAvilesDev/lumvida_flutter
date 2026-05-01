@@ -93,7 +93,7 @@ class BrigadaService {
       return Stream.value(EstadisticasModel.vacio());
     }
 
-    final idsStrings = reportesIds.map((id) => id.toString()).take(10).toList();
+    final idsStrings = reportesIds.map((id) => id.toString()).toSet().take(10).toList();
 
     return _firestore
         .collection('reportes')
@@ -138,7 +138,7 @@ class BrigadaService {
       return Stream.value([]);
     }
 
-    final idsStrings = reportesIds.map((id) => id.toString()).take(10).toList();
+    final idsStrings = reportesIds.map((id) => id.toString()).toSet().take(10).toList();
 
     return _firestore
         .collection('reportes')

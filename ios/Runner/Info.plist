@@ -49,6 +49,8 @@
 	<string>Esta aplicación necesita acceso a tu ubicación para mostrar tu posición en el mapa y permitirte reportar problemas con precisión.</string>
     <key>GoogleMapsApiKey</key>
     <string>AIzaSyB8r1gOO58amKDoEvMHFWRse7pxHkUzeM8</string>
+    <key>io.flutter.embedded_views_preview</key>
+    <true/>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>Esta aplicación necesita acceso a tu biblioteca de fotos para seleccionar imágenes de los problemas que deseas reportar.</string>
 	<key>UIApplicationSupportsIndirectInputEvents</key>

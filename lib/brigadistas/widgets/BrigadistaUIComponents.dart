@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -116,16 +117,29 @@ class BrigadistaUIComponents {
     );
   }
 
-  static Future<void> abrirGoogleMaps(BuildContext context, ReporteModel reporte) async {
+  static Future<void> abrirMapa(BuildContext context, ReporteModel reporte) async {
     double? lat = reporte.latitud;
     double? lon = reporte.longitud;
     Uri url;
-    if (lat != null && lon != null) {
-      url = Uri.parse('https://www.google.com/maps/search/?api=1&query=$lat,$lon');
+
+    if (Platform.isIOS) {
+      // Esquema para Apple Maps en iOS
+      if (lat != null && lon != null) {
+        url = Uri.parse('https://maps.apple.com/?q=$lat,$lon');
+      } else {
+        final encodedAddress = Uri.encodeComponent(reporte.direccion);
+        url = Uri.parse('https://maps.apple.com/?q=$encodedAddress');
+      }
     } else {
-      final encodedAddress = Uri.encodeComponent(reporte.direccion);
-      url = Uri.parse('https://www.google.com/maps/search/$encodedAddress/@0,0,15z');
+      // Esquema para Google Maps en Android
+      if (lat != null && lon != null) {
+        url = Uri.parse('https://www.google.com/maps/search/?api=1&query=$lat,$lon');
+      } else {
+        final encodedAddress = Uri.encodeComponent(reporte.direccion);
+        url = Uri.parse('https://www.google.com/maps/search/$encodedAddress/@0,0,15z');
+      }
     }
+
     try {
       if (await canLaunchUrl(url)) {
         await launchUrl(url, mode: LaunchMode.externalApplication);
@@ -133,7 +147,7 @@ class BrigadistaUIComponents {
     } catch (e) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('No se pudo abrir Google Maps'))
+          SnackBar(content: Text('No se pudo abrir el mapa: $e'))
         );
       }
     }

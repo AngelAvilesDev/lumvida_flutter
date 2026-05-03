@@ -195,9 +195,9 @@ class _DetalleReporteSheetState extends State<DetalleReporteSheet> {
                 children: [
                   Expanded(child: BrigadistaUIComponents.buildSectionHeader(Icons.location_on_outlined, 'Ubicación')),
                   TextButton.icon(
-                    onPressed: () => BrigadistaUIComponents.abrirGoogleMaps(context, widget.reporte),
+                    onPressed: () => BrigadistaUIComponents.abrirMapa(context, widget.reporte),
                     icon: const Icon(Icons.map, size: 18),
-                    label: const Text('Ver en Google Maps'),
+                    label: const Text('Ver en Mapa'),
                     style: TextButton.styleFrom(foregroundColor: const Color(0xFFC62828)),
                   ),
                 ],

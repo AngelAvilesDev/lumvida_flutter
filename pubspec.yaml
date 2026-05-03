@@ -58,11 +58,11 @@ dev_dependencies:
 # CONFIGURACIÓN DE ICONOS - CORREGIDA
 flutter_launcher_icons:
   android: true
-  ios: false
-  image_path: "assets/images/IconoApp.png"
+  ios: true
+  image_path: "assets/images/Logo blanco.png"
   min_sdk_android: 21
   adaptive_icon_background: "#FFFFFF"
-  adaptive_icon_foreground: "assets/images/IconoApp.png"
+  adaptive_icon_foreground: "assets/images/Logo blanco.png"
   adaptive_icon_foreground_insets: 16
 
 # Fondos y imagenes

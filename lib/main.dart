@@ -21,45 +21,30 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'cliente/viewmodels/NotificacionesViewModel.dart';
 
 void main() async {
-
   WidgetsFlutterBinding.ensureInitialized();
 
+  // Cargamos el .env primero
   try {
-    // CARGAR VARIABLES DE ENTORNO PRIMERO
     await dotenv.load(fileName: ".env");
-    if (kDebugMode) {
-      print('✅ Variables de entorno cargadas correctamente');
-    }
+  } catch (e) {
+    debugPrint('⚠️ No se pudo cargar el archivo .env');
+  }
 
-    // VERIFICAR QUE LAS API KEYS ESTÉN DISPONIBLES
-    ApiConfig.debugApiKeys(); // Mostrar status de las API keys
-
-    if (!ApiConfig.areKeysConfigured) {
-      if (kDebugMode) {
-        print('⚠️  ADVERTENCIA: Algunas API keys no están configuradas correctamente');
-      }
-    }
-
-    // INICIALIZAR FIREBASE
+  // Inicializamos Firebase antes de runApp para que AuthViewModel no falle
+  try {
     await Firebase.initializeApp(
       options: DefaultFirebaseOptions.currentPlatform,
     );
-    if (kDebugMode) {
-      print('✅ Firebase inicializado correctamente');
-    }
-
-    // CONFIGURAR ORIENTACIÓN PREFERIDA
-    await SystemChrome.setPreferredOrientations([
-      DeviceOrientation.portraitUp,
-      DeviceOrientation.portraitDown,
-    ]);
-
+    debugPrint('✅ Firebase inicializado');
   } catch (e) {
-    if (kDebugMode) {
-      print('❌ Error al inicializar la aplicación: $e');
-    }
-    // La app continuará pero mostrará errores donde sea necesario
+    debugPrint('❌ Error al inicializar Firebase: $e');
   }
+
+  // Configurar orientación
+  await SystemChrome.setPreferredOrientations([
+    DeviceOrientation.portraitUp,
+    DeviceOrientation.portraitDown,
+  ]);
 
   runApp(const MyApp());
 }

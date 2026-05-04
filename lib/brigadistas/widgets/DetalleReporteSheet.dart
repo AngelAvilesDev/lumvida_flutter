@@ -42,31 +42,40 @@ class _DetalleReporteSheetState extends State<DetalleReporteSheet> {
 
   Future<void> _resolverReporte() async {
     if (_imagenesEvidencia.isEmpty) return;
+    
     setState(() {
       _subiendoImagenes = true;
-      _progresoSubida = 0.1;
+      _progresoSubida = 0.0;
     });
+
     try {
-      List<String> base64Evidencias = [];
-      for (int i = 0; i < _imagenesEvidencia.length; i++) {
-        final bytes = await _imagenesEvidencia[i].readAsBytes();
-        base64Evidencias.add(base64Encode(bytes));
-        setState(() => _progresoSubida = 0.1 + ((i + 1) / _imagenesEvidencia.length) * 0.8);
-      }
-      await _brigadaService.resolverReporte(widget.reporte.id, base64Evidencias);
-      if (mounted) {
+      // 1. Subir imágenes a Firebase Storage (Más seguro que Base64 para Firestore)
+      final List<String> urlsEvidencias = await _brigadaService.subirImagenesEvidencia(
+        widget.reporte.id, 
+        _imagenesEvidencia,
+        onProgress: (progreso) {
+          if (mounted) setState(() => _progresoSubida = progreso);
+        }
+      );
+
+      // 2. Resolver el reporte con las URLs obtenidas
+      final exito = await _brigadaService.resolverReporte(widget.reporte.id, urlsEvidencias);
+      
+      if (exito && mounted) {
         Navigator.pop(context);
         widget.onActualizar();
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('Reporte marcado como resuelto'), 
+          content: Text('✅ Reporte resuelto con éxito'), 
           backgroundColor: Colors.green
         ));
+      } else if (mounted) {
+        throw Exception('No se pudo actualizar el estado en la base de datos');
       }
     } catch (e) {
       if (mounted) {
         setState(() => _subiendoImagenes = false);
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('Error al resolver reporte: $e'), 
+          content: Text('❌ Error al resolver reporte: $e'), 
           backgroundColor: Colors.red
         ));
       }

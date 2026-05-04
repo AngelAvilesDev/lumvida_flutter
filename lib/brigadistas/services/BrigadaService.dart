@@ -362,15 +362,16 @@ class BrigadaService {
   }
 
   // ============================================
-  // ✅ RESOLVER REPORTE (Con imágenes base64)
-  // ============================================
-  Future<bool> resolverReporte(String reporteId, List<String> base64Evidencias) async {
+  // ✅ RESOLVER REPORTE (Con URLs de Storage para evitar límites de tamaño)
+  Future<bool> resolverReporte(String reporteId, List<String> urlsEvidencias) async {
     try {
+      if (reporteId.isEmpty) throw Exception("ID de reporte vacío");
+
       await _firestore.collection('reportes').doc(reporteId).update({
         'estado': 'resuelto',
         'fechaResolucion': FieldValue.serverTimestamp(),
         'fechaUltimaActualizacion': FieldValue.serverTimestamp(),
-        'evidencias': base64Evidencias,
+        'evidencias': urlsEvidencias, // Ahora son URLs de Storage, no Base64
       });
 
       if (kDebugMode) print('✅ Reporte resuelto: $reporteId');

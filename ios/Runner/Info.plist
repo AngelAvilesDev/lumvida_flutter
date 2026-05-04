@@ -41,18 +41,18 @@
 	<true/>
 	<key>NSCameraUsageDescription</key>
 	<string>Esta aplicación necesita acceso a la cámara para tomar fotos de los problemas que deseas reportar.</string>
-	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
-	<string>Esta aplicación necesita acceso a tu ubicación para mostrar tu posición en el mapa y permitirte reportar problemas con precisión.</string>
-	<key>NSLocationAlwaysUsageDescription</key>
-	<string>Esta aplicación necesita acceso a tu ubicación para mostrar tu posición en el mapa y permitirte reportar problemas con precisión.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>Esta aplicación necesita acceso a tu ubicación para mostrar tu posición en el mapa y permitirte reportar problemas con precisión.</string>
-    <key>GoogleMapsApiKey</key>
-    <string>AIzaSyAqXIs-Z0Yqe_HBLamv6_FY-eT4ZwxWl1A</string>
-    <key>io.flutter.embedded_views_preview</key>
-    <true/>
+	<key>NSLocationAlwaysUsageDescription</key>
+	<string>Esta aplicación necesita acceso a tu ubicación incluso en segundo plano para recibir alertas de problemas cercanos.</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>Esta aplicación necesita acceso a tu ubicación para mostrar tu posición en el mapa y permitirte reportar problemas con precisión.</string>
+	<key>NSMotionUsageDescription</key>
+	<string>Esta aplicación usa el movimiento para mejorar la precisión de la ubicación en el mapa.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>Esta aplicación necesita acceso a tu biblioteca de fotos para seleccionar imágenes de los problemas que deseas reportar.</string>
+	<key>io.flutter.embedded_views_preview</key>
+	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
 	<key>UIBackgroundModes</key>

@@ -555,6 +555,12 @@ class ReporteService {
 
       for (var doc in snapshot.docs) {
         final data = doc.data() as Map<String, dynamic>;
+        
+        // 🚨 SEGURIDAD EXTRA: Verificar que la categoría coincida exactamente
+        if (data['categoria'] != categoria) {
+          continue;
+        }
+
         final double? repLat = data['latitud'] != null ? (data['latitud'] as num).toDouble() : null;
         final double? repLon = data['longitud'] != null ? (data['longitud'] as num).toDouble() : null;
         final String? estado = data['estado'] as String?;
@@ -566,7 +572,7 @@ class ReporteService {
 
         if (repLat != null && repLon != null) {
           final distancia = _calcularDistancia(latitud, longitud, repLat, repLon);
-          if (distancia <= 100) { // 100 metros como umbral de duplicidad
+          if (distancia <= 50) { // Reducido de 100 a 50 metros para ser más precisos
             return {
               'id': doc.id,
               ...data,

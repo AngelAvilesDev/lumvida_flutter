@@ -396,6 +396,7 @@ class GoogleMapComponentState extends State<GoogleMapComponent> {
   Widget build(BuildContext context) {
     return SizedBox(
       height: widget.height,
+      width: double.infinity,
       child: Stack(
         children: [
           ClipRRect(

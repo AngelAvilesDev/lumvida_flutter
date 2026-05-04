@@ -2,12 +2,21 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter/foundation.dart';
 
 class ApiConfig {
-  // GOOGLE MAPS API KEY
+  // GOOGLE MAPS API KEY (Diferenciada por plataforma)
   static String get googleMapsApiKey {
-    final key = dotenv.env['GOOGLE_MAPS_API_KEY'];
+    String? key;
+    if (defaultTargetPlatform == TargetPlatform.android) {
+      key = dotenv.env['GOOGLE_MAPS_API_KEY_ANDROID'];
+    } else if (defaultTargetPlatform == TargetPlatform.iOS) {
+      key = dotenv.env['GOOGLE_MAPS_API_KEY_IOS'];
+    }
+
+    // Fallback si no se encuentran las específicas
+    key ??= dotenv.env['GOOGLE_MAPS_API_KEY'];
+
     if (key == null || key.isEmpty) {
       if (kDebugMode) {
-        print('❌ Google Maps API Key no encontrada en .env');
+        print('❌ Google Maps API Key no encontrada en .env para la plataforma actual');
       }
       return '';
     }

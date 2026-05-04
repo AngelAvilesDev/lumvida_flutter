@@ -79,6 +79,18 @@ class NotificacionesViewModel extends ChangeNotifier {
         if (kDebugMode) print('Permiso concedido para notificaciones');
 
         // 2. Obtener el token
+        // En iOS, necesitamos asegurarnos de que el token de APNS esté listo
+        if (defaultTargetPlatform == TargetPlatform.iOS) {
+          String? apnsToken = await messaging.getAPNSToken();
+          if (apnsToken == null) {
+            if (kDebugMode) print('Esperando token APNS...');
+            // Reintentar un par de veces si es necesario
+            await Future.delayed(const Duration(seconds: 2));
+            apnsToken = await messaging.getAPNSToken();
+          }
+          if (kDebugMode) print('APNS Token: $apnsToken');
+        }
+
         String? token = await messaging.getToken();
         
         if (token != null) {

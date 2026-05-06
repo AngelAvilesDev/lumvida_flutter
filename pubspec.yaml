@@ -31,7 +31,7 @@ dependencies:
   intl: ^0.18.1
 
   # MAPAS - MIGRACIÓN A GOOGLE MAPS
-  google_maps_flutter: ^2.5.0        # Reemplaza flutter_osm_plugin
+  google_maps_flutter: ^2.10.0        # Actualizado para mejor compatibilidad con Kotlin 2.1+
   geolocator: ^10.1.0                # Para ubicación más precisa
   permission_handler: ^11.4.0        # Mantener para permisos
 
@@ -55,14 +55,14 @@ dev_dependencies:
   flutter_lints: ^2.0.2
   flutter_launcher_icons: ^0.13.1
 
-# CONFIGURACIÓN DE ICONOS - CORREGIDA
+# CONFIGURACIÓN DE ICONOS - ACTUALIZADA
 flutter_launcher_icons:
   android: true
   ios: true
-  image_path: "assets/images/Logo blanco.png"
+  image_path: "assets/images/Icons/ios/iTunesArtwork@3x.png"
   min_sdk_android: 21
   adaptive_icon_background: "#FFFFFF"
-  adaptive_icon_foreground: "assets/images/Logo blanco.png"
+  adaptive_icon_foreground: "assets/images/Icons/android/mipmap-xxxhdpi/LumVida_Icono_foreground.png"
   adaptive_icon_foreground_insets: 16
 
 # Fondos y imagenes

@@ -46,63 +46,95 @@ class OpenAIService {
       String prompt,
       ) async {
     try {
-      // Limpiar el base64 si tiene prefijo
+      // Limpiar el base64 si tiene prefijo data:image/...
       String cleanBase64 = base64Image;
+      String mimeType = 'image/jpeg'; // default
+
       if (base64Image.contains(',')) {
-        cleanBase64 = base64Image.split(',')[1];
+        final parts = base64Image.split(',');
+        cleanBase64 = parts[1];
+        // Extraer el MIME real del prefijo
+        if (parts[0].contains('image/png')) {
+          mimeType = 'image/png';
+        } else if (parts[0].contains('image/webp')) {
+          mimeType = 'image/webp';
+        } else if (parts[0].contains('image/gif')) {
+          mimeType = 'image/gif';
+        } else {
+          mimeType = 'image/jpeg';
+        }
       }
 
-      // URL para la API de Chat Completions (que soporta GPT-4 Vision)
+      // Detectar tipo de imagen por los primeros bytes (magic bytes)
+      try {
+        final firstBytes = base64Decode(cleanBase64.substring(0, cleanBase64.length > 20 ? 20 : cleanBase64.length));
+        if (firstBytes.length >= 4) {
+          if (firstBytes[0] == 0x89 && firstBytes[1] == 0x50) {
+            mimeType = 'image/png'; // PNG magic bytes
+          } else if (firstBytes[0] == 0xFF && firstBytes[1] == 0xD8) {
+            mimeType = 'image/jpeg'; // JPEG magic bytes
+          } else if (firstBytes[0] == 0x52 && firstBytes[1] == 0x49) {
+            mimeType = 'image/webp'; // RIFF/WebP
+          }
+        }
+      } catch (_) {
+        // Si no se puede detectar, usar el default
+      }
+
+      if (kDebugMode) {
+        print('Tipo MIME detectado: $mimeType');
+        print('Categoria solicitada: $requestedCategory');
+        print('Longitud del base64: ${cleanBase64.length}');
+      }
+
+      // URL para la API de Chat Completions
       final Uri url = Uri.parse('$baseUrl/chat/completions');
 
-      // Construir el mensaje con la imagen - PROMPT MEJORADO Y MÁS CLARO
       final Map<String, dynamic> requestBody = {
-        "model": "gpt-4o",  // Modelo para análisis de imágenes
+        "model": "gpt-4o",
+        "response_format": { "type": "json_object" },
         "messages": [
           {
             "role": "system",
-            "content": """Eres un experto analista de imágenes especializado en problemas urbanos. Tu trabajo es VALIDAR ESTRICTAMENTE si una imagen corresponde EXACTAMENTE a la categoría de problema reportada.
+            "content": """Eres un analista de imágenes experto en problemas urbanos. Tu trabajo es verificar si una imagen coincide razonablemente con la categoría reportada por el ciudadano.
 
 CATEGORÍAS VÁLIDAS Y SUS CARACTERÍSTICAS:
-1. BACHEO: Hoyos en el pavimento, asfalto agrietado, hundimientos en calles, deterioro del pavimento
-2. ALUMBRADO PÚBLICO: Postes de luz, luminarias, cables de alumbrado, lámparas de calle dañadas o apagadas
-3. BASURA ACUMULADA: Desechos en vía pública, basureros desbordados, acumulación de residuos
-4. DRENAJES OBSTRUIDOS: Alcantarillas, tapas de drenaje, agua estancada, sistema de drenaje bloqueado
+1. BACHEO: Hoyos en el pavimento, asfalto agrietado, hundimientos en calles, alcantarillas colapsadas o rotas que forman un hoyo peligroso.
+2. ALUMBRADO PÚBLICO: Postes de luz, luminarias, cables de alumbrado, lámparas de calle dañadas o apagadas.
+3. BASURA ACUMULADA: Desechos en vía pública, basureros desbordados, acumulación de residuos, escombros.
+4. DRENAJES OBSTRUIDOS: Alcantarillas o tapas de drenaje rotas, colapsadas o bloqueadas, agua estancada.
 
-INSTRUCCIONES CRÍTICAS:
-- Responde ÚNICAMENTE en español sin caracteres especiales
-- Si la imagen NO muestra EXACTAMENTE el tipo de problema reportado, responde "NO COINCIDE"
-- Si hay dudas, responde "NO COINCIDE"
-- Solo confirma coincidencia si estás 100% seguro respondiendo "SI COINCIDE"
-- Si la imagen no muestra ningún problema urbano válido, indica "NO ES PROBLEMA URBANO"
-- Sé ESTRICTO en tu análisis
-- NO uses tildes ni caracteres especiales en tu respuesta"""
+INSTRUCCIONES:
+- Responde con un JSON estrictamente con esta estructura:
+{
+  "isMatch": true o false,
+  "detectedCategory": "Bacheo" | "Alumbrado Público" | "Basura Acumulada" | "Drenajes Obstruidos" | "No es problema urbano",
+  "reasoning": "Explicación breve en español de lo observado."
+}
+- "isMatch": true si la imagen muestra un daño urbano que encaja razonablemente con la categoría reportada.
+- TOLERANCIA ENTRE CATEGORÍAS SIMILARES: "Bacheo" y "Drenajes Obstruidos" se confunden visualmente (ej. drenaje colapsado = bache). Si el daño es real y cercano a lo reportado, acepta con isMatch = true.
+- RECHAZA SOLO si la imagen es claramente spam (selfies, objetos personales, mascotas, interiores de casas) o muestra una calle/lugar en perfecto estado sin ningún daño visible.
+- Ante cualquier duda con un daño urbano real: isMatch = true."""
           },
           {
             "role": "user",
             "content": [
               {
                 "type": "text",
-                "text": """El usuario reportó un problema de categoria: "${requestedCategory}".
-                
-Por favor analiza esta imagen y responde:
-1. ¿La imagen muestra EXACTAMENTE un problema de "${requestedCategory}"? (Responde solo: "SI COINCIDE" o "NO COINCIDE")
-2. Si NO coincide, ¿qué tipo de problema muestra? (solo elige entre: Bacheo, Alumbrado Publico, Basura Acumulada, Drenajes Obstruidos, o "No es problema urbano")
-3. Explica tu decisión de forma clara y específica en español sin tildes.
-
-IMPORTANTE: Solo responde "SI COINCIDE" si estás completamente seguro. En caso de duda, responde "NO COINCIDE"."""
+                "text": "El usuario reportó la categoría: '$requestedCategory'. Analiza la imagen y devuelve el JSON requerido."
               },
               {
                 "type": "image_url",
                 "image_url": {
-                  "url": "data:image/jpeg;base64,$cleanBase64"
+                  "url": "data:$mimeType;base64,$cleanBase64",
+                  "detail": "high"
                 }
               }
             ]
           }
         ],
-        "max_tokens": 600,
-        "temperature": 0.1  // Baja temperatura para respuestas más consistentes
+        "max_tokens": 400,
+        "temperature": 0.0
       };
 
       // Realizar la petición a la API
@@ -112,45 +144,68 @@ IMPORTANTE: Solo responde "SI COINCIDE" si estás completamente seguro. En caso 
           'Content-Type': 'application/json; charset=utf-8',
           'Authorization': 'Bearer $apiKey',
         },
-        body: utf8.encode(jsonEncode(requestBody)), // Usar UTF-8 encoding explícito
+        body: utf8.encode(jsonEncode(requestBody)),
       );
 
+      if (kDebugMode) {
+        print('OpenAI status code: ${response.statusCode}');
+      }
+
       if (response.statusCode == 200) {
-        // Decodificar la respuesta con UTF-8
         final String responseBody = utf8.decode(response.bodyBytes);
         final Map<String, dynamic> responseData = jsonDecode(responseBody);
-
-        // Extraer la respuesta generada
         final String content = responseData['choices'][0]['message']['content'];
 
         if (kDebugMode) {
-          print('Respuesta de OpenAI (corregida): $content');
+          print('Respuesta de OpenAI: $content');
         }
 
-        // Limpiar y normalizar el contenido
-        final String cleanContent = _cleanAndNormalizeText(content);
+        // Limpiar posibles bloques markdown
+        String cleanJsonStr = content
+            .replaceAll('```json', '')
+            .replaceAll('```', '')
+            .trim();
 
-        if (kDebugMode) {
-          print('Contenido limpio: $cleanContent');
+        try {
+          final Map<String, dynamic> jsonResponse = jsonDecode(cleanJsonStr);
+          final bool isMatch = jsonResponse['isMatch'] ?? false;
+          final String detectedCategory = jsonResponse['detectedCategory'] ?? 'No es problema urbano';
+          final String reasoning = jsonResponse['reasoning'] ?? '';
+
+          if (kDebugMode) {
+            print('isMatch: $isMatch | detectedCategory: $detectedCategory');
+            print('reasoning: $reasoning');
+          }
+
+          return {
+            'success': true,
+            'message': reasoning,
+            'isMatch': isMatch,
+            'detectedCategory': detectedCategory,
+          };
+        } catch (e) {
+          if (kDebugMode) {
+            print('Error parseando JSON de OpenAI: $e');
+            print('Contenido recibido: $content');
+          }
+          // Si no se puede parsear el JSON, asumir rechazo por seguridad
+          return {
+            'success': false,
+            'message': 'Error al interpretar la respuesta del análisis. Intenta de nuevo.',
+            'isMatch': false,
+            'detectedCategory': requestedCategory,
+          };
         }
-
-        // Determinar si la imagen coincide con la categoría - LÓGICA MEJORADA
-        final bool isMatch = _determineIfMatchStrict(cleanContent, requestedCategory);
-        final String detectedCategory = _extractDetectedCategoryStrict(cleanContent, requestedCategory);
-
-        return {
-          'success': true,
-          'message': cleanContent,
-          'isMatch': isMatch,
-          'detectedCategory': detectedCategory,
-        };
       } else {
+        // Log detallado del error para diagnosticar
+        final String errorBody = utf8.decode(response.bodyBytes);
         if (kDebugMode) {
-          print('Error en API OpenAI: ${response.statusCode}, ${response.body}');
+          print('Error en API OpenAI: ${response.statusCode}');
+          print('Error body: $errorBody');
         }
         return {
           'success': false,
-          'message': 'Error al analizar la imagen: Código ${response.statusCode}',
+          'message': 'Error al analizar la imagen (código ${response.statusCode}). Verifica tu conexión e intenta de nuevo.',
           'isMatch': false,
           'detectedCategory': requestedCategory,
         };
@@ -331,52 +386,9 @@ IMPORTANTE: Solo responde "SI COINCIDE" si estás completamente seguro. En caso 
       }
     }
 
-    // Verificación específica por categoría con palabras clave exactas
-    Map<String, List<String>> strictKeywords = {
-      'bacheo': ['bache', 'pavimento dañado', 'asfalto deteriorado', 'hoyo en la calle', 'hundimiento'],
-      'alumbrado público': ['poste de luz', 'luminaria', 'alumbrado publico', 'luz de calle'],
-      'basura acumulada': ['basura acumulada', 'desechos', 'residuos', 'basurero'],
-      'drenajes obstruidos': ['drenaje obstruido', 'alcantarilla', 'agua estancada', 'coladera tapada']
-    };
-
-    if (strictKeywords.containsKey(categoryLower)) {
-      final keywords = strictKeywords[categoryLower]!;
-      bool foundKeyword = false;
-
-      for (final keyword in keywords) {
-        if (contentLower.contains(keyword)) {
-          foundKeyword = true;
-          if (kDebugMode) {
-            print('Palabra clave específica encontrada: $keyword');
-          }
-          break;
-        }
-      }
-
-      // Solo confirmar si se encuentra palabra clave Y no hay negaciones previas
-      if (foundKeyword) {
-        // Verificar una vez más que no hay negaciones en el contexto
-        final contextualNegatives = [
-          'pero no es',
-          'sin embargo no',
-          'aunque parece',
-          'no exactamente',
-          'no del tipo'
-        ];
-
-        for (final contextNeg in contextualNegatives) {
-          if (contentLower.contains(contextNeg)) {
-            if (kDebugMode) {
-              print('Negación contextual detectada: $contextNeg');
-            }
-            return false;
-          }
-        }
-
-        return true;
-      }
-    }
-
+    // Ya no usamos palabras clave aisladas porque causan falsos positivos
+    // (ej. "No veo ninguna luminaria" marcaba isMatch = true por la palabra "luminaria")
+    
     // Por defecto, si no hay confirmación explícita, considerar que NO coincide
     if (kDebugMode) {
       print('No se encontró confirmación explícita, retornando false por defecto');

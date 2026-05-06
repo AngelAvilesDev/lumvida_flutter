@@ -161,11 +161,8 @@ class VerificacionIAViewModel extends ChangeNotifier {
       _isLocationVerified = locationVerification['isLocationVerified'] ?? false;
       _locationVerificationMessage = locationVerification['message'] ?? 'No se pudieron verificar los metadatos de ubicación.';
 
-      // LÓGICA DE FUZZY MATCH
-      // Si la IA dice que no coincide, pero la categoría detectada es la misma (ignorando mayúsculas/tildes y espacios)
-      bool stringMatch = _normalizeString(_detectedCategory) == _normalizeString(_categoria);
-      
-      _isCategoryMatch = (imageAnalysis['isMatch'] ?? false) || stringMatch;
+      // LÓGICA DE FUZZY MATCH (Eliminada porque causaba falsos positivos si la IA devolvía la misma categoría pero isMatch = false)
+      _isCategoryMatch = imageAnalysis['isMatch'] ?? false;
 
       // LÓGICA CRÍTICA: Solo permitir envío si la categoría coincide EXACTAMENTE o por similitud de texto
       _canSubmitReport = _isCategoryMatch;

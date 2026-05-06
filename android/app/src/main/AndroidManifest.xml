@@ -18,7 +18,8 @@
 
     <application
         android:label="Lumvida"
-        android:icon="@mipmap/ic_launcher">
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher_round">
 
         <!-- API KEY DE GOOGLE MAPS - REEMPLAZAR CON TU API KEY REAL -->
         <meta-data android:name="com.google.android.geo.API_KEY"

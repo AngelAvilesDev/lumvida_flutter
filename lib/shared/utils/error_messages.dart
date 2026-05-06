@@ -13,7 +13,7 @@ class AuthErrorMessages {
 
     // Errores de Registro
     'email-already-in-use': 'Este correo electrónico ya está registrado.',
-    'weak-password': 'La contraseña es muy débil. Debe tener al menos 6 caracteres.',
+    'weak-password': 'La contraseña es muy débil. Debe tener al menos 8 caracteres.',
     'operation-not-allowed': 'El registro con correo y contraseña no está habilitado.',
 
     // Errores de Google Sign-In
@@ -253,8 +253,8 @@ class AuthErrorMessages {
       return getErrorMessage('empty-password');
     }
 
-    if (value.length < 6) {
-      return 'La contraseña debe tener al menos 6 caracteres';
+    if (value.length < 8) {
+      return 'La contraseña debe tener al menos 8 caracteres';
     }
 
     return null;

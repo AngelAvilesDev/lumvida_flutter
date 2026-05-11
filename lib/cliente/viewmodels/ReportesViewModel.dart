@@ -268,11 +268,16 @@ class ReportesViewModel extends ChangeNotifier {
         final reporteOriginalFolio = reporteDuplicado['folio'] as String? ?? 'Sin folio';
         final contadorActual = (reporteDuplicado['contadorDuplicados'] as num?)?.toInt() ?? 1;
 
+        // Convertir las fotos actuales del usuario para guardarlas en su duplicado
+        final base64Images = await _reporteService.convertirImagenesABase64(_selectedPhotos);
+
         // Crear el documento ligero que aparecera en el historial del usuario
         final nuevoId = await _reporteService.crearReporteDuplicado(
           userId: userId,
           reporteOriginalId: reporteOriginalId,
           datosOriginal: reporteDuplicado,
+          descripcion: descripcion,
+          imagenes: base64Images['base64Images'] as List<String>? ?? [],
         );
 
         if (!_disposed) {

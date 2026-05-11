@@ -3,6 +3,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'dart:async';
 import 'package:provider/provider.dart';
+import 'package:intl/intl.dart';
+import 'package:intl/date_symbol_data_local.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../viewmodels/NotificacionesViewModel.dart';
 import '../../shared/components/base64_image_widget.dart';
@@ -854,13 +856,16 @@ class _MisReportesScreenState extends State<MisReportesScreen> with TickerProvid
   }
 
   // Card especial para reportes co-reportados (duplicados del usuario)
-  // No muestra datos del autor original, solo el tipo, estado y contador de incidencias.
   Widget _buildDuplicadoCard(BuildContext context, Map<String, dynamic> reporte, int index) {
-    final tipo = reporte['tipo'] ?? 'Problema reportado';
+    final tipo = reporte['tipo'] ?? reporte['categoria'] ?? 'Problema reportado';
     final estado = reporte['estado'] ?? 'pendiente';
     final ubicacion = reporte['direccion'] ?? reporte['ubicacion'] ?? 'Sin ubicacion';
-    final fecha = reporte['fecha'] ?? '';
+    final fecha = reporte['fecha'] is Timestamp 
+        ? DateFormat('dd de MMMM de yyyy a las hh:mm a', 'es').format((reporte['fecha'] as Timestamp).toDate())
+        : reporte['fecha'] ?? '';
     final contadorDuplicados = reporte['contadorDuplicados'] ?? 2;
+    final descripcion = reporte['descripcion'] ?? '';
+    final imagenes = reporte['imagenes'] as List? ?? [];
 
     Color estadoColor;
     switch (estado.toLowerCase()) {
@@ -896,152 +901,171 @@ class _MisReportesScreenState extends State<MisReportesScreen> with TickerProvid
               decoration: BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(24),
-                border: Border.all(
-                  color: Colors.orange.shade200,
-                  width: 1.5,
-                ),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.orange.withOpacity(0.08),
+                    color: Colors.black.withOpacity(0.03),
                     blurRadius: 20,
                     offset: const Offset(0, 4),
                   ),
                 ],
               ),
-              child: Padding(
-                padding: const EdgeInsets.all(20),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Badge: Incidencia ya registrada
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                      decoration: BoxDecoration(
-                        color: Colors.orange.shade50,
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(color: Colors.orange.shade300),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(Icons.warning_amber_rounded,
-                              size: 14, color: Colors.orange.shade700),
-                          const SizedBox(width: 6),
-                          Text(
-                            'Incidencia ya registrada',
-                            style: TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.orange.shade700,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-
-                    const SizedBox(height: 16),
-
-                    // Tipo + Estado
-                    Row(
+              child: Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  onTap: () => _mostrarDetalleReporte(context, reporte),
+                  borderRadius: BorderRadius.circular(24),
+                  child: Padding(
+                    padding: const EdgeInsets.all(20),
+                    child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Container(
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: Colors.orange.shade50,
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                          child: Icon(
-                            Icons.report_problem_outlined,
-                            color: Colors.orange.shade700,
-                            size: 26,
-                          ),
-                        ),
-                        const SizedBox(width: 14),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                tipo,
+                        // Badge: Incidencia ya registrada (Ahora integrado arriba)
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: Colors.orange.shade50,
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(color: Colors.orange.shade200),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(Icons.people_outline, size: 12, color: Colors.orange.shade700),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    'INCIDENCIA REGISTRADA (x$contadorDuplicados)',
+                                    style: TextStyle(
+                                      fontSize: 9,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.orange.shade700,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            // Badge de estado
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                              decoration: BoxDecoration(
+                                color: estadoColor,
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              child: Text(
+                                estado.toUpperCase(),
                                 style: const TextStyle(
-                                  fontSize: 17,
+                                  color: Colors.white,
+                                  fontSize: 9,
                                   fontWeight: FontWeight.bold,
-                                  color: Colors.black87,
+                                  letterSpacing: 0.5,
                                 ),
                               ),
-                              const SizedBox(height: 4),
-                              Text(
-                                '$contadorDuplicados personas han reportado esta incidencia',
-                                style: TextStyle(
-                                  fontSize: 13,
-                                  color: Colors.orange.shade700,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ],
-                          ),
+                            ),
+                          ],
                         ),
-                        // Badge de estado
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                          decoration: BoxDecoration(
-                            color: estadoColor,
-                            borderRadius: BorderRadius.circular(20),
-                          ),
-                          child: Text(
-                            estado.toUpperCase(),
+
+                        const SizedBox(height: 16),
+
+                        // Header similar a la normal
+                        Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(10),
+                              decoration: BoxDecoration(
+                                color: Colors.orange.shade50,
+                                borderRadius: BorderRadius.circular(14),
+                              ),
+                              child: Icon(
+                                Icons.report_problem_outlined,
+                                color: Colors.orange.shade700,
+                                size: 24,
+                              ),
+                            ),
+                            const SizedBox(width: 14),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    tipo,
+                                    style: const TextStyle(
+                                      fontSize: 17,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.black87,
+                                    ),
+                                  ),
+                                  Text(
+                                    'Folio: ${reporte['folio'] ?? ''}',
+                                    style: TextStyle(fontSize: 12, color: Colors.grey.shade400),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+
+                        const SizedBox(height: 16),
+
+                        // Tu descripción
+                        if (descripcion.isNotEmpty) ...[
+                          Text(
+                            descripcion,
                             style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 9,
-                              fontWeight: FontWeight.bold,
-                              letterSpacing: 0.5,
+                              fontSize: 15,
+                              color: Colors.black87,
+                              fontWeight: FontWeight.w500,
                             ),
-                          ),
-                        ),
-                      ],
-                    ),
-
-                    const SizedBox(height: 16),
-
-                    // Ubicacion
-                    Row(
-                      children: [
-                        Icon(Icons.location_on,
-                            size: 16, color: Colors.orange.shade400),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            ubicacion,
-                            style: TextStyle(
-                              color: Colors.blueGrey.shade400,
-                              fontSize: 13,
-                            ),
-                            maxLines: 1,
+                            maxLines: 2,
                             overflow: TextOverflow.ellipsis,
                           ),
-                        ),
-                      ],
-                    ),
+                          const SizedBox(height: 12),
+                        ],
 
-                    const SizedBox(height: 6),
-
-                    // Fecha
-                    Row(
-                      children: [
-                        Icon(Icons.calendar_today_outlined,
-                            size: 16, color: Colors.orange.shade400),
-                        const SizedBox(width: 8),
-                        Text(
-                          'Reportado el $fecha',
-                          style: TextStyle(
-                            color: Colors.blueGrey.shade400,
-                            fontSize: 13,
+                        // Tu imagen si existe
+                        if (imagenes.isNotEmpty) ...[
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(16),
+                            child: Base64ImageWidget(
+                              base64String: imagenes[0],
+                              width: 100,
+                              height: 100,
+                              fit: BoxFit.cover,
+                            ),
                           ),
+                          const SizedBox(height: 16),
+                        ],
+
+                        // Ubicacion y Fecha
+                        Row(
+                          children: [
+                            Icon(Icons.location_on, size: 14, color: Colors.grey.shade400),
+                            const SizedBox(width: 6),
+                            Expanded(
+                              child: Text(
+                                ubicacion,
+                                style: TextStyle(color: Colors.grey.shade500, fontSize: 12),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 4),
+                        Row(
+                          children: [
+                            Icon(Icons.access_time, size: 14, color: Colors.grey.shade400),
+                            const SizedBox(width: 6),
+                            Text(
+                              fecha,
+                              style: TextStyle(color: Colors.grey.shade500, fontSize: 12),
+                            ),
+                          ],
                         ),
                       ],
                     ),
-                  ],
+                  ),
                 ),
               ),
             ),

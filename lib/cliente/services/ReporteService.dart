@@ -542,42 +542,51 @@ class ReporteService {
     return degree * math.pi / 180;
   }
 
-  // Buscar si ya existe un reporte similar activo
+  // Buscar si ya existe un reporte similar ACTIVO (no resuelto/cancelado)
+  // Criterios: misma categoria + radio de 30m + no mas de 90 dias sin actividad
   Future<Map<String, dynamic>?> buscarReporteDuplicado({
     required double latitud,
     required double longitud,
     required String categoria,
   }) async {
     try {
+      // Buscar reportes activos de la misma categoria que no sean duplicados
       final snapshot = await _reportesRef
           .where('categoria', isEqualTo: categoria)
+          .where('estado', whereNotIn: ['resuelto', 'cancelado', 'Resuelto', 'Cancelado'])
           .get();
 
       for (var doc in snapshot.docs) {
         final data = doc.data() as Map<String, dynamic>;
-        
-        // 🚨 SEGURIDAD EXTRA: Verificar que la categoría coincida exactamente
-        if (data['categoria'] != categoria) {
-          continue;
-        }
+
+        // Ignorar documentos que sean ellos mismos duplicados
+        if (data['esDuplicado'] == true) continue;
+
+        // Verificar que la categoria coincida exactamente
+        if (data['categoria'] != categoria) continue;
 
         final double? repLat = data['latitud'] != null ? (data['latitud'] as num).toDouble() : null;
         final double? repLon = data['longitud'] != null ? (data['longitud'] as num).toDouble() : null;
-        final String? estado = data['estado'] as String?;
 
-        // Ignorar reportes resueltos o cancelados
-        if (estado == 'resuelto' || estado == 'cancelado') {
-          continue;
-        }
+        if (repLat == null || repLon == null) continue;
 
-        if (repLat != null && repLon != null) {
-          final distancia = _calcularDistancia(latitud, longitud, repLat, repLon);
-          if (distancia <= 50) { // Reducido de 100 a 50 metros para ser más precisos
-            return {
-              'id': doc.id,
-              ...data,
-            };
+        final distancia = _calcularDistancia(latitud, longitud, repLat, repLon);
+
+        // Radio reducido a 30m para mayor precision
+        if (distancia <= 30) {
+          // Salvaguarda: si el reporte lleva mas de 90 dias sin resolverse
+          // y sigue en "pendiente" (posible reporte abandonado), no bloquear
+          final fecha = data['fecha'];
+          if (fecha != null && fecha is Timestamp) {
+            final diasActivo = DateTime.now().difference(fecha.toDate()).inDays;
+            final estado = (data['estado'] as String? ?? '').toLowerCase();
+            if (diasActivo > 90 && estado == 'pendiente') {
+              // Reporte posiblemente abandonado, permitir crear nuevo
+              continue;
+            }
           }
+
+          return {'id': doc.id, ...data};
         }
       }
       return null;
@@ -589,14 +598,62 @@ class ReporteService {
     }
   }
 
-  // Incrementar contador de duplicados y registrar reportante
+  // Crear documento ligero del co-reportante cuando se detecta un duplicado.
+  // Cada usuario ve su propio documento en su historial con el flag esDuplicado.
+  Future<String?> crearReporteDuplicado({
+    required String userId,
+    required String reporteOriginalId,
+    required Map<String, dynamic> datosOriginal,
+  }) async {
+    try {
+      final nuevoDoc = {
+        'userId': userId,
+        'esDuplicado': true,
+        'reporteOriginalId': reporteOriginalId,
+        'categoria': datosOriginal['categoria'],
+        'direccion': datosOriginal['direccion'],
+        'latitud': datosOriginal['latitud'],
+        'longitud': datosOriginal['longitud'],
+        'estado': datosOriginal['estado'] ?? 'pendiente',
+        'fecha': Timestamp.now(),
+        'imagenes': [], // No se copian las fotos del reportante original
+        'folio': datosOriginal['folio'],
+        'historialEstados': datosOriginal['historialEstados'] ?? [],
+        'nombreCompleto': '',
+        'telefono': '',
+        'isAnonymous': true,
+      };
+
+      // Crear el documento ligero del co-reportante
+      final ref = await _reportesRef.add(nuevoDoc);
+
+      // Actualizar el reporte original: incrementar contador y registrar el ID del duplicado
+      await incrementarContadorDuplicados(
+        reporteId: reporteOriginalId,
+        reporteRelacionadoId: ref.id,
+      );
+
+      if (kDebugMode) {
+        print('Documento duplicado creado: ${ref.id} -> original: $reporteOriginalId');
+      }
+
+      return ref.id;
+    } catch (e) {
+      if (kDebugMode) {
+        print('Error al crear reporte duplicado: $e');
+      }
+      return null;
+    }
+  }
+
+  // Incrementar contador de duplicados y registrar el ID del doc. duplicado en el original
   Future<void> incrementarContadorDuplicados({
     required String reporteId,
     required String reporteRelacionadoId,
   }) async {
     try {
       final docRef = _reportesRef.doc(reporteId);
-      
+
       await _firestore.runTransaction((transaction) async {
         final snapshot = await transaction.get(docRef);
         if (!snapshot.exists) {
@@ -604,14 +661,16 @@ class ReporteService {
         }
 
         final data = snapshot.data() as Map<String, dynamic>;
-        final int contadorActual = data['contadorDuplicados'] != null ? (data['contadorDuplicados'] as num).toInt() : 1;
-        final List<dynamic> reportantes = data['reportantesRelacionados'] as List<dynamic>? ?? [];
+        final int contadorActual = data['contadorDuplicados'] != null
+            ? (data['contadorDuplicados'] as num).toInt()
+            : 1;
+        final List<dynamic> duplicadosIds = data['duplicadosIds'] as List<dynamic>? ?? [];
 
-        if (!reportantes.contains(reporteRelacionadoId)) {
-          reportantes.add(reporteRelacionadoId);
+        if (!duplicadosIds.contains(reporteRelacionadoId)) {
+          duplicadosIds.add(reporteRelacionadoId);
           transaction.update(docRef, {
             'contadorDuplicados': contadorActual + 1,
-            'reportantesRelacionados': reportantes,
+            'duplicadosIds': duplicadosIds,
           });
         }
       });

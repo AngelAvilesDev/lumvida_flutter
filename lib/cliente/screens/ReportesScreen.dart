@@ -938,9 +938,7 @@ class _ReportesScreenState extends State<ReportesScreen> with TickerProviderStat
     try {
       final XFile? pickedFile = await _imagePicker.pickImage(
         source: ImageSource.gallery,
-        imageQuality: 50,
-        maxWidth: 1024,
-        maxHeight: 1024,
+        // Eliminamos calidad/tamaño aquí para preservar metadatos EXIF (GPS)
       );
 
       if (pickedFile != null && mounted) {
@@ -957,9 +955,7 @@ class _ReportesScreenState extends State<ReportesScreen> with TickerProviderStat
     try {
       final XFile? pickedFile = await _imagePicker.pickImage(
         source: ImageSource.camera,
-        imageQuality: 50,
-        maxWidth: 1024,
-        maxHeight: 1024,
+        // Eliminamos calidad/tamaño aquí para preservar metadatos EXIF (GPS)
       );
 
       if (pickedFile != null && mounted) {

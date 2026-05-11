@@ -119,11 +119,16 @@ class _MisReportesScreenState extends State<MisReportesScreen> with TickerProvid
               'tipo': data['categoria'] ?? 'Sin categoría',
               'descripcion': data['comentario'] ?? 'Sin descripción',
               'ubicacion': data['direccion'] ?? 'Sin ubicación',
+              'direccion': data['direccion'] ?? '',
               'nombreCompleto': data['nombreCompleto'] ?? '',
               'telefono': data['telefono'] ?? '',
               'isAnonymous': data['isAnonymous'] ?? false,
               'imagenes': data['imagenes'] ?? [],
               'historialEstados': data['historialEstados'] ?? [],
+              // Campos para reportes co-reportados (duplicados)
+              'esDuplicado': data['esDuplicado'] ?? false,
+              'reporteOriginalId': data['reporteOriginalId'],
+              'contadorDuplicados': data['contadorDuplicados'] ?? 1,
             };
           } catch (e) {
             if (kDebugMode) print("Error parsing report ${doc.id}: $e");
@@ -579,6 +584,11 @@ class _MisReportesScreenState extends State<MisReportesScreen> with TickerProvid
   }
 
   Widget _buildModernReportCard(BuildContext context, Map<String, dynamic> reporte, int index) {
+    // Si es un reporte duplicado, mostrar card especial sin datos del autor original
+    if (reporte['esDuplicado'] == true) {
+      return _buildDuplicadoCard(context, reporte, index);
+    }
+
     IconData getIconForType(String type) {
       if (type.toLowerCase().contains('basura') || type.toLowerCase().contains('recolección')) {
         return Icons.delete_outline;
@@ -840,6 +850,204 @@ class _MisReportesScreenState extends State<MisReportesScreen> with TickerProvid
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
         duration: const Duration(seconds: 2),
       ),
+    );
+  }
+
+  // Card especial para reportes co-reportados (duplicados del usuario)
+  // No muestra datos del autor original, solo el tipo, estado y contador de incidencias.
+  Widget _buildDuplicadoCard(BuildContext context, Map<String, dynamic> reporte, int index) {
+    final tipo = reporte['tipo'] ?? 'Problema reportado';
+    final estado = reporte['estado'] ?? 'pendiente';
+    final ubicacion = reporte['direccion'] ?? reporte['ubicacion'] ?? 'Sin ubicacion';
+    final fecha = reporte['fecha'] ?? '';
+    final contadorDuplicados = reporte['contadorDuplicados'] ?? 2;
+
+    Color estadoColor;
+    switch (estado.toLowerCase()) {
+      case 'resuelto':
+        estadoColor = Colors.green.shade600;
+        break;
+      case 'en proceso':
+      case 'en_proceso':
+        estadoColor = Colors.blue.shade600;
+        break;
+      case 'asignado':
+        estadoColor = Colors.indigo.shade600;
+        break;
+      case 'en revision':
+      case 'en revisión':
+        estadoColor = Colors.orange.shade600;
+        break;
+      default:
+        estadoColor = Colors.grey.shade600;
+    }
+
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0.0, end: 1.0),
+      duration: Duration(milliseconds: 300 + (index * 100)),
+      curve: Curves.easeOut,
+      builder: (context, value, child) {
+        return Transform.translate(
+          offset: Offset(0, 20 * (1 - value)),
+          child: Opacity(
+            opacity: value,
+            child: Container(
+              margin: const EdgeInsets.only(bottom: 20),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(24),
+                border: Border.all(
+                  color: Colors.orange.shade200,
+                  width: 1.5,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.orange.withOpacity(0.08),
+                    blurRadius: 20,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Badge: Incidencia ya registrada
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: Colors.orange.shade50,
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: Colors.orange.shade300),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.warning_amber_rounded,
+                              size: 14, color: Colors.orange.shade700),
+                          const SizedBox(width: 6),
+                          Text(
+                            'Incidencia ya registrada',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.orange.shade700,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    const SizedBox(height: 16),
+
+                    // Tipo + Estado
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: Colors.orange.shade50,
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          child: Icon(
+                            Icons.report_problem_outlined,
+                            color: Colors.orange.shade700,
+                            size: 26,
+                          ),
+                        ),
+                        const SizedBox(width: 14),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                tipo,
+                                style: const TextStyle(
+                                  fontSize: 17,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.black87,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                '$contadorDuplicados personas han reportado esta incidencia',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  color: Colors.orange.shade700,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        // Badge de estado
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                          decoration: BoxDecoration(
+                            color: estadoColor,
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: Text(
+                            estado.toUpperCase(),
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 9,
+                              fontWeight: FontWeight.bold,
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+
+                    const SizedBox(height: 16),
+
+                    // Ubicacion
+                    Row(
+                      children: [
+                        Icon(Icons.location_on,
+                            size: 16, color: Colors.orange.shade400),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            ubicacion,
+                            style: TextStyle(
+                              color: Colors.blueGrey.shade400,
+                              fontSize: 13,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
+
+                    const SizedBox(height: 6),
+
+                    // Fecha
+                    Row(
+                      children: [
+                        Icon(Icons.calendar_today_outlined,
+                            size: 16, color: Colors.orange.shade400),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Reportado el $fecha',
+                          style: TextStyle(
+                            color: Colors.blueGrey.shade400,
+                            fontSize: 13,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 

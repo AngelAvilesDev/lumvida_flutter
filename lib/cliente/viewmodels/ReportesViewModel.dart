@@ -246,15 +246,17 @@ class ReportesViewModel extends ChangeNotifier {
         categoria: categoria,
       );
 
-      // 2. Si hay duplicado, NO crear nuevo reporte — solo incrementar contador
+      // 2. Si hay duplicado, crear documento propio del usuario (no el del original)
       if (reporteDuplicado != null) {
         final reporteOriginalId = reporteDuplicado['id'] as String;
         final reporteOriginalFolio = reporteDuplicado['folio'] as String? ?? 'Sin folio';
-        
-        // Registrar que este usuario también reportó el mismo incidente
-        await _reporteService.incrementarContadorDuplicados(
-          reporteId: reporteOriginalId,
-          reporteRelacionadoId: userId,  // guardamos el userId del nuevo reportante
+        final contadorActual = (reporteDuplicado['contadorDuplicados'] as num?)?.toInt() ?? 1;
+
+        // Crear el documento ligero que aparecera en el historial del usuario
+        final nuevoId = await _reporteService.crearReporteDuplicado(
+          userId: userId,
+          reporteOriginalId: reporteOriginalId,
+          datosOriginal: reporteDuplicado,
         );
 
         if (!_disposed) {
@@ -269,8 +271,9 @@ class ReportesViewModel extends ChangeNotifier {
         return {
           'success': true,
           'isDuplicate': true,
-          'reporteId': reporteOriginalId,
+          'reporteId': nuevoId ?? reporteOriginalId,
           'folio': reporteOriginalFolio,
+          'contadorDuplicados': contadorActual + 1,
           'message': 'Ya existe un reporte activo para este incidente',
         };
       }

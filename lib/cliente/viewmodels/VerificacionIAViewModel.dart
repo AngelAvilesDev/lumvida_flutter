@@ -143,11 +143,11 @@ class VerificacionIAViewModel extends ChangeNotifier {
               "Si la imagen no muestra ninguno de estos problemas urbanos, indica que no es un problema válido para reportar."
       );
 
-      // Verificar metadatos de ubicación usando Base64 - ACTUALIZADO PARA LATLNG
-      Map<String, dynamic> locationVerification = {'isLocationVerified': false, 'message': ''};
-      if (_ubicacion != null && _imagenesBase64.isNotEmpty) {
-        locationVerification = await OpenAIService.verifyLocationMetadataFromBase64(
-          _imagenesBase64[0],
+      // Verificar metadatos de ubicación usando el archivo original para extraer EXIF
+      Map<String, dynamic> locationVerification = {'isLocationVerified': true, 'message': ''};
+      if (_ubicacion != null && _imagenes.isNotEmpty) {
+        locationVerification = await OpenAIService.verifyLocationMetadata(
+          _imagenes[0],
           _ubicacion!.latitude, // USANDO LatLng
           _ubicacion!.longitude, // USANDO LatLng
         );
@@ -254,11 +254,11 @@ class VerificacionIAViewModel extends ChangeNotifier {
           _categoria
       );
 
-      // Verificar metadatos de ubicación - ACTUALIZADO PARA LATLNG
-      Map<String, dynamic> locationVerification = {'isLocationVerified': false, 'message': ''};
-      if (_ubicacion != null && _imagenesBase64.isNotEmpty) {
-        locationVerification = await OpenAIService.verifyLocationMetadataFromBase64(
-          _imagenesBase64[0],
+      // Verificar metadatos de ubicación usando el archivo original (primera imagen)
+      Map<String, dynamic> locationVerification = {'isLocationVerified': true, 'message': ''};
+      if (_ubicacion != null && _imagenes.isNotEmpty) {
+        locationVerification = await OpenAIService.verifyLocationMetadata(
+          _imagenes[0],
           _ubicacion!.latitude, // USANDO LatLng
           _ubicacion!.longitude, // USANDO LatLng
         );

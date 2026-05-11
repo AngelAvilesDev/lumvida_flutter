@@ -40,7 +40,17 @@ void main() async {
     debugPrint('❌ Error al inicializar Firebase: $e');
   }
 
-  // Configurar orientación
+  // Configurar orientación y apariencia del sistema
+  SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
+    systemNavigationBarColor: Colors.transparent,
+    systemNavigationBarDividerColor: Colors.transparent,
+    systemNavigationBarIconBrightness: Brightness.dark,
+    statusBarColor: Colors.transparent,
+    statusBarIconBrightness: Brightness.dark,
+  ));
+
+  await SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+
   await SystemChrome.setPreferredOrientations([
     DeviceOrientation.portraitUp,
     DeviceOrientation.portraitDown,

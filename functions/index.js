@@ -2,13 +2,18 @@ const functions = require("firebase-functions");
 const admin = require("firebase-admin");
 admin.initializeApp();
 
+// ============================================================
+// FUNCION 1: Notificar cambio de estado via push notification
+// Se dispara cuando cualquier reporte cambia de estado.
+// Notifica al autor original via FCM.
+// ============================================================
 exports.notificarCambioEstado = functions.firestore
     .document("reportes/{reporteId}")
     .onUpdate(async (change, context) => {
         const dataNueva = change.after.data();
         const dataAnterior = change.before.data();
 
-        // Verificar si el estado cambió
+        // Solo actuar si el estado cambio
         if (dataNueva.estado === dataAnterior.estado) {
             return null;
         }
@@ -21,6 +26,7 @@ exports.notificarCambioEstado = functions.firestore
             userIdsToNotify.push(dataNueva.userId);
         }
 
+        // Compatibilidad con el campo legacy
         if (dataNueva.reportantesRelacionados && Array.isArray(dataNueva.reportantesRelacionados)) {
             dataNueva.reportantesRelacionados.forEach(id => {
                 if (id && !userIdsToNotify.includes(id)) {
@@ -34,29 +40,29 @@ exports.notificarCambioEstado = functions.firestore
             return null;
         }
 
-        // Convertir estados técnicos a texto amigable
         const estadosLegibles = {
-            "pendiente": "Pendiente de revisión",
-            "en_proceso": "En proceso de atención",
+            "pendiente": "Pendiente de revision",
+            "en_proceso": "En proceso de atencion",
             "atendido": "Atendido",
             "resuelto": "Resuelto",
-            "cancelado": "Cancelado"
+            "cancelado": "Cancelado",
+            "En Revision": "En Revision",
+            "Asignado": "Asignado",
+            "En Proceso": "En Proceso",
+            "Resuelto": "Resuelto",
         };
         const estadoFormateado = estadosLegibles[nuevoEstado] || nuevoEstado;
 
         try {
             let tokens = [];
 
-            // Buscar tokens para todos los usuarios
             for (const uid of userIdsToNotify) {
                 let fcmToken = null;
-                
-                // Buscar en la colección 'usuarios'
+
                 const userDoc = await admin.firestore().collection("usuarios").doc(uid).get();
                 if (userDoc.exists && userDoc.data().fcm_token) {
                     fcmToken = userDoc.data().fcm_token;
                 } else {
-                    // Si no está en 'usuarios', buscar en 'tokens'
                     const tokenDoc = await admin.firestore().collection("tokens").doc(uid).get();
                     if (tokenDoc.exists && tokenDoc.data().token) {
                         fcmToken = tokenDoc.data().token;
@@ -69,14 +75,14 @@ exports.notificarCambioEstado = functions.firestore
             }
 
             if (tokens.length === 0) {
-                console.log(`No se encontraron tokens para los usuarios: ${userIdsToNotify.join(", ")}`);
+                console.log(`No se encontraron tokens para: ${userIdsToNotify.join(", ")}`);
                 return null;
             }
 
             const sendPromises = tokens.map(token => {
                 const message = {
                     notification: {
-                        title: "Actualización de Reporte",
+                        title: "Actualizacion de Reporte",
                         body: `El estado de tu reporte #${folio} se ha actualizado a: ${estadoFormateado}`,
                     },
                     data: {
@@ -90,11 +96,11 @@ exports.notificarCambioEstado = functions.firestore
             });
 
             const responses = await Promise.allSettled(sendPromises);
-            
+
             let successCount = 0;
             let failureCount = 0;
             responses.forEach((r, index) => {
-                if (r.status === 'fulfilled') {
+                if (r.status === "fulfilled") {
                     successCount++;
                 } else {
                     failureCount++;
@@ -102,10 +108,53 @@ exports.notificarCambioEstado = functions.firestore
                 }
             });
 
-            console.log(`Notificaciones enviadas. Éxitos: ${successCount}, Fallos: ${failureCount}`);
+            console.log(`Notificaciones enviadas. Exitos: ${successCount}, Fallos: ${failureCount}`);
             return null;
         } catch (error) {
-            console.error("Error al enviar notificación:", error);
+            console.error("Error al enviar notificacion:", error);
             return null;
         }
+    });
+
+// ============================================================
+// FUNCION 2: Propagar cambio de estado a documentos duplicados
+// Se dispara cuando el estado del reporte ORIGINAL cambia.
+// Actualiza en batch todos los docs duplicados referenciados
+// en el arreglo 'duplicadosIds' del reporte original.
+// ============================================================
+exports.propagarEstadoReporte = functions.firestore
+    .document("reportes/{reporteId}")
+    .onUpdate(async (change, context) => {
+        const dataNueva = change.after.data();
+        const dataAnterior = change.before.data();
+
+        // Solo actuar si el ESTADO cambio
+        if (dataNueva.estado === dataAnterior.estado) {
+            return null;
+        }
+
+        // No propagar desde documentos duplicados (evitar loops infinitos)
+        if (dataNueva.esDuplicado === true) {
+            return null;
+        }
+
+        const duplicadosIds = dataNueva.duplicadosIds;
+        if (!duplicadosIds || !Array.isArray(duplicadosIds) || duplicadosIds.length === 0) {
+            return null;
+        }
+
+        const db = admin.firestore();
+        const batch = db.batch();
+
+        for (const dupId of duplicadosIds) {
+            const ref = db.collection("reportes").doc(dupId);
+            batch.update(ref, {
+                estado: dataNueva.estado,
+                historialEstados: dataNueva.historialEstados || [],
+            });
+        }
+
+        await batch.commit();
+        console.log(`Estado '${dataNueva.estado}' propagado a ${duplicadosIds.length} duplicados del reporte ${context.params.reporteId}`);
+        return null;
     });

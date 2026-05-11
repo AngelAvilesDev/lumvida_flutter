@@ -236,8 +236,20 @@ class ProfileViewModel extends ChangeNotifier {
       return false;
     }
 
-    if (telefono.trim().isNotEmpty && !_isValidPhone(telefono.trim())) {
-      _errorMessage = 'El teléfono debe tener 10 dígitos';
+    if (!RegExp(r"^[a-zA-ZáéíóúÁÉÍÓÚñÑ\s]+$").hasMatch(nombre.trim())) {
+      _errorMessage = 'El nombre solo puede contener letras y espacios';
+      notifyListeners();
+      return false;
+    }
+
+    if (telefono.trim().isEmpty) {
+      _errorMessage = 'El teléfono es obligatorio';
+      notifyListeners();
+      return false;
+    }
+
+    if (!_isValidPhone(telefono.trim())) {
+      _errorMessage = 'Número de teléfono inválido';
       notifyListeners();
       return false;
     }
@@ -384,12 +396,15 @@ class ProfileViewModel extends ChangeNotifier {
     if (value.trim().length < 2) {
       return 'El nombre debe tener al menos 2 caracteres';
     }
+    if (!RegExp(r"^[a-zA-ZáéíóúÁÉÍÓÚñÑ\s]+$").hasMatch(value.trim())) {
+      return 'El nombre solo puede contener letras';
+    }
     return null;
   }
 
   String? validatePhone(String? value) {
     if (value == null || value.trim().isEmpty) {
-      return null; // Teléfono es opcional
+      return 'El teléfono es obligatorio';
     }
     
     // Usamos la validación centralizada

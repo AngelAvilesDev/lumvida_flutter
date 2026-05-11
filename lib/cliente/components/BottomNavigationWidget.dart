@@ -18,7 +18,6 @@ class BottomNavigationWidget extends StatelessWidget {
   Widget build(BuildContext context) {
     return Consumer<AuthViewModel>(
       builder: (context, authViewModel, _) => Container(
-        height: 70,
         decoration: const BoxDecoration(
           color: kSecondaryColor,
           borderRadius: BorderRadius.only(
@@ -26,47 +25,53 @@ class BottomNavigationWidget extends StatelessWidget {
             topRight: Radius.circular(30),
           ),
         ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-          children: [
-            // Botón de Inicio (Casa)
-            _buildNavigationButton(
-              context: context,
-              icon: Icons.home,
-              isActive: currentScreen == 'inicio',
-              onPressed: () => _navigateToScreen(context, 'inicio'),
-            ),
+        child: SafeArea(
+          top: false,
+          child: SizedBox(
+            height: 70,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                // Botón de Inicio (Casa)
+                _buildNavigationButton(
+                  context: context,
+                  icon: Icons.home,
+                  isActive: currentScreen == 'inicio',
+                  onPressed: () => _navigateToScreen(context, 'inicio'),
+                ),
 
-            // Separador visual
-            Container(
-              width: 1,
-              height: 30,
-              color: Colors.white.withOpacity(0.3),
-            ),
+                // Separador visual
+                Container(
+                  width: 1,
+                  height: 30,
+                  color: Colors.white.withOpacity(0.3),
+                ),
 
-            // Botón de Mapa
-            _buildNavigationButton(
-              context: context,
-              icon: Icons.map,
-              isActive: currentScreen == 'mapa',
-              onPressed: () => _navigateToScreen(context, 'mapa'),
-            ),
+                // Botón de Mapa
+                _buildNavigationButton(
+                  context: context,
+                  icon: Icons.map,
+                  isActive: currentScreen == 'mapa',
+                  onPressed: () => _navigateToScreen(context, 'mapa'),
+                ),
 
-            // Separador visual
-            Container(
-              width: 1,
-              height: 30,
-              color: Colors.white.withOpacity(0.3),
-            ),
+                // Separador visual
+                Container(
+                  width: 1,
+                  height: 30,
+                  color: Colors.white.withOpacity(0.3),
+                ),
 
-            // Botón de Perfil
-            _buildNavigationButton(
-              context: context,
-              icon: Icons.person,
-              isActive: currentScreen == 'perfil',
-              onPressed: () => _handleProfileNavigation(context, authViewModel),
+                // Botón de Perfil
+                _buildNavigationButton(
+                  context: context,
+                  icon: Icons.person,
+                  isActive: currentScreen == 'perfil',
+                  onPressed: () => _handleProfileNavigation(context, authViewModel),
+                ),
+              ],
             ),
-          ],
+          ),
         ),
       ),
     );

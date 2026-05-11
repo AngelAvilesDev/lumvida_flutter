@@ -158,3 +158,132 @@ exports.propagarEstadoReporte = functions.firestore
         console.log(`Estado '${dataNueva.estado}' propagado a ${duplicadosIds.length} duplicados del reporte ${context.params.reporteId}`);
         return null;
     });
+
+// ============================================================
+// FUNCION 3: Verificacion de duplicados visuales via IA
+// Recibe ubicacion y foto, busca reportes cercanos y usa
+// GPT-4o para comparar si es el mismo problema.
+// ============================================================
+const axios = require("axios");
+
+exports.verificarDuplicadoVisual = functions.https.onCall(async (data, context) => {
+    // Verificar autenticacion
+    if (!context.auth) {
+        throw new functions.https.HttpsError("unauthenticated", "Debes estar autenticado.");
+    }
+
+    const { latitud, longitud, categoria, imagenBase64 } = data;
+
+    if (!latitud || !longitud || !categoria || !imagenBase64) {
+        throw new functions.https.HttpsError("invalid-argument", "Faltan datos requeridos.");
+    }
+
+    // Configurar API Key desde el archivo .env (metodo moderno)
+    const openaiKey = process.env.OPENAI_API_KEY;
+    
+    if (!openaiKey) {
+        console.error("OPENAI_API_KEY no encontrada en process.env. Asegurate de que el archivo .env exista en la carpeta functions.");
+        return { error: "Configuracion incompleta en el servidor" };
+    }
+
+    const db = admin.firestore();
+    const latRange = 0.001; // Aprox 110m
+    const lonRange = 0.001;
+
+    try {
+        // 1. Busqueda geografica rapida (Bounding Box)
+        // Filtramos por categoria y latitud (Firestore solo permite una desigualdad por query usualmente)
+        const snapshot = await db.collection("reportes")
+            .where("categoria", "==", categoria)
+            .where("estado", "not-in", ["resuelto", "cancelado", "Resuelto", "Cancelado"])
+            .where("latitud", ">=", latitud - latRange)
+            .where("latitud", "<=", latitud + latRange)
+            .get();
+
+        console.log(`Buscando duplicados visuales. Candidatos geográficos: ${snapshot.docs.length}`);
+
+        for (const doc of snapshot.docs) {
+            const candidato = doc.data();
+            
+            // Ignorar si es el mismo reporte (aunque onCall es antes de crear)
+            if (candidato.userId === context.auth.uid && candidato.categoria === categoria) {
+                // Podriamos permitir que un mismo usuario reporte lo mismo? 
+                // Usualmente no, pero aqui comparamos contra otros.
+            }
+
+            // Filtrar longitud en memoria si es necesario (para precision)
+            if (candidato.longitud < longitud - lonRange || candidato.longitud > longitud + lonRange) {
+                continue;
+            }
+
+            // Si el candidato tiene fotos, comparamos visualmente
+            if (candidato.imagenes && candidato.imagenes.length > 0) {
+                const fotoCandidata = candidato.imagenes[0];
+
+                console.log(`Comparando visualmente contra reporte: ${candidato.folio || doc.id}`);
+
+                const response = await axios.post("https://api.openai.com/v1/chat/completions", {
+                    model: "gpt-4o",
+                    messages: [
+                        {
+                            role: "system",
+                            content: `Eres un experto en gestion urbana. Tu tarea es determinar si dos fotografias muestran el MISMO incidente o problema (mismo bache, misma lampara rota, etc.). 
+                            Ten en cuenta que las fotos pueden estar tomadas desde angulos diferentes o en momentos del dia distintos.
+                            Responde estrictamente en formato JSON: { "esDuplicado": boolean, "confianza": number, "motivo": string }`
+                        },
+                        {
+                            role: "user",
+                            content: [
+                                {
+                                    type: "text",
+                                    text: `¿Estas dos fotos muestran el mismo problema de '${categoria}'?`
+                                },
+                                {
+                                    type: "image_url",
+                                    image_url: { "url": imagenBase64 }
+                                },
+                                {
+                                    type: "image_url",
+                                    image_url: { "url": fotoCandidata }
+                                }
+                            ]
+                        }
+                    ],
+                    response_format: { type: "json_object" },
+                    max_tokens: 300
+                }, {
+                    headers: {
+                        "Authorization": `Bearer ${openaiKey}`,
+                        "Content-Type": "application/json"
+                    }
+                });
+
+                const aiRes = JSON.parse(response.data.choices[0].message.content);
+                console.log(`Resultado IA para ${doc.id}: Confianza ${aiRes.confianza}% - Es duplicado: ${aiRes.esDuplicado}`);
+
+                if (aiRes.esDuplicado && aiRes.confianza > 80) {
+                    return {
+                        esDuplicado: true,
+                        reporteOriginal: {
+                            id: doc.id,
+                            folio: candidato.folio,
+                            categoria: candidato.categoria,
+                            direccion: candidato.direccion,
+                            latitud: candidato.latitud,
+                            longitud: candidato.longitud,
+                            estado: candidato.estado,
+                            contadorDuplicados: candidato.contadorDuplicados || 0,
+                            historialEstados: candidato.historialEstados || []
+                        }
+                    };
+                }
+            }
+        }
+
+        return { esDuplicado: false };
+
+    } catch (error) {
+        console.error("Error en verificarDuplicadoVisual:", error);
+        return { error: "Error interno al procesar duplicados visuales" };
+    }
+});

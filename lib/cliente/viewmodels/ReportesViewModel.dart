@@ -239,14 +239,30 @@ class ReportesViewModel extends ChangeNotifier {
         direccion = await _reporteService.obtenerDireccionFromLatLng(_selectedLocation!);
       }
 
-      // 1. Buscar si ya existe un reporte similar activo
-      final reporteDuplicado = await _reporteService.buscarReporteDuplicado(
+      // 1. Buscar si ya existe un reporte similar activo (GEOGRÁFICO RÁPIDO)
+      var reporteDuplicado = await _reporteService.buscarReporteDuplicado(
         latitud: _selectedLocation!.latitude,
         longitud: _selectedLocation!.longitude,
         categoria: categoria,
       );
 
-      // 2. Si hay duplicado, crear documento propio del usuario (no el del original)
+      // 1.5. Si no se detectó por distancia, intentar DETECCIÓN VISUAL con IA en el Backend
+      if (reporteDuplicado == null && _selectedPhotos.isNotEmpty) {
+        if (kDebugMode) {
+          print('🔎 No se detectó duplicado por distancia. Iniciando verificación visual...');
+        }
+        
+        final base64Image = await OpenAIService.fileToBase64(_selectedPhotos[0]);
+        
+        reporteDuplicado = await _reporteService.verificarDuplicadoVisual(
+          latitud: _selectedLocation!.latitude,
+          longitud: _selectedLocation!.longitude,
+          categoria: categoria,
+          imagenBase64: base64Image,
+        );
+      }
+
+      // 2. Si hay duplicado (geográfico o visual), crear documento propio del usuario
       if (reporteDuplicado != null) {
         final reporteOriginalId = reporteDuplicado['id'] as String;
         final reporteOriginalFolio = reporteDuplicado['folio'] as String? ?? 'Sin folio';

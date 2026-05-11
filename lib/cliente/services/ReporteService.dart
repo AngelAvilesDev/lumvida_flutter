@@ -4,6 +4,7 @@ import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
@@ -550,11 +551,22 @@ class ReporteService {
     required String categoria,
   }) async {
     try {
+      final String categoriaNormalizada = categoria.trim();
+      
+      if (kDebugMode) {
+        print('🔍 Buscando duplicados para: $categoriaNormalizada en ($latitud, $longitud)');
+      }
+
       // Buscar reportes activos de la misma categoria que no sean duplicados
+      // Nota: Firestore isEqualTo es sensible a mayúsculas, aseguramos consistencia
       final snapshot = await _reportesRef
-          .where('categoria', isEqualTo: categoria)
+          .where('categoria', isEqualTo: categoriaNormalizada)
           .where('estado', whereNotIn: ['resuelto', 'cancelado', 'Resuelto', 'Cancelado'])
           .get();
+
+      if (kDebugMode) {
+        print('📊 Reportes candidatos encontrados en Firestore: ${snapshot.docs.length}');
+      }
 
       for (var doc in snapshot.docs) {
         final data = doc.data() as Map<String, dynamic>;
@@ -562,18 +574,23 @@ class ReporteService {
         // Ignorar documentos que sean ellos mismos duplicados
         if (data['esDuplicado'] == true) continue;
 
-        // Verificar que la categoria coincida exactamente
-        if (data['categoria'] != categoria) continue;
-
         final double? repLat = data['latitud'] != null ? (data['latitud'] as num).toDouble() : null;
         final double? repLon = data['longitud'] != null ? (data['longitud'] as num).toDouble() : null;
 
-        if (repLat == null || repLon == null) continue;
+        if (repLat == null || repLon == null) {
+          if (kDebugMode) print('⚠️ Reporte ${doc.id} no tiene coordenadas válidas');
+          continue;
+        }
 
         final distancia = _calcularDistancia(latitud, longitud, repLat, repLon);
+        
+        if (kDebugMode) {
+          print('📍 Distancia al reporte ${doc.id} (${data['folio']}): ${distancia.toStringAsFixed(2)}m');
+          print('📝 Estado: ${data['estado']} | Categoría: ${data['categoria']}');
+        }
 
-        // Radio reducido a 30m para mayor precision
-        if (distancia <= 30) {
+        // Aumentamos radio a 50m para compensar imprecisión de GPS en celulares
+        if (distancia <= 50) {
           // Salvaguarda: si el reporte lleva mas de 90 dias sin resolverse
           // y sigue en "pendiente" (posible reporte abandonado), no bloquear
           final fecha = data['fecha'];
@@ -581,14 +598,17 @@ class ReporteService {
             final diasActivo = DateTime.now().difference(fecha.toDate()).inDays;
             final estado = (data['estado'] as String? ?? '').toLowerCase();
             if (diasActivo > 90 && estado == 'pendiente') {
-              // Reporte posiblemente abandonado, permitir crear nuevo
+              if (kDebugMode) print('⏳ Reporte antiguo (>90 días) ignorado como duplicado');
               continue;
             }
           }
 
+          if (kDebugMode) print('✅ ¡DUPLICADO DETECTADO! Vinculando a ${doc.id}');
           return {'id': doc.id, ...data};
         }
       }
+      
+      if (kDebugMode) print('❌ No se encontraron duplicados cercanos');
       return null;
     } catch (e) {
       if (kDebugMode) {
@@ -679,6 +699,48 @@ class ReporteService {
         print('Error al incrementar contador de duplicados: $e');
       }
       rethrow;
+    }
+  }
+
+  // --- NUEVA FUNCIONALIDAD: Detección Visual con IA en el Backend ---
+  
+  Future<Map<String, dynamic>?> verificarDuplicadoVisual({
+    required double latitud,
+    required double longitud,
+    required String categoria,
+    required String imagenBase64,
+  }) async {
+    try {
+      if (kDebugMode) {
+        print('🚀 Llamando a Cloud Function: verificarDuplicadoVisual');
+      }
+
+      final HttpsCallable callable = FirebaseFunctions.instance.httpsCallable('verificarDuplicadoVisual');
+      
+      final response = await callable.call(<String, dynamic>{
+        'latitud': latitud,
+        'longitud': longitud,
+        'categoria': categoria,
+        'imagenBase64': imagenBase64,
+      });
+
+      if (response.data != null) {
+        if (response.data['esDuplicado'] == true) {
+          if (kDebugMode) {
+            print('✅ IA detectó duplicado visual: ${response.data['reporteOriginal']['folio']}');
+          }
+          return Map<String, dynamic>.from(response.data['reporteOriginal']);
+        }
+      }
+      
+      return null;
+    } catch (e) {
+      if (kDebugMode) {
+        print('❌ Error al llamar a Cloud Function: $e');
+      }
+      // Si falla la función (ej. por red o configuración), 
+      // retornamos null para permitir el flujo normal y no bloquear al usuario
+      return null;
     }
   }
 }

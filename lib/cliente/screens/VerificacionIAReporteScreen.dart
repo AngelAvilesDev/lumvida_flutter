@@ -804,44 +804,108 @@ class _VerificacionIAReporteScreenState extends State<VerificacionIAReporteScree
       ),
       child: Column(
         children: [
-          // Mensaje de advertencia si no se puede enviar
+          // Mensaje de advertencia o sugerencia de reclasificación
           if (!verificacionVM.canSubmitReport && !verificacionVM.analysisFailed)
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(16),
-              margin: const EdgeInsets.only(bottom: 16),
-              decoration: BoxDecoration(
-                color: Colors.red.shade50,
-                border: Border.all(color: Colors.red.shade200),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Icon(Icons.warning, color: Colors.red.shade600, size: 20),
-                      const SizedBox(width: 8),
-                      Text(
-                        'No se puede enviar el reporte',
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          color: Colors.red.shade700,
+            if (verificacionVM.detectedCategory.isNotEmpty &&
+                verificacionVM.detectedCategory != 'No es problema urbano' &&
+                verificacionVM.detectedCategory != 'No es un problema urbano válido' &&
+                verificacionVM.detectedCategory != verificacionVM.categoria)
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(16),
+                margin: const EdgeInsets.only(bottom: 16),
+                decoration: BoxDecoration(
+                  color: Colors.amber.shade50,
+                  border: Border.all(color: Colors.amber.shade300),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(Icons.lightbulb_outline, color: Colors.amber.shade800, size: 22),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'Sugerencia inteligente de Lumi',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              color: Colors.amber.shade900,
+                              fontSize: 15,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Lumi detectó que la imagen corresponde a "${verificacionVM.detectedCategory}" en lugar de "${verificacionVM.categoria}".',
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: Colors.amber.shade900,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton.icon(
+                        onPressed: () => verificacionVM.cambiarACategoriaDetectada(),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.amber.shade700,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 10),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                        icon: const Icon(Icons.check, size: 18),
+                        label: Text(
+                          'Cambiar a "${verificacionVM.detectedCategory}"',
+                          style: const TextStyle(fontWeight: FontWeight.w600),
                         ),
                       ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'La imagen no coincide con la categoría reportada. Por favor, revisa tu reporte y selecciona la categoría correcta o toma una nueva foto que corresponda al problema.',
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: Colors.red.shade600,
                     ),
-                  ),
-                ],
+                  ],
+                ),
+              )
+            else
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(16),
+                margin: const EdgeInsets.only(bottom: 16),
+                decoration: BoxDecoration(
+                  color: Colors.red.shade50,
+                  border: Border.all(color: Colors.red.shade200),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(Icons.warning, color: Colors.red.shade600, size: 20),
+                        const SizedBox(width: 8),
+                        Text(
+                          'No se puede enviar el reporte',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: Colors.red.shade700,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'La imagen no parece mostrar un problema urbano válido. Por favor toma una foto clara del daño que deseas reportar.',
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: Colors.red.shade600,
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ),
 
           // Botones de acción
           Row(

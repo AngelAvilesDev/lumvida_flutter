@@ -103,6 +103,19 @@ class VerificacionIAViewModel extends ChangeNotifier {
     notifyListeners();
   }
 
+  // (permitir al usuario aceptar la categoría identificada por la IA)
+  void cambiarACategoriaDetectada() {
+    if (_detectedCategory.isNotEmpty &&
+        _detectedCategory != 'No es problema urbano' &&
+        _detectedCategory != 'No es un problema urbano válido' &&
+        _detectedCategory != _categoria) {
+      _categoria = _detectedCategory;
+      _isCategoryMatch = true;
+      _canSubmitReport = true;
+      notifyListeners();
+    }
+  }
+
   // Analizar imágenes con IA - ACTUALIZADO PARA LATLNG
   Future<void> analizarImagenes() async {
     _isAnalyzing = true;

@@ -101,25 +101,25 @@ class OpenAIService {
         "messages": [
           {
             "role": "system",
-            "content": """Eres un analista de imágenes experto en problemas urbanos. Tu trabajo es verificar si una imagen coincide razonablemente con la categoría reportada por el ciudadano.
+            "content": """Eres un analista de imágenes experto en problemas urbanos para una plataforma de servicios públicos municipales. Tu trabajo es clasificar con precisión estricta las imágenes que envían los ciudadanos.
 
-CATEGORÍAS VÁLIDAS Y SUS CARACTERÍSTICAS:
-1. BACHEO: Hoyos en el pavimento, asfalto agrietado, hundimientos en calles, alcantarillas colapsadas o rotas que forman un hoyo peligroso.
-2. ALUMBRADO PÚBLICO: Postes de luz, luminarias, cables de alumbrado, lámparas de calle dañadas o apagadas.
-3. BASURA ACUMULADA: Desechos en vía pública, basureros desbordados, acumulación de residuos, escombros.
-4. DRENAJES OBSTRUIDOS: Alcantarillas o tapas de drenaje rotas, colapsadas o bloqueadas, agua estancada.
+CATEGORÍAS Y DEFINICIONES PRECISAS:
+1. BACHEO: Huecos, hoyos, hundimientos, grietas severas o desprendimientos en la carpeta asfáltica o pavimento de calles y avenidas. NO incluye coladeras, alcantarillas ni rejillas.
+2. DRENAJES OBSTRUIDOS: Tapas de alcantarilla o drenaje (rotas, abiertas o colapsadas), rejillas pluviales tapadas de basura/lodo, registros de drenaje expuestos o agua estancada por falta de desagüe pluvial/sanitario.
+3. ALUMBRADO PÚBLICO: Postes de luz, luminarias, cables aéreos dañados, lámparas apagadas, fotoceldas o brazos de lámpara averiados.
+4. BASURA ACUMULADA: Montones de desechos, escombros, bolsas de basura en banquetas/calles, tiraderos clandestinos o contenedores desbordados.
+5. NO ES PROBLEMA URBANO: Fotos de interiores, personas, selfies, mascotas, vehículos sin daño urbano, documentos o fotos de calles en perfecto estado.
 
-INSTRUCCIONES:
-- Responde con un JSON estrictamente con esta estructura:
+REGLAS DE EVALUACIÓN:
+- "detectedCategory": Identifica la categoría REAL que se aprecia en la imagen ("Bacheo", "Alumbrado Público", "Basura Acumulada", "Drenajes Obstruidos", o "No es problema urbano").
+- "isMatch": true ÚNICAMENTE si la categoría reportada por el usuario coincide con la "detectedCategory".
+- DIFERENCIACIÓN CRÍTICA: Si la imagen muestra una rejilla, coladera, alcantarilla o drenaje y el usuario reportó "Bacheo", DEBES marcar detectedCategory = "Drenajes Obstruidos" y isMatch = false.
+- Responde estrictamente con un JSON:
 {
   "isMatch": true o false,
   "detectedCategory": "Bacheo" | "Alumbrado Público" | "Basura Acumulada" | "Drenajes Obstruidos" | "No es problema urbano",
-  "reasoning": "Explicación breve en español de lo observado."
-}
-- "isMatch": true si la imagen muestra un daño urbano que encaja razonablemente con la categoría reportada.
-- TOLERANCIA ENTRE CATEGORÍAS SIMILARES: "Bacheo" y "Drenajes Obstruidos" se confunden visualmente (ej. drenaje colapsado = bache). Si el daño es real y cercano a lo reportado, acepta con isMatch = true.
-- RECHAZA SOLO si la imagen es claramente spam (selfies, objetos personales, mascotas, interiores de casas) o muestra una calle/lugar en perfecto estado sin ningún daño visible.
-- Ante cualquier duda con un daño urbano real: isMatch = true."""
+  "reasoning": "Explicación concisa y técnica en español de los elementos visuales observados."
+}"""
           },
           {
             "role": "user",
@@ -142,7 +142,7 @@ INSTRUCCIONES:
         "temperature": 0.0
       };
 
-      // Realizar la petición a la API
+      // (realizar la petición con timeout para evitar congelamiento de UI en conexiones lentas)
       final response = await http.post(
         url,
         headers: {
@@ -150,20 +150,18 @@ INSTRUCCIONES:
           'Authorization': 'Bearer $apiKey',
         },
         body: utf8.encode(jsonEncode(requestBody)),
-      );
+      ).timeout(const Duration(seconds: 15));
 
-      if (kDebugMode) {
-        print('OpenAI status code: ${response.statusCode}');
-      }
+      debugPrint('┌──────────────── 🤖 [OPENAI API LOG] ────────────────┐');
+      debugPrint('│ 📌 Categoría Solicitada: $requestedCategory');
+      debugPrint('│ 🌐 Status Code: ${response.statusCode}');
 
       if (response.statusCode == 200) {
         final String responseBody = utf8.decode(response.bodyBytes);
         final Map<String, dynamic> responseData = jsonDecode(responseBody);
         final String content = responseData['choices'][0]['message']['content'];
 
-        if (kDebugMode) {
-          print('Respuesta de OpenAI: $content');
-        }
+        debugPrint('│ 📄 JSON Recibido: $content');
 
         // Limpiar posibles bloques markdown
         String cleanJsonStr = content
@@ -177,10 +175,10 @@ INSTRUCCIONES:
           final String detectedCategory = jsonResponse['detectedCategory'] ?? 'No es problema urbano';
           final String reasoning = jsonResponse['reasoning'] ?? '';
 
-          if (kDebugMode) {
-            print('isMatch: $isMatch | detectedCategory: $detectedCategory');
-            print('reasoning: $reasoning');
-          }
+          debugPrint('│ ✅ isMatch: $isMatch');
+          debugPrint('│ 🏷️ detectedCategory: $detectedCategory');
+          debugPrint('│ 💡 Reasoning: $reasoning');
+          debugPrint('└─────────────────────────────────────────────────────┘');
 
           return {
             'success': true,

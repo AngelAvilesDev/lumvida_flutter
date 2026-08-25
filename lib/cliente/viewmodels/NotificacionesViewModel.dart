@@ -78,41 +78,46 @@ class NotificacionesViewModel extends ChangeNotifier {
       if (settings.authorizationStatus == AuthorizationStatus.authorized) {
         if (kDebugMode) print('Permiso concedido para notificaciones');
 
-        // 2. Obtener el token
-        // En iOS, necesitamos asegurarnos de que el token de APNS esté listo
+        // (obtener token de notificaciones con espera resiliente de APNS en iOS)
         if (defaultTargetPlatform == TargetPlatform.iOS) {
+          int retries = 0;
           String? apnsToken = await messaging.getAPNSToken();
-          if (apnsToken == null) {
-            if (kDebugMode) print('Esperando token APNS...');
-            // Reintentar un par de veces si es necesario
+          while (apnsToken == null && retries < 4) {
+            retries++;
+            // (esperar entrega asíncrona de token por parte del sistema iOS)
             await Future.delayed(const Duration(seconds: 2));
             apnsToken = await messaging.getAPNSToken();
           }
-          if (kDebugMode) print('APNS Token: $apnsToken');
+          if (apnsToken == null) {
+            if (kDebugMode) print('APNS token no disponible en este ciclo');
+            return;
+          }
         }
 
-        String? token = await messaging.getToken();
-        
-        if (token != null) {
-          if (kDebugMode) print('FCM Token: $token');
-          
-          // 3. Guardar en Firestore
-          await FirebaseFirestore.instance
-              .collection('usuarios')
-              .doc(userId)
-              .set({
-                'fcm_token': token,
-                'updatedAt': FieldValue.serverTimestamp(),
-              }, SetOptions(merge: true));
-              
-          await FirebaseFirestore.instance
-              .collection('tokens')
-              .doc(userId)
-              .set({
-                'token': token,
-                'userId': userId,
-                'updatedAt': FieldValue.serverTimestamp(),
-              }, SetOptions(merge: true));
+        try {
+          String? token = await messaging.getToken();
+          if (token != null) {
+            if (kDebugMode) print('FCM Token: $token');
+            // (persistir tokens de dispositivo en base de datos)
+            await FirebaseFirestore.instance
+                .collection('usuarios')
+                .doc(userId)
+                .set({
+                  'fcm_token': token,
+                  'updatedAt': FieldValue.serverTimestamp(),
+                }, SetOptions(merge: true));
+
+            await FirebaseFirestore.instance
+                .collection('tokens')
+                .doc(userId)
+                .set({
+                  'token': token,
+                  'userId': userId,
+                  'updatedAt': FieldValue.serverTimestamp(),
+                }, SetOptions(merge: true));
+          }
+        } catch (e) {
+          if (kDebugMode) print('Error al obtener FCM token: $e');
         }
       } else {
         if (kDebugMode) print('Permiso denegado para notificaciones');

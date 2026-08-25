@@ -12,8 +12,8 @@ class VerificacionIAReporteScreen extends StatefulWidget {
   final LatLng ubicacion; // CAMBIADO DE osm.GeoPoint
   final String direccion;
   final List<File> imagenes;
-  final Function onConfirm;
-  final Function onEdit;
+  final Function(String categoriaFinal) onConfirm;
+  final Function([String? nuevaCategoria]) onEdit;
 
   const VerificacionIAReporteScreen({
     Key? key,
@@ -850,7 +850,7 @@ class _VerificacionIAReporteScreenState extends State<VerificacionIAReporteScree
                     SizedBox(
                       width: double.infinity,
                       child: ElevatedButton.icon(
-                        onPressed: () => verificacionVM.cambiarACategoriaDetectada(),
+                        onPressed: () => widget.onEdit(verificacionVM.detectedCategory),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.amber.shade700,
                           foregroundColor: Colors.white,
@@ -859,9 +859,9 @@ class _VerificacionIAReporteScreenState extends State<VerificacionIAReporteScree
                             borderRadius: BorderRadius.circular(8),
                           ),
                         ),
-                        icon: const Icon(Icons.check, size: 18),
+                        icon: const Icon(Icons.edit_note, size: 18),
                         label: Text(
-                          'Cambiar a "${verificacionVM.detectedCategory}"',
+                          'Cambiar a "${verificacionVM.detectedCategory}" y ajustar detalles',
                           style: const TextStyle(fontWeight: FontWeight.w600),
                         ),
                       ),
@@ -936,7 +936,7 @@ class _VerificacionIAReporteScreenState extends State<VerificacionIAReporteScree
               Expanded(
                 child: ElevatedButton(
                   onPressed: verificacionVM.canSubmitReport
-                      ? () => widget.onConfirm()
+                      ? () => widget.onConfirm(verificacionVM.categoria)
                       : null,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: verificacionVM.canSubmitReport

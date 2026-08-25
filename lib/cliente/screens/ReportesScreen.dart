@@ -41,6 +41,7 @@ class _ReportesScreenState extends State<ReportesScreen> with TickerProviderStat
   // Variables para manejar sugerencias de IA
   bool _showAISuggestion = false;
   String _selectedCategory = '';
+  String? _categoriaModificadaPorIA;
 
   @override
   void initState() {
@@ -137,6 +138,9 @@ class _ReportesScreenState extends State<ReportesScreen> with TickerProviderStat
                               children: [
                                 // Sugerencia de IA (si aplicable)
                                 if (_showAISuggestion) _buildAISuggestionCard(),
+
+                                // Aviso de categoría actualizada por IA
+                                if (_categoriaModificadaPorIA != null) _buildCategoryUpdatedBanner(),
 
                                 // Header de categoría
                                 _buildCategoryHeader(category),
@@ -338,6 +342,74 @@ class _ReportesScreenState extends State<ReportesScreen> with TickerProviderStat
                 ),
               ),
             ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCategoryUpdatedBanner() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      margin: const EdgeInsets.only(bottom: 20),
+      decoration: BoxDecoration(
+        color: Colors.amber.shade50,
+        border: Border.all(color: Colors.amber.shade400, width: 1.5),
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.amber.withValues(alpha: .15),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: Colors.amber.shade100,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(Icons.info_outline, color: Colors.amber.shade900, size: 22),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Categoría actualizada a "$_selectedCategory"',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: Colors.amber.shade900,
+                    fontSize: 15,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Lumi detectó este problema en tu foto. Por favor selecciona el tipo de problema específico correspondiente y ajusta tus comentarios antes de continuar.',
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: Colors.amber.shade900,
+                    height: 1.3,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          IconButton(
+            icon: Icon(Icons.close, size: 18, color: Colors.amber.shade900),
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(),
+            onPressed: () {
+              setState(() {
+                _categoriaModificadaPorIA = null;
+              });
+            },
           ),
         ],
       ),
@@ -1144,10 +1216,18 @@ class _ReportesScreenState extends State<ReportesScreen> with TickerProviderStat
               ubicacion: _reportesViewModel.selectedLocation!,
               direccion: _reportesViewModel.addressText,
               imagenes: _reportesViewModel.selectedPhotos,
-              onConfirm: () => _submitReport(descripcion),
-              onEdit: () {
+              onConfirm: (categoriaFinal) => _submitReport(descripcion, categoriaFinal: categoriaFinal),
+              onEdit: ([String? nuevaCategoria]) {
                 if (mounted) {
                   Navigator.pop(context);
+                  if (nuevaCategoria != null && nuevaCategoria != _selectedCategory) {
+                    setState(() {
+                      _selectedCategory = nuevaCategoria;
+                      _categoriaModificadaPorIA = nuevaCategoria;
+                      _commentController.clear();
+                    });
+                    _reportesViewModel.setSelectedOption(null);
+                  }
                 }
               },
             ),
@@ -1254,8 +1334,15 @@ class _ReportesScreenState extends State<ReportesScreen> with TickerProviderStat
     );
   }
 
-  Future<void> _submitReport(String descripcion) async {
+  Future<void> _submitReport(String descripcion, {String? categoriaFinal}) async {
     if (!mounted) return;
+
+    final categoriaParaEnviar = categoriaFinal ?? _selectedCategory;
+    if (categoriaFinal != null && categoriaFinal != _selectedCategory) {
+      setState(() {
+        _selectedCategory = categoriaFinal;
+      });
+    }
 
     final authViewModel = Provider.of<AuthViewModel>(context, listen: false);
 
@@ -1265,7 +1352,7 @@ class _ReportesScreenState extends State<ReportesScreen> with TickerProviderStat
     try {
       final resultado = await _reportesViewModel.crearReporte(
         userId: authViewModel.user?.uid ?? 'anonymous',
-        categoria: _selectedCategory,
+        categoria: categoriaParaEnviar,
         descripcion: descripcion,
         nombreCompleto: authViewModel.nombreUsuario ?? 'Anónimo',
         telefono: authViewModel.telefono ?? '',
